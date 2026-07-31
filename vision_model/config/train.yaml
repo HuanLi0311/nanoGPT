@@ -1,0 +1,19 @@
+data:
+  train_dir: vision_model/data/train
+  validation_dir: vision_model/data/validation
+
+model:
+  # Use the local path after downloading the checkpoint, or keep the Hub ID.
+  name: google/siglip2-so400m-patch14-384
+
+training:
+  batch_size: 2
+  epochs: 5
+  learning_rate: 0.001
+  weight_decay: 0.01
+  num_workers: 0
+  device: auto
+  seed: 7
+
+checkpoint:
+  path: vision_model/checkpoints/siglip2_linear_probe.pt

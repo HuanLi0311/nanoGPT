@@ -1,0 +1,25 @@
+data:
+  corpus: language_model/data/corpus.txt
+  tokenizer_dir: language_model/tokenizer_model
+  tokenizer_prefix: byte_bpe
+  vocabulary_size: 3200
+  min_frequency: 1
+
+model:
+  activation: GeLU  # ReLU | GeLU | SiLU | SwiGLU
+  max_sequence_length: 16
+  hidden_size: 4096
+  heads: 8
+  blocks: 16
+
+training:
+  optimizer: AdamW  # AdamW | Muon
+  batch_size: 32
+  steps: 200
+  learning_rate: 0.003
+  maximum_gradient_norm: 1.0
+  log_every: 50
+  seed: 7
+
+checkpoint:
+  path: language_model/checkpoints/transformer.npz
