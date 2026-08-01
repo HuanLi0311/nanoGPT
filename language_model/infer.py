@@ -8,9 +8,10 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from .model.model import Transformer
-from .model.tokenizer import ByteLevelBPETokenizer, load_tokenizer, tokenizer_fingerprint
+from .model.embeddings.tokenizer import ByteLevelBPETokenizer, load_tokenizer, tokenizer_fingerprint
 
 
 def load_model(path: Path) -> tuple[Transformer, dict[str, object]]:
@@ -22,14 +23,14 @@ def load_model(path: Path) -> tuple[Transformer, dict[str, object]]:
     if not isinstance(model_config, dict):
         raise ValueError("Checkpoint metadata is missing the model configuration.")
     model = Transformer(seed=0, **model_config)
-    parameters = model.parameters()
     with np.load(path) as checkpoint:
-        if set(checkpoint.files) != set(parameters):
-            raise ValueError("Checkpoint parameters do not match the saved model configuration.")
-        for name, parameter in parameters.items():
-            if checkpoint[name].shape != parameter.shape:
-                raise ValueError(f"Checkpoint shape for {name} does not match the model.")
-            parameter[...] = checkpoint[name]
+        try:
+            model.load_state_dict(
+                {name: torch.from_numpy(checkpoint[name]) for name in checkpoint.files}
+            )
+        except RuntimeError as error:
+            raise ValueError("Checkpoint parameters do not match the saved model configuration.") from error
+    model.eval()
     return model, metadata
 
 
@@ -66,12 +67,14 @@ def generate(
         raise ValueError("Prompt must produce at least one token.")
     stop_id = tokenizer.get_vocab().get(stop_token)
     rng = np.random.default_rng(seed)
-    for _ in range(max_new_tokens):
-        logits, _ = model.forward(np.asarray(token_ids[-model.max_sequence_length :])[None])
-        next_token_id = sample_token(logits[0, -1], temperature, top_k, rng)
-        if next_token_id == stop_id:
-            break
-        token_ids.append(next_token_id)
+    with torch.inference_mode():
+        for _ in range(max_new_tokens):
+            inputs = torch.tensor(token_ids[-model.max_sequence_length :], dtype=torch.long)[None]
+            logits = model(inputs)
+            next_token_id = sample_token(logits[0, -1].cpu().numpy(), temperature, top_k, rng)
+            if next_token_id == stop_id:
+                break
+            token_ids.append(next_token_id)
     return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 
