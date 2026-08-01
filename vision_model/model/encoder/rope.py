@@ -9,17 +9,10 @@ from torch import Tensor, nn
 
 
 def _as_grid_size(grid_size: int | tuple[int, int]) -> tuple[int, int]:
-    """Normalize a square or rectangular patch grid to ``(height, width)``."""
+    """Return square or rectangular patch-grid dimensions."""
     if isinstance(grid_size, int):
-        grid_size = (grid_size, grid_size)
-    if len(grid_size) != 2 or min(grid_size) <= 0:
-        raise ValueError("grid_size must contain two positive dimensions.")
+        return grid_size, grid_size
     return int(grid_size[0]), int(grid_size[1])
-
-
-def _validate_head_dim(head_dim: int) -> None:
-    if head_dim <= 0 or head_dim % 4:
-        raise ValueError("head_dim must be positive and divisible by 4 for 2D RoPE.")
 
 
 def build_2d_rope_cache(
@@ -37,11 +30,6 @@ def build_2d_rope_cache(
     pairs, so a head dimension divisible by four is required.
     """
     height, width = _as_grid_size(grid_size)
-    _validate_head_dim(head_dim)
-    if theta <= 0:
-        raise ValueError("theta must be positive.")
-    if not torch.empty((), dtype=dtype).is_floating_point():
-        raise ValueError("dtype must be floating point.")
 
     axis_dim = head_dim // 2
     exponent = torch.arange(0, axis_dim, 2, device=device, dtype=torch.float32) / axis_dim
@@ -76,27 +64,10 @@ def apply_2d_rope(
     grid_size: int | tuple[int, int],
     theta: float = 10_000.0,
 ) -> tuple[Tensor, Tensor]:
-    """Rotate query and key tensors with the same patch-grid coordinates.
-
-    ``query`` and ``key`` have shape ``[batch, heads, patches, head_dim]``.
-    Patches are interpreted in row-major ``grid_size`` order.
-    """
-    if query.shape != key.shape or query.ndim != 4:
-        raise ValueError("query and key must have shape [B, heads, tokens, head_dim].")
-    if not query.is_floating_point() or not key.is_floating_point():
-        raise ValueError("query and key must use floating-point tensors.")
-    if query.device != key.device or query.dtype != key.dtype:
-        raise ValueError("query and key must use the same device and dtype.")
-    height, width = _as_grid_size(grid_size)
-    _validate_head_dim(query.shape[-1])
-    expected_tokens = height * width
-    if query.shape[-2] != expected_tokens:
-        raise ValueError(
-            f"patch count must be {expected_tokens} for grid {height}x{width}."
-        )
+    """Apply the same two-dimensional rotary positions to query and key."""
 
     cosine, sine = build_2d_rope_cache(
-        (height, width),
+        grid_size,
         query.shape[-1],
         theta,
         device=query.device,
@@ -110,9 +81,6 @@ class RotaryEmbedding2D(nn.Module):
 
     def __init__(self, head_dim: int, theta: float = 10_000.0) -> None:
         super().__init__()
-        _validate_head_dim(head_dim)
-        if theta <= 0:
-            raise ValueError("theta must be positive.")
         self.head_dim = head_dim
         self.theta = theta
 
@@ -122,8 +90,6 @@ class RotaryEmbedding2D(nn.Module):
         key: Tensor,
         grid_size: int | tuple[int, int],
     ) -> tuple[Tensor, Tensor]:
-        if query.shape[-1] != self.head_dim:
-            raise ValueError("query head dimension does not match the RoPE configuration.")
         return apply_2d_rope(
             query,
             key,

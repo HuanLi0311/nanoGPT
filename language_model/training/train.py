@@ -7,12 +7,13 @@ import json
 from pathlib import Path
 
 import numpy as np
+import torch
+from torch.nn import functional as F
 
 from ..model.model import Transformer
-from ..model.tokenizer import file_digest, load_tokenizer, tokenizer_fingerprint
+from ..model.embeddings.tokenizer import file_digest, load_tokenizer, tokenizer_fingerprint
 from ..settings import load_settings
-from .loss import cross_entropy
-from .optimizer import Optimizer, clip_gradients
+from .optimizer import Optimizer
 
 
 def random_batch(
@@ -30,7 +31,11 @@ def random_batch(
 
 def save_model(model: Transformer, path: Path, metadata: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path, **model.parameters())
+    parameters = {
+        name: parameter.detach().cpu().numpy()
+        for name, parameter in model.named_parameters()
+    }
+    np.savez_compressed(path, **parameters)
     path.with_suffix(".json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8"
     )
@@ -51,23 +56,12 @@ def main() -> None:
     corpus_path = Path(data["corpus"])
     if not corpus_path.is_file():
         raise ValueError(f"Corpus file does not exist: {corpus_path}")
-    dimensions = (
-        model_config["max_sequence_length"],
-        model_config["hidden_size"],
-        model_config["heads"],
-        model_config["blocks"],
-        training["batch_size"],
-        training["steps"],
-    )
-    if min(dimensions) <= 0:
-        raise ValueError("Model dimensions, batch_size, and steps must be positive.")
-    if training["maximum_gradient_norm"] <= 0 or training["log_every"] <= 0:
-        raise ValueError("maximum_gradient_norm and log_every must be positive.")
-
     tokenizer = load_tokenizer(Path(data["tokenizer_dir"]), data["tokenizer_prefix"])
     if tokenizer.get_vocab_size() != data["vocabulary_size"]:
         raise ValueError("Configured vocabulary_size does not match the trained tokenizer.")
-    token_ids = np.asarray(tokenizer.encode(corpus_path.read_text(encoding="utf-8")).ids, dtype=np.int64)
+    token_ids = np.asarray(
+        tokenizer.encode(corpus_path.read_text(encoding="utf-8")).ids, dtype=np.int64
+    )
     model = Transformer(
         tokenizer.get_vocab_size(),
         model_config["max_sequence_length"],
@@ -75,26 +69,31 @@ def main() -> None:
         model_config["heads"],
         model_config["blocks"],
         training["seed"],
-        model_config["activation"],
     )
     optimizer = Optimizer(model.parameters(), training["learning_rate"])
     rng = np.random.default_rng(training["seed"] + 100)
-
     print(f"Corpus tokens: {len(token_ids)}")
-    print(f"Model parameters: {model.parameter_count}")
+
     for step in range(1, training["steps"] + 1):
         inputs, targets = random_batch(
             token_ids, model.max_sequence_length, training["batch_size"], rng
         )
-        logits, cache = model.forward(inputs)
-        loss, logits_gradient = cross_entropy(logits, targets)
-        gradients = model.backward(cache, logits_gradient)
-        gradient_norm = clip_gradients(gradients, training["maximum_gradient_norm"])
-        optimizer.step(gradients, training["optimizer"])
+        inputs = torch.from_numpy(inputs)
+        targets = torch.from_numpy(targets)
+        optimizer.zero_grad()
+        logits = model(inputs)
+        loss = F.cross_entropy(logits.reshape(-1, logits.shape[-1]), targets.reshape(-1))
+        loss.backward()
+        gradient_norm = float(
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(), training["maximum_gradient_norm"]
+            )
+        )
+        optimizer.step(training["optimizer"])
         if step == 1 or step % training["log_every"] == 0 or step == training["steps"]:
             print(
                 f"step {step:5d}/{training['steps']}: "
-                f"loss={loss:.6f} grad_norm={gradient_norm:.4f}"
+                f"loss={loss.item():.6f} grad_norm={gradient_norm:.4f}"
             )
 
     output_path = Path(checkpoint["path"])
@@ -111,7 +110,6 @@ def main() -> None:
         },
     )
     print(f"Saved model: {output_path}")
-
 
 if __name__ == "__main__":
     main()

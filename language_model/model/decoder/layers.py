@@ -1,108 +1,43 @@
-"""Small NumPy operations shared by the Transformer passes."""
+"""Feed-forward layer used by each decoder block."""
 
 from __future__ import annotations
 
-import numpy as np
+import math
+
+from .attention import CausalSelfAttention
+from torch import Tensor, nn
+from torch.nn import functional as F
 
 
-def flatten(values: np.ndarray) -> np.ndarray:
-    return values.reshape(-1, values.shape[-1])
+class FeedForward(nn.Module):
+    def __init__(self, hidden_size: int, dropout: float = 0.0) -> None:
+        super().__init__()
+        intermediate_size = 4 * hidden_size
+        self.hidden_size = hidden_size
+        self.up_proj = nn.Linear(hidden_size, intermediate_size)
+        self.down_proj = nn.Linear(intermediate_size, hidden_size)
+        self.dropout = nn.Dropout(dropout)
 
+        scale = 1.0 / math.sqrt(hidden_size)
+        for layer in (self.up_proj, self.down_proj):
+            nn.init.normal_(layer.weight, mean=0.0, std=scale)
+            nn.init.zeros_(layer.bias)
 
-def layer_norm(values: np.ndarray) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-    centered = values - values.mean(axis=-1, keepdims=True)
-    inverse_std = 1.0 / np.sqrt((centered**2).mean(axis=-1, keepdims=True) + 1e-5)
-    normalized = centered * inverse_std
-    return normalized, (normalized, inverse_std)
+    def forward(self, hidden_states: Tensor) -> Tensor:
+        intermediate = self.up_proj(hidden_states)
+        intermediate = F.silu(intermediate)
+        return self.dropout(self.down_proj(intermediate))
 
+class DecoderBlock(nn.Module):
+    def __init__(self, hidden_size: int, heads: int, dropout: float = 0.0) -> None:
+        super().__init__()
+        self.attn_norm = nn.LayerNorm(hidden_size)
+        self.attn = CausalSelfAttention(hidden_size, heads, dropout)
+        self.mlp_norm = nn.LayerNorm(hidden_size)
+        self.mlp = FeedForward(hidden_size, dropout)
 
-def layer_norm_backward(gradient: np.ndarray, cache: tuple[np.ndarray, np.ndarray]) -> np.ndarray:
-    normalized, inverse_std = cache
-    dimension = gradient.shape[-1]
-    return inverse_std / dimension * (
-        dimension * gradient
-        - gradient.sum(axis=-1, keepdims=True)
-        - normalized * (gradient * normalized).sum(axis=-1, keepdims=True)
-    )
+    def forward(self, hidden_states: Tensor) -> Tensor:
+        hidden_states = hidden_states + self.attn(self.attn_norm(hidden_states))
+        hidden_states = hidden_states + self.mlp(self.mlp_norm(hidden_states))
 
-
-def gelu(values: np.ndarray) -> np.ndarray:
-    return 0.5 * values * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) * (values + 0.044715 * values**3)))
-
-
-def gelu_backward(gradient: np.ndarray, values: np.ndarray) -> np.ndarray:
-    coefficient = np.sqrt(2.0 / np.pi)
-    inner = coefficient * (values + 0.044715 * values**3)
-    tanh_inner = np.tanh(inner)
-    derivative = 0.5 * (1.0 + tanh_inner) + 0.5 * values * (1.0 - tanh_inner**2) * coefficient * (
-        1.0 + 0.134145 * values**2
-    )
-    return gradient * derivative
-
-
-class Activation:
-    """The activation options exposed by train.yaml."""
-
-    names = {"ReLU", "GeLU", "SiLU", "SwiGLU"}
-
-    @staticmethod
-    def ReLU(values: np.ndarray) -> np.ndarray:
-        return np.maximum(values, 0.0)
-
-    @staticmethod
-    def GeLU(values: np.ndarray) -> np.ndarray:
-        return gelu(values)
-
-    @staticmethod
-    def _sigmoid(values: np.ndarray) -> np.ndarray:
-        dtype = values.dtype if np.issubdtype(values.dtype, np.floating) else np.float32
-        result = np.empty_like(values, dtype=dtype)
-        positive = values >= 0
-        result[positive] = 1.0 / (1.0 + np.exp(-values[positive]))
-        exponentials = np.exp(values[~positive])
-        result[~positive] = exponentials / (1.0 + exponentials)
-        return result
-
-    @staticmethod
-    def SiLU(values: np.ndarray) -> np.ndarray:
-        return values * Activation._sigmoid(values)
-
-    @staticmethod
-    def SwiGLU(values: np.ndarray) -> np.ndarray:
-        if values.shape[-1] % 2:
-            raise ValueError("SwiGLU requires an even-sized last dimension.")
-        gate, linear = np.split(values, 2, axis=-1)
-        return Activation.SiLU(gate) * linear
-
-    @classmethod
-    def projection_size(cls, hidden_size: int, name: str) -> int:
-        if name not in cls.names:
-            raise ValueError(f"Unknown activation: {name}")
-        return 2 * hidden_size if name == "SwiGLU" else hidden_size
-
-    @classmethod
-    def forward(cls, values: np.ndarray, name: str) -> np.ndarray:
-        if name not in cls.names:
-            raise ValueError(f"Unknown activation: {name}")
-        return getattr(cls, name)(values)
-
-    @classmethod
-    def backward(cls, gradient: np.ndarray, values: np.ndarray, name: str) -> np.ndarray:
-        if name == "ReLU":
-            return gradient * (values > 0)
-        if name == "GeLU":
-            return gelu_backward(gradient, values)
-        if name == "SiLU":
-            sigmoid = cls._sigmoid(values)
-            return gradient * (sigmoid + values * sigmoid * (1.0 - sigmoid))
-        if name == "SwiGLU":
-            gate, linear = np.split(values, 2, axis=-1)
-            sigmoid = cls._sigmoid(gate)
-            gate_gradient = gradient * linear * (sigmoid + gate * sigmoid * (1.0 - sigmoid))
-            return np.concatenate((gate_gradient, gradient * gate * sigmoid), axis=-1)
-        raise ValueError(f"Unknown activation: {name}")
-
-
-def softmax(values: np.ndarray) -> np.ndarray:
-    exponentials = np.exp(values - values.max(axis=-1, keepdims=True))
-    return exponentials / exponentials.sum(axis=-1, keepdims=True)
+        return hidden_states

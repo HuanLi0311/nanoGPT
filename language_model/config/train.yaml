@@ -6,11 +6,11 @@ data:
   min_frequency: 1
 
 model:
-  activation: GeLU  # ReLU | GeLU | SiLU | SwiGLU
   max_sequence_length: 16
   hidden_size: 4096
   heads: 8
   blocks: 16
+  dropout: 0.1
 
 training:
   optimizer: AdamW  # AdamW | Muon

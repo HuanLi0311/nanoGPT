@@ -7,7 +7,7 @@ from torch import nn
 
 
 class PatchTokenizer(nn.Module):
-    """Patchify images and learn a projection for each flattened patch."""
+    """Patchify images and learn a up_proj for each flattened patch."""
 
     def __init__(
         self,
@@ -27,12 +27,10 @@ class PatchTokenizer(nn.Module):
         self.channels = channels
         self.grid_size = image_size // patch_size
         self.num_patches = self.grid_size**2
-        self.projection = nn.Linear(channels * patch_size**2, hidden_size)
+        self.up_proj = nn.Linear(channels * patch_size**2, hidden_size)
 
     def patchify(self, images: torch.Tensor) -> torch.Tensor:
         """Return flattened patches with shape [batch, num_patches, channels * patch_area]."""
-        if images.ndim != 4:
-            raise ValueError("images must have shape [B, C, H, W].")
         batch_size, channels, height, width = images.shape
         if (channels, height, width) != (self.channels, self.image_size, self.image_size):
             raise ValueError("images do not match the configured channel count and image size.")
@@ -44,4 +42,4 @@ class PatchTokenizer(nn.Module):
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Return continuous vision tokens with shape [batch, num_patches, hidden_size]."""
-        return self.projection(self.patchify(images))
+        return self.up_proj(self.patchify(images))

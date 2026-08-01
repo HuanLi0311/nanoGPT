@@ -1,15 +1,8 @@
-"""Token embedding lookup and its scatter-add gradient."""
+"""Token embedding lookup."""
 
-import numpy as np
-
-
-def embedding(table: np.ndarray, token_ids: np.ndarray) -> np.ndarray:
-    return table[token_ids]
+from torch import Tensor
 
 
-def embedding_backward(
-    table: np.ndarray, token_ids: np.ndarray, gradient: np.ndarray
-) -> np.ndarray:
-    table_gradient = np.zeros_like(table)
-    np.add.at(table_gradient, token_ids, gradient)
-    return table_gradient
+def embedding(token_embedding: Tensor, token_ids: Tensor) -> Tensor:
+    hidden_states = token_embedding[token_ids]
+    return hidden_states
