@@ -141,41 +141,48 @@ python -m language_model.infer \
 
 checkpoint、原始数据和编码分片都被 `.gitignore` 排除。克隆仓库不会下载数 GB 的语料或权重；请使用自己的数据、保存自己的实验产物，并保留 tokenizer 与 metadata，二者同样是模型的一部分。
 
-## 视觉支线：同样的可读性原则
+## 视觉模型：两条可运行的 ViT 路径
 
-`vision_model/` 是一条独立的视觉实验路径，不是语言模型训练的依赖。它展示同一个原则如何用于 ViT：
-
-```text
-ImageFolder
-  -> Hugging Face image processor
-  -> frozen pretrained vision backbone
-  -> mean pool patch tokens
-  -> one LinearProbe
-  -> class probabilities
-```
-
-代码中同时保留了可阅读的 ViT 教学部件和预训练骨干的线性探针封装：
-
-- `model/tokenizer.py`：图像切块与连续 patch embedding；
-- `model/encoder/rope.py`：二维 RoPE；
-- `model/encoder/attention.py`、`layers.py`、`backbone.py`：显式 ViT 结构；
-- `model/heads/classification.py`：均值池化后的一层线性分类头；
-- `training/optimizer.py`：只为 probe 构造 AdamW；
-- `config/train.yaml`：ImageFolder 目录、SigLIP2 骨干、训练参数和 checkpoint 路径。
-
-视觉数据目录遵循 `torchvision.datasets.ImageFolder` 的标准布局：
+`vision_model/` 与语言模型独立，提供从随机初始化到预训练微调的两个分类工作流：
 
 ```text
-vision_model/data/
-  train/
-    class_a/
-    class_b/
-  validation/
-    class_a/
-    class_b/
+Imagenette ImageFolder
+  -> 标准 ViT: patch embedding + class token + learned position + Transformer blocks
+  -> 从头训练 checkpoint
+
+Imagenette ImageFolder
+  -> Hugging Face ViT Base + ClassificationHead
+  -> full fine-tune checkpoint
 ```
 
-这条支线目前只定义线性探针训练；`vision_model/scripts/finetune.py` 和对应配置仍为空，不应被理解为全量视觉微调已经完成。
+`model/encoder/backbone.py` 同时承载两个明确边界：`VisionTransformer` 是从头训练的标准 ViT；`PretrainedVisionBackbone` 只负责加载 Hugging Face 视觉模型并返回 pooled 特征，供 `finetune.py` 全量微调。二者复用同一个短分类头、AdamW 参数分组、训练循环和推理入口，但不共享隐藏的训练框架。
+
+默认数据集是 100 张 Imagenette 图像组成的 10 类 ImageNet 子集。数据脚本通过 HF 镜像下载归档，并固定每类 8 张训练、2 张验证：
+
+```bash
+./vision_model/scripts/prepare_data.sh
+./vision_model/scripts/train.sh
+./vision_model/scripts/infer.sh \
+  --checkpoint vision_model/checkpoints/vit_imagenette.pt \
+  --image vision_model/data/imagenette_100/val/0/8.jpg
+```
+
+预训练微调脚本设置 `HF_ENDPOINT=https://hf-mirror.com`、禁用 Xet，并只下载 `config.json`、image processor 与 `model.safetensors`：
+
+```bash
+./vision_model/scripts/finetune.sh
+./vision_model/scripts/infer.sh \
+  --checkpoint vision_model/checkpoints/vit_base_imagenette_finetune.pt \
+  --image vision_model/data/imagenette_100/val/0/8.jpg
+```
+
+`train.yaml` 控制从头 ViT 的图像尺寸、patch、宽度、层数和 checkpoint；`finetune.yaml` 控制本地预训练模型、是否冻结骨干、学习率和 checkpoint。两份配置均使用标准 `ImageFolder` 结构：
+
+```text
+vision_model/data/imagenette_100/
+  train/0/ ... train/9/
+  val/0/   ... val/9/
+```
 
 ## 安装
 
@@ -206,8 +213,7 @@ python -m language_model.infer --help
 
 - 预训练和 SFT 入口仍引用了不存在的顶层 `training` 导入，需统一到 `language_model/training/` 的实际 API；
 - 预训练 checkpoint 写入格式与推理端要求的 `safetensors` 路径需要统一；
-- 视觉训练/推理入口依赖尚未落盘的 `vision_model.settings`，本地安装依赖后还需补齐这层配置接线；
-- RL 与视觉全量微调仍是空占位，不是“已支持但未文档化”的功能。
+- RL 仍是空占位，不是“已支持但未文档化”的功能。
 
 这些边界写在这里，是为了让下一位贡献者从真实状态出发：先让一条小链路通过，再扩大数据、模型或训练规模。
 
@@ -223,10 +229,10 @@ python -m language_model.infer --help
 │   ├── tokenizer_model/
 │   └── infer.py
 ├── vision_model/
-│   ├── config/       # 线性探针配置
-│   ├── model/        # patch tokenizer、2D RoPE、ViT、分类头
-│   ├── scripts/
-│   ├── training/
+│   ├── config/       # from-scratch / fine-tune 配置
+│   ├── model/        # patch tokenizer、ViT、HF backbone、分类头
+│   ├── scripts/      # 下载、训练、微调、推理
+│   ├── training/     # ImageFolder、loop、loss、optimizer
 │   └── infer.py
 ├── requirements.txt
 └── LICENSE
