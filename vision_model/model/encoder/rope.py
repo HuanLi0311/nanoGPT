@@ -23,12 +23,7 @@ def build_2d_rope_cache(
     device: torch.device | None = None,
     dtype: torch.dtype = torch.float32,
 ) -> tuple[Tensor, Tensor]:
-    """Build cosine and sine tables for a row-major patch grid.
 
-    Half of each attention head is assigned to row coordinates and the other
-    half to column coordinates.  Each axis uses the usual interleaved rotary
-    pairs, so a head dimension divisible by four is required.
-    """
     height, width = _as_grid_size(grid_size)
 
     axis_dim = head_dim // 2
@@ -58,7 +53,7 @@ def _rotate_pairs(values: Tensor, cosine: Tensor, sine: Tensor) -> Tensor:
     return rotated
 
 
-def apply_2d_rope(
+def rope_2d(
     query: Tensor,
     key: Tensor,
     grid_size: int | tuple[int, int],
@@ -77,7 +72,7 @@ def apply_2d_rope(
 
 
 class RotaryEmbedding2D(nn.Module):
-    """Reusable module wrapper around :func:`apply_2d_rope`."""
+    """Reusable module wrapper around :func:`2d_rope`."""
 
     def __init__(self, head_dim: int, theta: float = 10_000.0) -> None:
         super().__init__()
@@ -86,13 +81,9 @@ class RotaryEmbedding2D(nn.Module):
 
     def forward(
         self,
-        query: Tensor,
-        key: Tensor,
+        q: Tensor,
+        k: Tensor,
         grid_size: int | tuple[int, int],
     ) -> tuple[Tensor, Tensor]:
-        return apply_2d_rope(
-            query,
-            key,
-            grid_size,
-            theta=self.theta,
-        )
+        q, k = rope_2d(q, k, grid_size, theta=self.theta)
+        return q, k

@@ -75,26 +75,16 @@ class VisionTransformer(nn.Module):
         return self.output_norm(hidden_states)
 
 
-def _vision_hidden_size(config: Any) -> int:
-    """Read a vision width from common Hugging Face configuration layouts."""
+def _vision_hidden_size(config):
     candidates = (getattr(config, "vision_config", None), config)
     for candidate in candidates:
         hidden_size = getattr(candidate, "hidden_size", None)
-        if isinstance(hidden_size, int) and hidden_size > 0:
-            return hidden_size
-    raise ValueError("The pretrained checkpoint does not expose a vision hidden_size.")
-
 
 class PretrainedVisionBackbone(nn.Module):
     """Load a Hugging Face vision encoder and keep it frozen for a linear probe."""
 
     def __init__(self, model_name: str, revision: str | None = None) -> None:
         super().__init__()
-        if not model_name:
-            raise ValueError("model_name cannot be empty.")
-
-        from transformers import AutoConfig, AutoModel
-
         model_kwargs = {} if revision is None else {"revision": revision}
         checkpoint_config = AutoConfig.from_pretrained(model_name, **model_kwargs)
         if checkpoint_config.model_type == "siglip":
@@ -138,15 +128,9 @@ class PretrainedVisionBackbone(nn.Module):
         if tokens is not None:
             if tokens.ndim == 2:
                 tokens = tokens.unsqueeze(1)
-            if tokens.ndim != 3:
-                raise ValueError("The vision encoder must return [B, tokens, hidden] features.")
             return tokens
 
         pooled = getattr(outputs, "pooler_output", None)
         if pooled is None:
             pooled = getattr(outputs, "image_embeds", None)
-        if pooled is None:
-            raise ValueError("The pretrained checkpoint returned no usable vision features.")
-        if pooled.ndim != 2:
-            raise ValueError("Pooled vision features must have shape [B, hidden].")
         return pooled.unsqueeze(1)

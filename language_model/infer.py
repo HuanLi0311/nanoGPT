@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import yaml
 from safetensors.torch import load_file
 
 from .model.model import Transformer
@@ -59,8 +60,6 @@ def generate(
     return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 
-def infer(prompt: str) -> str:
-    model = load_model(Path("language_model/checkpoints/transformer.safetensors"))
-    tokenizer = load_tokenizer(Path("language_model/data/encode/pretrain"), "byte_bpe")
-    outputs = generate(model, tokenizer, prompt)
-    return outputs
+def infer(prompt: str, config_path: Path = Path("language_model/config/sft.yaml")) -> str:
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    return generate(load_model(Path(config["checkpoint"]["path"])), load_tokenizer(Path(config["data"]["tokenizer_dir"]), config["data"]["tokenizer_prefix"]), prompt)

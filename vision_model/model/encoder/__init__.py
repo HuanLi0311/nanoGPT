@@ -3,7 +3,7 @@
 from .attention import MultiHeadSelfAttention
 from .backbone import PretrainedVisionBackbone, VisionTransformer, VisionTransformerConfig
 from .layers import FeedForward, TransformerBlock
-from .rope import RotaryEmbedding2D, apply_2d_rope, build_2d_rope_cache
+from .rope import RotaryEmbedding2D, 2d_rope, build_2d_rope_cache
 
 __all__ = [
     "FeedForward",
@@ -13,6 +13,6 @@ __all__ = [
     "TransformerBlock",
     "VisionTransformer",
     "VisionTransformerConfig",
-    "apply_2d_rope",
+    "2d_rope",
     "build_2d_rope_cache",
 ]

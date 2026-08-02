@@ -6,7 +6,8 @@ import torch
 from torch import Tensor
 
 
-def rope(query: Tensor, key: Tensor, theta: float = 10_000.0) -> tuple[Tensor, Tensor]:
+def rope(
+query: Tensor, key: Tensor, theta: float = 10_000.0) -> tuple[Tensor, Tensor]:
     token_count, head_dim = query.shape[-2:]
     positions = torch.arange(token_count, device=query.device, dtype=query.dtype)
     frequencies = theta ** (-torch.arange(0, head_dim, 2, device=query.device, dtype=query.dtype) / head_dim)

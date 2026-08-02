@@ -1,12 +1,11 @@
 data:
   raw_dir: language_model/data/raw/sft/data
   encoded_dir: language_model/data/encode/sft
-  tokenizer_dir: language_model/data/encode/pretrain
+  tokenizer_dir: language_model/checkpoints/tokenizer_model_3200
   tokenizer_prefix: byte_bpe
   shard_tokens: 100000000
 
 training:
-  optimizer: muon
   batch_size: 4
   steps: 1000
   learning_rate: 0.00005

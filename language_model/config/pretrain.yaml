@@ -1,11 +1,10 @@
 data:
-  raw_dir: language_model/data/raw
-  encoded_dir: language_model/data/encode
-  tokenizer_dir: language_model/tokenizer_model
+  raw_dir: language_model/data/raw/pretrain
+  encoded_dir: language_model/data/encode/pretrain
+  tokenizer_dir: language_model/data/encode/pretrain
   tokenizer_prefix: byte_bpe
   vocabulary_size: 3200
   eos_token: "<|eos|>"
-  min_frequency: 2
   shard_tokens: 100000000
 
 model:
@@ -16,8 +15,6 @@ model:
   dropout: 0.1
 
 training:
-  optimizer: muon
-  epoch: 1
   batch_size: 4
   steps: 2000
   learning_rate: 0.0003

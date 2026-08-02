@@ -13,6 +13,7 @@ def split_heads(self, values: Tensor) -> Tensor:
     batch_size, token_count, _ = values.shape
     return values.view(batch_size, token_count, self.heads, self.head_dim).transpose(1, 2)
 
+
 def merge_heads(self, values: Tensor) -> Tensor:
     batch_size, _, token_count, _ = values.shape
     return values.transpose(1, 2).contiguous().view(batch_size, token_count, self.hidden_size)
