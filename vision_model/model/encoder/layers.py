@@ -12,7 +12,6 @@ class FeedForward(nn.Module):
 
     def __init__(self, hidden_size: int, mlp_ratio: float = 4.0, dropout: float = 0.0) -> None:
         super().__init__()
-
         intermediate_size = max(1, int(hidden_size * mlp_ratio))
         self.input_up_proj = nn.Linear(hidden_size, intermediate_size)
         self.activation = nn.GELU()
@@ -57,5 +56,4 @@ class EncoderBlock(nn.Module):
     ) -> Tensor:
         hidden_states = hidden_states + self.attn(self.norm(hidden_states), grid_size)
         hidden_states = hidden_states + self.mlp(self.norm(hidden_states))
-
         return hidden_states
