@@ -7,7 +7,7 @@ from torch import Tensor, nn
 
 from .decoder.layers import DecoderBlock
 from .decoder.lm_head import LMHead
-from .embeddings.embedding import embedding
+from .tokenizer import embedding
 
 
 class Transformer(nn.Module):

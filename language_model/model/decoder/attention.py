@@ -21,10 +21,13 @@ def merge_heads(values: Tensor) -> Tensor:
     return values.transpose(1, 2).contiguous().view(batch_size, token_count, -1)
 
 
+####################################################################################
+#                           Multi-Head Self-Attention                              #
+####################################################################################
+
 class CausalSelfAttention(nn.Module):
     def __init__(self, hidden_size: int, heads: int, dropout: float = 0.0) -> None:
         super().__init__()
-
         self.hidden_size = hidden_size
         self.heads = heads
         self.head_dim = hidden_size // heads
@@ -43,8 +46,7 @@ class CausalSelfAttention(nn.Module):
         k = split_heads(k, self.heads)
         v = split_heads(v, self.heads)
         q, k = rope(q, k)
-        # return self.dropout(self.output_proj(merge_heads(F.scaled_dot_product_attention(q, k, v, is_causal=True))))
         output = F.scaled_dot_product_attention(q, k, v, is_causal=True)
         output = self.output_proj(merge_heads(output))
-        output = self.dropout(self.output_proj(merge_heads(output)))
+        output = self.dropout(output)
         return output
