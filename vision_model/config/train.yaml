@@ -1,19 +1,25 @@
 data:
-  train_dir: vision_model/data/train
-  validation_dir: vision_model/data/validation
+  train_dir: vision_model/data/imagenette_100/train
+  validation_dir: vision_model/data/imagenette_100/val
 
 model:
-  # Use the local path after downloading the checkpoint, or keep the Hub ID.
-  name: google/siglip2-so400m-patch14-384
+  image_size: 160
+  patch_size: 16
+  channels: 3
+  hidden_size: 192
+  heads: 3
+  blocks: 4
+  mlp_ratio: 4.0
+  dropout: 0.1
 
 training:
-  batch_size: 2
-  epochs: 5
-  learning_rate: 0.001
-  weight_decay: 0.01
-  num_workers: 0
+  batch_size: 128
+  epochs: 1
+  learning_rate: 0.0003
+  weight_decay: 0.05
+  num_workers: 4
   device: auto
   seed: 7
 
 checkpoint:
-  path: vision_model/checkpoints/siglip2_linear_probe.pt
+  path: vision_model/checkpoints/vit_imagenette.pt

@@ -1,5 +1,5 @@
-"""Task heads for the vision teaching framework."""
+"""Vision task heads."""
 
-from .classification import LinearProbe
+from .classification import ClassificationHead
 
-__all__ = ["LinearProbe"]
+__all__ = ["ClassificationHead"]

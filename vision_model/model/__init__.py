@@ -1,11 +1,11 @@
-"""Public model API."""
+"""Public vision-model API."""
 
 from .encoder import PretrainedVisionBackbone, VisionTransformer, VisionTransformerConfig
-from .heads import LinearProbe
+from .heads import ClassificationHead
 from .tokenizer import PatchTokenizer
 
 __all__ = [
-    "LinearProbe",
+    "ClassificationHead",
     "PatchTokenizer",
     "PretrainedVisionBackbone",
     "VisionTransformer",

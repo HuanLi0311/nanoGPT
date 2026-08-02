@@ -1,10 +1,10 @@
-"""Vision Transformer backbones for teaching and linear probing."""
+"""From-scratch ViT and Hugging Face visual backbones."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
+import torch
 from torch import Tensor, nn
 
 from ..tokenizer import PatchTokenizer
@@ -13,124 +13,69 @@ from .layers import TransformerBlock
 
 @dataclass(frozen=True)
 class VisionTransformerConfig:
-    """Dimensions for the compact ViT implemented in this repository."""
-
     image_size: int = 224
     patch_size: int = 16
     channels: int = 3
-    hidden_size: int = 768
-    heads: int = 12
-    blocks: int = 12
+    hidden_size: int = 384
+    heads: int = 6
+    blocks: int = 6
     mlp_ratio: float = 4.0
-    dropout: float = 0.0
-    attention_dropout: float = 0.0
-    theta: float = 10_000.0
-
-    def __post_init__(self) -> None:
-        dimensions = (
-            self.image_size,
-            self.patch_size,
-            self.channels,
-            self.hidden_size,
-            self.heads,
-            self.blocks,
-        )
+    dropout: float = 0.1
 
 
 class VisionTransformer(nn.Module):
-    """A small encoder-only ViT whose attention equations remain inspectable."""
+    """A standard class-token ViT trained from random initialization."""
 
     def __init__(self, config: VisionTransformerConfig) -> None:
         super().__init__()
         self.config = config
         self.tokenizer = PatchTokenizer(
-            image_size=config.image_size,
-            patch_size=config.patch_size,
-            channels=config.channels,
-            hidden_size=config.hidden_size,
+            config.image_size, config.patch_size, config.channels, config.hidden_size
         )
-        self.grid_size = (self.tokenizer.grid_size, self.tokenizer.grid_size)
+        self.class_token = nn.Parameter(torch.zeros(1, 1, config.hidden_size))
+        self.position_embedding = nn.Parameter(
+            torch.zeros(1, self.tokenizer.num_patches + 1, config.hidden_size)
+        )
+        self.dropout = nn.Dropout(config.dropout)
         self.blocks = nn.ModuleList(
-            TransformerBlock(
-                hidden_size=config.hidden_size,
-                heads=config.heads,
-                mlp_ratio=config.mlp_ratio,
-                dropout=config.dropout,
-                attention_dropout=config.attention_dropout,
-                theta=config.theta,
-            )
+            TransformerBlock(config.hidden_size, config.heads, config.mlp_ratio, config.dropout)
             for _ in range(config.blocks)
         )
-        self.output_norm = nn.LayerNorm(config.hidden_size)
+        self.norm = nn.LayerNorm(config.hidden_size)
+        nn.init.trunc_normal_(self.class_token, std=0.02)
+        nn.init.trunc_normal_(self.position_embedding, std=0.02)
 
     @property
     def hidden_size(self) -> int:
         return self.config.hidden_size
 
     def forward(self, images: Tensor) -> Tensor:
-        """Return normalized patch tokens with shape ``[batch, patches, hidden]``."""
-        hidden_states = self.tokenizer(images)
+        tokens = self.tokenizer(images)
+        class_token = self.class_token.expand(tokens.shape[0], -1, -1)
+        hidden_states = self.dropout(torch.cat((class_token, tokens), dim=1) + self.position_embedding)
         for block in self.blocks:
-            hidden_states = block(hidden_states, self.grid_size)
-        return self.output_norm(hidden_states)
+            hidden_states = block(hidden_states)
+        return self.norm(hidden_states)[:, 0]
 
-
-def _vision_hidden_size(config):
-    candidates = (getattr(config, "vision_config", None), config)
-    for candidate in candidates:
-        hidden_size = getattr(candidate, "hidden_size", None)
 
 class PretrainedVisionBackbone(nn.Module):
-    """Load a Hugging Face vision encoder and keep it frozen for a linear probe."""
+    """Load a Hugging Face visual encoder for full fine-tuning or probing."""
 
     def __init__(self, model_name: str, revision: str | None = None) -> None:
         super().__init__()
-        model_kwargs = {} if revision is None else {"revision": revision}
-        checkpoint_config = AutoConfig.from_pretrained(model_name, **model_kwargs)
-        if checkpoint_config.model_type == "siglip":
-            from transformers import SiglipVisionModel
+        from transformers import AutoModel
 
-            self.vision_model = SiglipVisionModel.from_pretrained(model_name, **model_kwargs)
-        else:
-            loaded_model = AutoModel.from_pretrained(model_name, **model_kwargs)
-            self.vision_model = getattr(loaded_model, "vision_model", loaded_model)
+        options = {} if revision is None else {"revision": revision}
+        loaded = AutoModel.from_pretrained(model_name, **options)
+        self.vision_model = getattr(loaded, "vision_model", loaded)
         self.model_name = model_name
         self.revision = revision
-        self._frozen = False
-        self.hidden_size = _vision_hidden_size(self.vision_model.config)
-        self.freeze()
-
-    def freeze(self) -> None:
-        """Disable gradients and stochastic layers in the pretrained encoder."""
-        self._frozen = True
-        for parameter in self.vision_model.parameters():
-            parameter.requires_grad_(False)
-        self.vision_model.eval()
-
-    def unfreeze(self) -> None:
-        """Explicitly enable gradients when moving beyond linear probing."""
-        self._frozen = False
-        for parameter in self.vision_model.parameters():
-            parameter.requires_grad_(True)
-
-    def train(self, mode: bool = True) -> "PretrainedVisionBackbone":
-        super().train(mode)
-        if self._frozen:
-            self.vision_model.eval()
-        return self
+        config = getattr(self.vision_model.config, "vision_config", self.vision_model.config)
+        self.hidden_size = config.hidden_size
 
     def forward(self, pixel_values: Tensor) -> Tensor:
-        """Return the checkpoint's vision tokens, or a pooled token as a fallback."""
         outputs = self.vision_model(pixel_values=pixel_values)
-        tokens = getattr(outputs, "last_hidden_state", None)
-        if tokens is None and isinstance(outputs, (tuple, list)) and outputs:
-            tokens = outputs[0]
-        if tokens is not None:
-            if tokens.ndim == 2:
-                tokens = tokens.unsqueeze(1)
-            return tokens
-
         pooled = getattr(outputs, "pooler_output", None)
-        if pooled is None:
-            pooled = getattr(outputs, "image_embeds", None)
-        return pooled.unsqueeze(1)
+        if pooled is not None:
+            return pooled
+        return outputs.last_hidden_state[:, 0]
