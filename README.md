@@ -1,10 +1,26 @@
-# nanoGPT
+<h1 align="center">nanoGPT</h1>
 
-> 把 Transformer 从原始语料训练到可对话模型的过程，压缩回人能一次读懂的代码尺度。
+<p align="center"><strong>从原始语料到后训练，把 Transformer 的完整链路缩回一组可读的小文件。</strong></p>
 
-`nanoGPT` 是一个以语言模型为主线的极简学习型项目。它不试图再造一个训练平台，也不把关键逻辑藏进配置系统、回调注册表或巨型基类。相反，它把一条完整的语言模型路径拆成可单独阅读的组件：字节级 BPE、二进制 token 分片、Decoder-only Transformer、分布式预训练、带掩码的 SFT，以及温度和 top-k 采样。
+<p align="center">
+  一个为理解而建的语言模型实现：不靠巨型训练框架，<br />
+  从 Byte-level BPE、token 分片、预训练、SFT 到采样生成，每一步都能追到代码。
+</p>
 
-这里的 **nano** 指的是代码表面积，不是对模型能力的夸张承诺。目标是让读者从入口一路追到注意力公式，始终知道数据在哪里变形、梯度在哪里流动、checkpoint 里保存了什么。
+<p align="center">
+  <code>Python 3.10+</code> &nbsp; <code>PyTorch 2.2+</code> &nbsp; <code>Decoder-only Transformer</code> &nbsp; <code>MIT</code>
+</p>
+
+<p align="center">
+  <a href="#一条完整的主线">全链路</a> ·
+  <a href="#为什么要把文件压小">100 行原则</a> ·
+  <a href="#语言模型从数据到后训练">语言模型</a> ·
+  <a href="#视觉支线同样的可读性原则">视觉支线</a>
+</p>
+
+---
+
+`nanoGPT` 的 **nano** 指代码表面积，而不是对模型能力的夸张承诺。它以语言模型为主线，将字节级 BPE、二进制 token 分片、Decoder-only Transformer、分布式预训练、带掩码的 SFT 与 temperature/top-k 采样拆成可单独阅读的组件。读者可以从入口一路追到注意力公式，始终知道数据在哪里变形、梯度在哪里流动、checkpoint 里保存了什么。
 
 ## 一条完整的主线
 
