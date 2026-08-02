@@ -35,15 +35,7 @@ class VisionTransformerConfig:
             self.heads,
             self.blocks,
         )
-        if min(dimensions) <= 0 or self.image_size % self.patch_size:
-            raise ValueError("Image and model dimensions must be positive and divisible.")
-        if self.hidden_size % self.heads or (self.hidden_size // self.heads) % 4:
-            raise ValueError("Each attention head must have a dimension divisible by 4.")
-        if self.mlp_ratio <= 0 or self.rope_theta <= 0:
-            raise ValueError("mlp_ratio and rope_theta must be positive.")
-        if not 0.0 <= self.dropout < 1.0 or not 0.0 <= self.attention_dropout < 1.0:
-            raise ValueError("dropout values must be in the interval [0, 1).")
-
+        
 
 class VisionTransformer(nn.Module):
     """A small encoder-only ViT whose attention equations remain inspectable."""

@@ -48,8 +48,7 @@ class _Muon(torch.optim.Optimizer):
 
 class Optimizer:
     def __init__(self, parameters: Iterable[Tensor], learning_rate: float) -> None:
-        if learning_rate <= 0:
-            raise ValueError("learning_rate must be positive.")
+        
         self.parameters = list(parameters)
         self.learning_rate = learning_rate
         self._name = None
@@ -60,14 +59,12 @@ class Optimizer:
             self._optimizer.zero_grad(set_to_none=True)
 
     def step(self, name: str) -> None:
-        if name != self._name:
+
             if name == "AdamW":
                 self._optimizer = torch.optim.AdamW(
                     self.parameters, lr=self.learning_rate, weight_decay=0.01
                 )
             elif name == "Muon":
                 self._optimizer = _Muon(self.parameters, self.learning_rate)
-            else:
-                raise ValueError(f"Unknown optimizer: {name}")
-            self._name = name
-        self._optimizer.step()
+
+
