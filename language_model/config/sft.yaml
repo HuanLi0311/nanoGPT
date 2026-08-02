@@ -1,0 +1,19 @@
+data:
+  raw_dir: language_model/data/raw/sft/data
+  encoded_dir: language_model/data/encode/sft
+  tokenizer_dir: language_model/data/encode/pretrain
+  tokenizer_prefix: byte_bpe
+  shard_tokens: 100000000
+
+training:
+  optimizer: AdamW
+  batch_size: 4
+  steps: 1000
+  learning_rate: 0.00005
+  maximum_gradient_norm: 1.0
+  log_every: 50
+  seed: 7
+
+checkpoint:
+  pretrained_path: language_model/checkpoints/transformer.safetensors
+  path: language_model/checkpoints/transformer_sft.safetensors

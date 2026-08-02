@@ -9,7 +9,6 @@ from torch import Tensor, nn
 class LMHead(nn.Module):
     def __init__(self, hidden_size: int, vocabulary_size: int) -> None:
         super().__init__()
-
         self.hidden_size = hidden_size
         self.norm = nn.LayerNorm(hidden_size)
         self.proj = nn.Linear(hidden_size, vocabulary_size)

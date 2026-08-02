@@ -10,6 +10,7 @@ from torch.nn import functional as F
 
 
 class FeedForward(nn.Module):
+    
     def __init__(self, hidden_size: int, dropout: float = 0.0) -> None:
         super().__init__()
         intermediate_size = 4 * hidden_size
@@ -26,9 +27,13 @@ class FeedForward(nn.Module):
     def forward(self, hidden_states: Tensor) -> Tensor:
         intermediate = self.up_proj(hidden_states)
         intermediate = F.silu(intermediate)
-        return self.dropout(self.down_proj(intermediate))
+        hidden_states = self.down_proj(intermediate)
+        hidden_states = self.dropout(hidden_states)
+        return hidden_states
+
 
 class DecoderBlock(nn.Module):
+
     def __init__(self, hidden_size: int, heads: int, dropout: float = 0.0) -> None:
         super().__init__()
         self.attn_norm = nn.LayerNorm(hidden_size)
@@ -39,5 +44,4 @@ class DecoderBlock(nn.Module):
     def forward(self, hidden_states: Tensor) -> Tensor:
         hidden_states = hidden_states + self.attn(self.attn_norm(hidden_states))
         hidden_states = hidden_states + self.mlp(self.mlp_norm(hidden_states))
-
         return hidden_states
