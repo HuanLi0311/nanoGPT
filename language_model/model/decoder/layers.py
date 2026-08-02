@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import math
 
-from .attention import CausalSelfAttention
+from .attention import MultiHeadSelfAttention
 from torch import Tensor, nn
 from torch.nn import functional as F
 
 
 class FeedForward(nn.Module):
-    
+
     def __init__(self, hidden_size: int, dropout: float = 0.0) -> None:
         super().__init__()
         intermediate_size = 4 * hidden_size
@@ -37,7 +37,7 @@ class DecoderBlock(nn.Module):
     def __init__(self, hidden_size: int, heads: int, dropout: float = 0.0) -> None:
         super().__init__()
         self.attn_norm = nn.LayerNorm(hidden_size)
-        self.attn = CausalSelfAttention(hidden_size, heads, dropout)
+        self.attn = MultiHeadSelfAttention(hidden_size, heads, dropout)
         self.mlp_norm = nn.LayerNorm(hidden_size)
         self.mlp = FeedForward(hidden_size, dropout)
 

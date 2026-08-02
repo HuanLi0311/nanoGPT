@@ -25,7 +25,7 @@ def merge_heads(values: Tensor) -> Tensor:
 #                           Multi-Head Self-Attention                              #
 ####################################################################################
 
-class CausalSelfAttention(nn.Module):
+class MultiHeadSelfAttention(nn.Module):
     def __init__(self, hidden_size: int, heads: int, dropout: float = 0.0) -> None:
         super().__init__()
         self.hidden_size = hidden_size
