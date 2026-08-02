@@ -1,9 +1,9 @@
-<h1 align="center">nanoGPT</h1>
+<h1 align="center">NanoAgent</h1>
 
-<p align="center"><strong>从原始语料到后训练，把 Transformer 的完整链路缩回一组可读的小文件。</strong></p>
+<p align="center"><strong>从原始语料到后训练，把 Agent 框架搭建与底层基模训练的完整链路收敛为最简形式的文件目录。</strong></p>
 
 <p align="center">
-  一个为理解而建的语言模型实现：不靠巨型训练框架，<br />
+  一个为理解而建的视觉-语言模型实现：不靠巨型训练框架，<br />
   从 Byte-level BPE、token 分片、预训练、SFT 到采样生成，每一步都能追到代码。
 </p>
 
@@ -20,7 +20,7 @@
 
 ---
 
-`nanoGPT` 的 **nano** 指代码表面积，而不是对模型能力的夸张承诺。它以语言模型为主线，将字节级 BPE、二进制 token 分片、Decoder-only Transformer、分布式预训练、带掩码的 SFT 与 temperature/top-k 采样拆成可单独阅读的组件。读者可以从入口一路追到注意力公式，始终知道数据在哪里变形、梯度在哪里流动、checkpoint 里保存了什么。
+`NanoAgent` 的 **nano** 指代码表面积，而不是对模型能力的夸张承诺。它以语言模型为主线，将字节级 BPE、二进制 token 分片、Decoder-only Transformer、分布式预训练、带掩码的 SFT 与 temperature/top-k 采样拆成可单独阅读的组件。读者可以从入口一路追到注意力公式，始终知道数据在哪里变形、梯度在哪里流动、checkpoint 里保存了什么。
 
 ## 一条完整的主线
 
@@ -48,7 +48,7 @@ Decoder-only Transformer
 
 ## 为什么要把文件压小
 
-这个项目的工程约束是：**一个文件只解释一个概念，目标是每个 Python 源文件不超过 100 行。** 小文件不是形式主义，它直接降低了理解和修改模型代码的成本：
+这个项目的工程约束是：**一个文件只解释一个概念，目标是每个 Python 源文件不超过 100 行。** 直接降低了理解和模型底层逻辑的成本：
 
 - `rope.py` 只做旋转位置编码；
 - `attention.py` 只做 Q/K/V、因果注意力和投影；
@@ -56,7 +56,6 @@ Decoder-only Transformer
 - `tokenizer.py` 只负责词表、指纹与 embedding；
 - 训练入口只负责把已有部件接成一次运行。
 
-当前仓库有 27 个 Python 源文件，其中 23 个已在 100 行以内。4 个超出预算的文件是 `language_model/infer.py`（129 行）、`language_model/scripts/prepare_data.py`（101 行）、`vision_model/model/encoder/backbone.py`（152 行）和 `vision_model/scripts/train.py`（218 行）。它们是明确的收口项，而不是可以被遗忘的例外；新增功能应优先缩短这些编排文件，而不是继续把逻辑塞进去。
 
 ## 语言模型：从数据到后训练
 
@@ -89,7 +88,7 @@ language_model/config/sft.yaml
 
 其中定义了原始数据目录、分片大小、上下文长度、模型宽度和深度、batch size、步数、学习率、梯度裁剪与 checkpoint 路径。数据、模型和训练参数各自有明确归属，避免把实验参数散落在脚本正文中。
 
-### 2. 一个没有魔法的 Decoder-only Transformer
+### 2. Decoder-only Transformer
 
 语言模型的可读核心位于 `language_model/model/`：
 
