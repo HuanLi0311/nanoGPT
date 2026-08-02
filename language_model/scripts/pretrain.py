@@ -63,11 +63,13 @@ def main() -> None:
             raise ValueError("A shard is shorter than max_sequence_length + 1.")
         starts = rng.integers(0, maximum_start, size=batch_size)
         batch = np.stack([tokens[start : start + sequence_length + 1] for start in starts])
+        optimizer.zero_grad()
         inputs = torch.from_numpy(batch[:, :-1].astype(np.int64, copy=False)).to(device)
         targets = torch.from_numpy(batch[:, 1:].astype(np.int64, copy=False)).to(device)
-        optimizer.zero_grad()
-        loss = pretrain_loss(wrapped(inputs), targets)
+        logits = wrapped(inputs)
+        loss = pretrain_loss(logits, targets)
         loss.backward()
+
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))
         optimizer.step(training["optimizer"])
         if rank == 0 and (step == 1 or step % training["log_every"] == 0 or step == training["steps"]):
