@@ -24,7 +24,7 @@ class VisionTransformerConfig:
     mlp_ratio: float = 4.0
     dropout: float = 0.0
     attention_dropout: float = 0.0
-    rope_theta: float = 10_000.0
+    theta: float = 10_000.0
 
     def __post_init__(self) -> None:
         dimensions = (
@@ -35,7 +35,7 @@ class VisionTransformerConfig:
             self.heads,
             self.blocks,
         )
-        
+
 
 class VisionTransformer(nn.Module):
     """A small encoder-only ViT whose attention equations remain inspectable."""
@@ -57,7 +57,7 @@ class VisionTransformer(nn.Module):
                 mlp_ratio=config.mlp_ratio,
                 dropout=config.dropout,
                 attention_dropout=config.attention_dropout,
-                rope_theta=config.rope_theta,
+                theta=config.theta,
             )
             for _ in range(config.blocks)
         )

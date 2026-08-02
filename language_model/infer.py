@@ -62,4 +62,5 @@ def generate(
 def infer(prompt: str) -> str:
     model = load_model(Path("language_model/checkpoints/transformer.safetensors"))
     tokenizer = load_tokenizer(Path("language_model/data/encode/pretrain"), "byte_bpe")
-    return generate(model, tokenizer, prompt)
+    outputs = generate(model, tokenizer, prompt)
+    return outputs
