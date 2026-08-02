@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 from pathlib import Path
@@ -15,16 +14,12 @@ from safetensors.torch import save_file
 from torch.nn.parallel import DistributedDataParallel
 
 from ..model.model import Transformer
-from ..training import pretrainloss
+from ..training.loss import pretrain_loss
 from ..training.optimizer import Optimizer
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train from prepared token shards.")
-    parser.add_argument("--config", type=Path, default=Path("language_model/config/pretrain.yaml"))
-    args = parser.parse_args()
-    with args.config.open(encoding="utf-8") as file:
-        config = yaml.safe_load(file)
+    config = yaml.safe_load(Path("language_model/config/pretrain.yaml").read_text(encoding="utf-8"))
     data, model_config, training, checkpoint = (
         config["data"], config["model"], config["training"], config["checkpoint"]
     )
@@ -61,7 +56,7 @@ def main() -> None:
         inputs = torch.from_numpy(batch[:, :-1].astype(np.int64, copy=False)).to(device)
         targets = torch.from_numpy(batch[:, 1:].astype(np.int64, copy=False)).to(device)
         logits = wrapped(inputs)
-        loss = pretrainloss(logits, targets)
+        loss = pretrain_loss(logits, targets)
         loss.backward()
 
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))
