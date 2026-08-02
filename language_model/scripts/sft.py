@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-
+from training import sft_loss
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -58,13 +58,13 @@ def main() -> None:
         starts = rng.integers(0, len(token_ids) - length - 1, size=batch_size)
         input_batch = np.stack([token_ids[start : start + length] for start in starts])
         target_batch = np.stack([target_ids[start + 1 : start + length + 1] for start in starts])
-        inputs_tensor = torch.from_numpy(input_batch.astype(np.int64, copy=False)).to(device)
-        targets_tensor = torch.from_numpy(target_batch.astype(np.int64, copy=False)).to(device)
+        inputs = torch.from_numpy(input_batch.astype(np.int64, copy=False)).to(device)
+        targets = torch.from_numpy(target_batch.astype(np.int64, copy=False)).to(device)
         optimizer.zero_grad()
-        loss = F.cross_entropy(wrapped(inputs_tensor).flatten(0, -2), targets_tensor.flatten(), ignore_index=-100)
+        loss = sft_loss(wrapped(inputs), targets, ignore_index=-100)
         loss.backward()
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))
-        optimizer.step(training["optimizer"])
+        optimizer.step()
         if rank == 0 and (step == 1 or step % training["log_every"] == 0 or step == training["steps"]):
             print(f"step {step:5d}/{training['steps']}: loss={loss.item():.6f} grad_norm={gradient_norm:.4f}")
 

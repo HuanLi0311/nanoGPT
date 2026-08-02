@@ -3,7 +3,17 @@
 from torch import Tensor
 from torch.nn import functional as F
 
+class loss:
+   
+   def pretrain_loss(logits: Tensor, target_ids: Tensor) -> Tensor:
+       loss = F.cross_entropy(logits.flatten(0, -2), target_ids.flatten())
+       return loss
 
-def cross_entropy(logits: Tensor, target_ids: Tensor) -> Tensor:
-    loss = F.cross_entropy(logits.flatten(0, -2), target_ids.flatten())
-    return loss
+
+   def sft_loss(logits: Tensor, target_ids: Tensor) -> Tensor:
+       loss = F.cross_entropy(
+              logits.flatten(0, -2),
+              target_ids.flatten(),
+              ignore_index=-100,
+            )
+       return loss

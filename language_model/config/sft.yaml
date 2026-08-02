@@ -6,7 +6,7 @@ data:
   shard_tokens: 100000000
 
 training:
-  optimizer: AdamW
+  optimizer: muon
   batch_size: 4
   steps: 1000
   learning_rate: 0.00005

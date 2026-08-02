@@ -6,12 +6,11 @@ import argparse
 import json
 import os
 from pathlib import Path
-
+from training import pretrain_loss
 import numpy as np
 import torch
 import torch.distributed as dist
 import yaml
-from safetensors.torch import save_file
 from torch.nn.parallel import DistributedDataParallel
 
 from ..model.model import Transformer
@@ -67,7 +66,7 @@ def main() -> None:
         inputs = torch.from_numpy(batch[:, :-1].astype(np.int64, copy=False)).to(device)
         targets = torch.from_numpy(batch[:, 1:].astype(np.int64, copy=False)).to(device)
         optimizer.zero_grad()
-        loss = cross_entropy(wrapped(inputs), targets)
+        loss = pretrain_loss(wrapped(inputs), targets)
         loss.backward()
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))
         optimizer.step(training["optimizer"])
@@ -77,7 +76,7 @@ def main() -> None:
     if rank == 0:
         output = Path(checkpoint["path"])
         output.parent.mkdir(parents=True, exist_ok=True)
-        save_file({name: value.detach().cpu().contiguous() for name, value in model.state_dict().items()}, str(output))
+        np.savez_compressed(output, **{name: value.detach().cpu().numpy() for name, value in model.named_parameters()})
         output.with_suffix(".json").write_text(json.dumps({"model": model_config, "training": training, "data": metadata}, indent=2), encoding="utf-8")
         print(f"Saved model: {output}")
     if world_size > 1:
