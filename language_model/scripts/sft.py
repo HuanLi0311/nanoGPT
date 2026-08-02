@@ -6,16 +6,16 @@ import argparse
 import json
 import os
 from pathlib import Path
-from training import sft_loss
+
 import numpy as np
 import torch
 import torch.distributed as dist
 import yaml
 from safetensors.torch import load_file, save_file
-from torch.nn import functional as F
 from torch.nn.parallel import DistributedDataParallel
 
 from ..model.model import Transformer
+from ..training import sft_loss
 from ..training.optimizer import Optimizer
 
 
@@ -34,12 +34,10 @@ def main() -> None:
     sft_metadata = json.loads((encoded_dir / "metadata.json").read_text(encoding="utf-8"))
     pretrained_metadata = json.loads(pretrained_path.with_suffix(".json").read_text(encoding="utf-8"))
     model_config, pretrained_data = pretrained_metadata["model"], pretrained_metadata["data"]
-    if sft_metadata["vocabulary_size"] != pretrained_data["vocabulary_size"]:
-        raise ValueError("Prepared SFT data does not use the pre-training tokenizer.")
-    inputs = sorted(encoded_dir.glob("input_train_*.bin"))
+
+    shards = sorted(encoded_dir.glob("input_train_*.bin"))
     labels = sorted(encoded_dir.glob("labels_train_*.bin"))
-    if not inputs or len(inputs) != len(labels):
-        raise ValueError("Prepared SFT input and label shards are missing.")
+
     model = Transformer(int(pretrained_data["vocabulary_size"]), **model_config, seed=int(training["seed"]))
     if rank == 0:
         model.load_state_dict(load_file(str(pretrained_path)))
@@ -49,11 +47,11 @@ def main() -> None:
     length, batch_size = int(model_config["max_sequence_length"]), int(training["batch_size"])
     rng = np.random.default_rng(int(training["seed"]) + rank)
     if rank == 0:
-        print(f"Device: {device}; world_size: {world_size}; shards: {len(inputs)}")
+        print(f"Device: {device}; world_size: {world_size}; shards: {len(shards)}")
 
     for step in range(1, int(training["steps"]) + 1):
-        index = (step * world_size + rank) % len(inputs)
-        token_ids = np.memmap(inputs[index], dtype=np.uint32, mode="r")
+        index = (step * world_size + rank) % len(shards)
+        token_ids = np.memmap(shards[index], dtype=np.uint32, mode="r")
         target_ids = np.memmap(labels[index], dtype=np.int32, mode="r")
         starts = rng.integers(0, len(token_ids) - length - 1, size=batch_size)
         input_batch = np.stack([token_ids[start : start + length] for start in starts])
@@ -63,7 +61,7 @@ def main() -> None:
         optimizer.zero_grad()
 
         logits = wrapped(inputs)
-        loss = sft_loss(logits, targets, ignore_index=-100)
+        loss = sft_loss(logits, targets)
         loss.backward()
 
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))

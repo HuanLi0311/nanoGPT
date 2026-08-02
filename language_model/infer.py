@@ -9,31 +9,20 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from safetensors.torch import load_file
 
 from .model.model import Transformer
-from .model.tokenizer import ByteLevelBPETokenizer, load_tokenizer, tokenizer_fingerprint
+from .model.tokenizer import ByteLevelBPETokenizer, encode, load_tokenizer, tokenizer_fingerprint
 
 
 def load_model(path: Path) -> tuple[Transformer, dict[str, object]]:
     metadata_path = path.with_suffix(".json")
-    if not path.is_file() or not metadata_path.is_file():
-        raise ValueError("Model .safetensors and matching metadata .json files must both exist.")
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    model_config = metadata.get("model")
-    if not isinstance(model_config, dict):
-        raise ValueError("Checkpoint metadata is missing the model configuration.")
-    model_config = dict(model_config)
-    if "vocabulary_size" not in model_config:
-        data = metadata.get("data")
-        if not isinstance(data, dict) or "vocabulary_size" not in data:
-            raise ValueError("Checkpoint metadata is missing vocabulary_size.")
-        model_config["vocabulary_size"] = int(data["vocabulary_size"])
+    model_config["vocabulary_size"] = int(data["vocabulary_size"])
     model = Transformer(seed=0, **model_config)
-    try:
-        model.load_state_dict(load_file(str(path)))
-    except RuntimeError as error:
-        raise ValueError("Checkpoint parameters do not match the saved model configuration.") from error
+    with np.load(path) as checkpoint:
+        model.load_state_dict(
+            {name: torch.from_numpy(checkpoint[name]) for name in checkpoint.files}
+        )
+
     model.to("cuda" if torch.cuda.is_available() else "cpu").eval()
     return model, metadata
 
@@ -41,8 +30,6 @@ def load_model(path: Path) -> tuple[Transformer, dict[str, object]]:
 def sample_token(
     logits: np.ndarray, temperature: float, top_k: int | None, rng: np.random.Generator
 ) -> int:
-    if temperature <= 0 or top_k is not None and top_k <= 0:
-        raise ValueError("temperature and top_k must be positive.")
     scores = logits.astype(np.float64) / temperature
     if top_k is not None:
         count = min(top_k, len(scores))
@@ -64,11 +51,7 @@ def generate(
     seed: int,
     stop_token: str,
 ) -> str:
-    if max_new_tokens < 0:
-        raise ValueError("max_new_tokens cannot be negative.")
-    token_ids = tokenizer.encode(prompt).ids
-    if not token_ids:
-        raise ValueError("Prompt must produce at least one token.")
+
     stop_id = tokenizer.get_vocab().get(stop_token)
     rng = np.random.default_rng(seed)
     with torch.inference_mode():
@@ -85,9 +68,9 @@ def generate(
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate text from a trained Transformer checkpoint.")
-    parser.add_argument("--model", type=Path, default=Path("language_model/checkpoints/transformer.safetensors"))
-    parser.add_argument("--tokenizer-dir", type=Path, default=Path("language_model/data/encode/pretrain"))
+    parser = argparse.ArgumentParser(description="Generate text from a trained NumPy Transformer checkpoint.")
+    parser.add_argument("--model", type=Path, default=Path("language_model/checkpoints/demo_transformer.npz"))
+    parser.add_argument("--tokenizer-dir", type=Path, default=Path("language_model/data"))
     parser.add_argument("--tokenizer-prefix", default="byte_bpe")
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--max-new-tokens", type=int, default=40)
