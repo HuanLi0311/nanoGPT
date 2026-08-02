@@ -37,7 +37,7 @@ class EncoderBlock(nn.Module):
         mlp_ratio: float = 4.0,
         dropout: float = 0.0,
         attention_dropout: float = 0.0,
-        rope_theta: float = 10_000.0,
+        theta: float = 10_000.0,
     ) -> None:
         super().__init__()
         self.attn_norm = nn.LayerNorm(hidden_size)
@@ -45,7 +45,7 @@ class EncoderBlock(nn.Module):
             hidden_size=hidden_size,
             heads=heads,
             dropout=attention_dropout,
-            rope_theta=rope_theta,
+            theta=theta,
         )
         self.mlp_norm = nn.LayerNorm(hidden_size)
         self.mlp = FeedForward(hidden_size, mlp_ratio, dropout)
