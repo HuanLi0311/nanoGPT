@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 from pathlib import Path
@@ -15,15 +14,12 @@ from safetensors.torch import load_file, save_file
 from torch.nn.parallel import DistributedDataParallel
 
 from ..model.model import Transformer
-from ..training import sft_loss
+from ..training.loss import sft_loss
 from ..training.optimizer import Optimizer
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fine-tune from prepared SFT shards.")
-    parser.add_argument("--config", type=Path, default=Path("language_model/config/sft.yaml"))
-    args = parser.parse_args()
-    config = yaml.safe_load(args.config.read_text(encoding="utf-8"))
+    config = yaml.safe_load(Path("language_model/config/sft.yaml").read_text(encoding="utf-8"))
     data, training, checkpoint = config["data"], config["training"], config["checkpoint"]
     world_size, rank, local_rank = (int(os.environ.get(name, default)) for name, default in (("WORLD_SIZE", "1"), ("RANK", "0"), ("LOCAL_RANK", "0")))
     if world_size > 1:
