@@ -4,7 +4,7 @@
 
 <p align="center">
   一个为理解而建的视觉-语言模型实现：不靠巨型训练框架，<br />
-  从 Byte-level BPE、token 分片、预训练、SFT 到采样生成，<strong>每一步都能追到代码。</strong>
+  从 Byte-level BPE、token 分片、预训练、SFT 到采样生成：<strong>每一步都能追到代码</strong>
 </p>
 
 <p align="center">
