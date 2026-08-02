@@ -61,8 +61,11 @@ def main() -> None:
         inputs = torch.from_numpy(input_batch.astype(np.int64, copy=False)).to(device)
         targets = torch.from_numpy(target_batch.astype(np.int64, copy=False)).to(device)
         optimizer.zero_grad()
-        loss = sft_loss(wrapped(inputs), targets, ignore_index=-100)
+
+        logits = wrapped(inputs)
+        loss = sft_loss(logits, targets, ignore_index=-100)
         loss.backward()
+
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))
         optimizer.step()
         if rank == 0 and (step == 1 or step % training["log_every"] == 0 or step == training["steps"]):
