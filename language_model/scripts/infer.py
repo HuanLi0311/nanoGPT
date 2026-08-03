@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+from argparse import ArgumentParser
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +14,7 @@ from safetensors.torch import load_file
 
 from .model.model import Transformer
 from .model.tokenizer import ByteLevelBPETokenizer, load_tokenizer
+
 
 
 def load_model(path: Path) -> Transformer:
@@ -48,18 +51,34 @@ def generate(
     stop_token: str = "<|eos|>",
 ) -> str:
     token_ids = tokenizer.encode(prompt).ids
-    stop_id = tokenizer.token_to_id(stop_token)
+    stop_ids = {tokenizer.token_to_id(token) for token in (stop_token, "<|im_end|>")}
     rng = np.random.default_rng(seed)
     with torch.inference_mode():
         for _ in range(max_new_tokens):
             inputs = torch.tensor(token_ids[-model.max_sequence_length :], dtype=torch.long, device=next(model.parameters()).device)[None]
             next_token_id = sample_token(model(inputs)[0, -1].cpu().numpy(), temperature, top_k, rng)
-            if next_token_id == stop_id:
+            if next_token_id in stop_ids:
                 break
             token_ids.append(next_token_id)
     return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 
-def infer(prompt: str, config_path: Path = Path("language_model/config/sft.yaml")) -> str:
+def infer(prompt: str, config_path: Path = Path("language_model/config/observatory_rl.yaml")) -> str:
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    return generate(load_model(Path(config["checkpoint"]["path"])), load_tokenizer(Path(config["data"]["tokenizer_dir"]), config["data"]["tokenizer_prefix"]), prompt)
+    system = config["data"].get("system_prompt")
+    if system:
+        prompt = f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+    return generate(load_model(Path(config["checkpoint"]["path"])), load_tokenizer(Path(config["data"]["tokenizer_dir"]), config["data"]["tokenizer_prefix"]), prompt, **config.get("inference", {}))
+
+
+def main() -> None:
+    os.chdir(Path(__file__).parents[1])
+    parser = ArgumentParser()
+    parser.add_argument("--prompt", required=True)
+    parser.add_argument("--config", type=Path, default=Path("language_model/config/observatory_rl.yaml"))
+    args = parser.parse_args()
+    print(infer(args.prompt, args.config).split("assistant\n")[-1])
+
+
+if __name__ == "__main__":
+    main()

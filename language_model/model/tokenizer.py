@@ -24,7 +24,9 @@ def tokenizer_fingerprint(model_dir: Path, prefix: str) -> dict[str, str]:
 
 def load_tokenizer(model_dir: Path, prefix: str) -> ByteLevelBPETokenizer:
     vocab_path, merges_path = model_paths(model_dir, prefix)
-    return ByteLevelBPETokenizer(str(vocab_path), str(merges_path))
+    tokenizer = ByteLevelBPETokenizer(str(vocab_path), str(merges_path))
+    tokenizer.add_special_tokens([token for token in ("<|eos|>", "<|im_start|>", "<|im_end|>") if tokenizer.token_to_id(token) is not None])
+    return tokenizer
 
 
 def embedding(token_embedding: Tensor, token_ids: Tensor) -> Tensor:

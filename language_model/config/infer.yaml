@@ -1,0 +1,5 @@
+inference:
+  max_new_tokens: 40
+  temperature: 1.0
+  top_k: 1
+  seed: 7

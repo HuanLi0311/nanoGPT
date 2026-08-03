@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +20,7 @@ from ..training.optimizer import Optimizer
 
 
 def main() -> None:
-    config = yaml.safe_load(Path("language_model/config/sft.yaml").read_text(encoding="utf-8"))
+    config = yaml.safe_load(Path(sys.argv[1] if len(sys.argv) > 1 else "language_model/config/sft.yaml").read_text(encoding="utf-8"))
     data, training, checkpoint = config["data"], config["training"], config["checkpoint"]
     world_size, rank, local_rank = (int(os.environ.get(name, default)) for name, default in (("WORLD_SIZE", "1"), ("RANK", "0"), ("LOCAL_RANK", "0")))
     if world_size > 1:

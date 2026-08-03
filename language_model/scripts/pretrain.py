@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +20,7 @@ from ..training.optimizer import Optimizer
 
 
 def main() -> None:
-    config = yaml.safe_load(Path("language_model/config/pretrain.yaml").read_text(encoding="utf-8"))
+    config = yaml.safe_load(Path(sys.argv[1] if len(sys.argv) > 1 else "language_model/config/pretrain.yaml").read_text(encoding="utf-8"))
     data, model_config, training, checkpoint = (
         config["data"], config["model"], config["training"], config["checkpoint"]
     )
@@ -36,7 +37,7 @@ def main() -> None:
     sequence_length = int(model_config["max_sequence_length"])
     batch_size = int(training["batch_size"])
     model = Transformer(
-        int(data["vocabulary_size"]), sequence_length, int(model_config["hidden_size"]),
+        int(metadata["vocabulary_size"]), sequence_length, int(model_config["hidden_size"]),
         int(model_config["heads"]), int(model_config["blocks"]),
         dropout=float(model_config["dropout"]), seed=int(training["seed"]),
     ).to(device)

@@ -61,7 +61,7 @@ Decoder-only Transformer
 
 ### 1. Tokenizer 与数据契约
 
-预训练使用 `language_model/tokenizer_model/` 中的 byte-level BPE 词表；默认配置的词表大小是 3,200。`language_model/model/tokenizer.py` 还会为 vocab 和 merges 计算 SHA-256 指纹，使 checkpoint 能拒绝不匹配的 tokenizer。
+Tokenizer 独立放在 `language_model/checkpoints/` 下，编码数据与其 `metadata.json` 则留在各自的 `data/encode/` 目录。`language_model/model/tokenizer.py` 会恢复词表中已有的 chat special tokens，保证训练、GRPO 与生成对 `<|eos|>`、`<|im_start|>`、`<|im_end|>` 使用同一组 ID。
 
 `language_model/scripts/prepare_data.py` 负责把数据变成训练时真正读取的格式：
 
@@ -84,6 +84,7 @@ SFT 数据会被格式化为：
 ```text
 language_model/config/pretrain.yaml
 language_model/config/sft.yaml
+language_model/config/rl.yaml
 ```
 
 其中定义了原始数据目录、分片大小、上下文长度、模型宽度和深度、batch size、步数、学习率、梯度裁剪与 checkpoint 路径。数据、模型和训练参数各自有明确归属，避免把实验参数散落在脚本正文中。
@@ -116,28 +117,27 @@ token IDs
 `language_model/scripts/sft.py` 复用预训练模型和 tokenizer，只替换训练数据与损失掩码：
 
 1. 读取预训练 checkpoint 及其模型、数据元数据；
-2. 验证 SFT 词表大小与预训练阶段一致；
+2. 用该 checkpoint 元数据重建同一模型；
 3. 读取成对的 input/label 分片；
 4. 对 assistant 标签之外的位置使用 `-100`；
 5. 保存独立的 SFT checkpoint 和 JSON 元数据。
 
-这让“预训练”和“后训练”成为两种可检查的目标函数，而不是两套互不相干的项目。`language_model/scripts/rl.py` 与 `language_model/config/rl.yaml` 目前是预留位置，**尚未实现 RL/RLHF**；README 不把空文件包装成已交付能力。
+`language_model/scripts/rl.py` 实现了紧凑的 GRPO：对每个规划题采样一个 completion group，按方案、顺序、预计时长、风险四个最终字段打分，组内标准化 reward；随后以旧策略 ratio 裁剪和冻结 SFT reference 的 KL 项更新策略。奖励不读取或要求 CoT，completion 只是一行可执行的最终计划。
+
+可复现的小型完整实验使用北岭观测站数据，三个 YAML 都从同一 tokenizer 路径读取：
+
+```bash
+.venv/bin/python -m language_model.scripts.make_observatory_data
+./language_model/scripts/prepare_data.sh pretrain language_model/config/observatory_pretrain.yaml
+.venv/bin/python -m language_model.scripts.pretrain language_model/config/observatory_pretrain.yaml
+./language_model/scripts/prepare_data.sh sft language_model/config/observatory_sft.yaml
+.venv/bin/python -m language_model.scripts.sft language_model/config/observatory_sft.yaml
+.venv/bin/python -m language_model.scripts.rl language_model/config/observatory_rl.yaml
+```
 
 ### 4. 推理与可复现性
 
-`language_model/infer.py` 的职责很窄：加载 `safetensors` 权重及同名 JSON 元数据，校验 tokenizer 指纹，按最近的上下文窗口前向计算，然后通过 temperature 和可选 top-k 采样下一个 token。
-
-接口形状如下：
-
-```bash
-python -m language_model.infer \
-  --model language_model/checkpoints/transformer_sft.safetensors \
-  --tokenizer-dir language_model/tokenizer_model \
-  --prompt "你好，介绍一下 Transformer" \
-  --max-new-tokens 80 \
-  --temperature 0.8 \
-  --top-k 40
-```
+`language_model/infer.py` 的职责很窄：加载 `safetensors` 权重及同名 JSON 元数据，按最近的上下文窗口前向计算，然后通过 temperature 和可选 top-k 采样下一个 token。生成会在 tokenizer 中存在的 `<|eos|>` 或 `<|im_end|>` 处停止。
 
 checkpoint、原始数据和编码分片都被 `.gitignore` 排除。克隆仓库不会下载数 GB 的语料或权重；请使用自己的数据、保存自己的实验产物，并保留 tokenizer 与 metadata，二者同样是模型的一部分。
 
@@ -201,21 +201,15 @@ Windows PowerShell 的激活命令为：
 .venv\Scripts\Activate.ps1
 ```
 
-安装后，可以先确认语言模型推理接口的参数：
+安装后，可直接生成并编码这条小型语言模型链路：
 
 ```bash
-python -m language_model.infer --help
+.venv/bin/python -m language_model.scripts.make_observatory_data
 ```
 
 ## 当前执行边界
 
-本仓库当前更接近一份正在收口的、可阅读的全链路实现，而不是已经发布的一键训练包。流程、数据格式和模型部件都已落在对应目录中，但在把它用于新训练前应先完成以下接线：
-
-- 预训练和 SFT 入口仍引用了不存在的顶层 `training` 导入，需统一到 `language_model/training/` 的实际 API；
-- 预训练 checkpoint 写入格式与推理端要求的 `safetensors` 路径需要统一；
-- RL 仍是空占位，不是“已支持但未文档化”的功能。
-
-这些边界写在这里，是为了让下一位贡献者从真实状态出发：先让一条小链路通过，再扩大数据、模型或训练规模。
+北岭观测站实验刻意是一个小领域过拟合链路，用来检查数据、tokenizer、预训练、SFT 和 GRPO 的契约，而不是通用知识问答基准。扩大模型或语料前，应保持 tokenizer 与已编码数据、checkpoint 的同一版本关系。
 
 ## 目录地图
 
@@ -226,7 +220,7 @@ python -m language_model.infer --help
 │   ├── model/        # tokenizer、decoder、RoPE、LM head
 │   ├── scripts/      # 数据准备、预训练、SFT、RL 入口
 │   ├── training/     # loss 与优化器
-│   ├── tokenizer_model/
+│   ├── checkpoints/   # 权重与 tokenizer
 │   └── infer.py
 ├── vision_model/
 │   ├── config/       # from-scratch / fine-tune 配置
