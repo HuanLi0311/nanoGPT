@@ -12,8 +12,8 @@ import torch
 import yaml
 from safetensors.torch import load_file
 
-from .model.model import Transformer
-from .model.tokenizer import ByteLevelBPETokenizer, load_tokenizer
+from ..model.model import Transformer
+from ..model.tokenizer import ByteLevelBPETokenizer, load_tokenizer
 
 
 

@@ -15,8 +15,8 @@ from safetensors.torch import load_file, save_file
 from torch.nn.parallel import DistributedDataParallel
 
 from ..model.model import Transformer
-from ..training.loss import sft_loss
-from ..training.optimizer import Optimizer
+from ..model.training.loss import sft_loss
+from ..model.training.optimizer import Optimizer
 
 
 def main() -> None:

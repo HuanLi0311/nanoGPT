@@ -11,9 +11,9 @@ from torch import nn
 from transformers import AutoImageProcessor
 
 from ..model import ClassificationHead, PretrainedVisionBackbone
-from ..training.data import ProcessorTransform, make_loaders, resolve_device, set_seed
-from ..training.loop import evaluate, train_epoch
-from ..training.optimizer import build_optimizer
+from ..model.training.data import ProcessorTransform, make_loaders, resolve_device, set_seed
+from ..model.training.loop import evaluate, train_epoch
+from ..model.training.optimizer import build_optimizer
 
 
 def arguments() -> argparse.Namespace:

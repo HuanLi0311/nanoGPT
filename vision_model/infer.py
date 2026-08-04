@@ -12,7 +12,7 @@ from torchvision import transforms
 from transformers import AutoImageProcessor
 
 from .model import ClassificationHead, PretrainedVisionBackbone, VisionTransformer, VisionTransformerConfig
-from .training.data import ProcessorTransform, resolve_device
+from .model.training.data import ProcessorTransform, resolve_device
 
 
 def load_checkpoint(path: Path, device: torch.device) -> tuple[nn.Module, list[str], object]:

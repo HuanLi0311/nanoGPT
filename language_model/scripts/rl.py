@@ -13,7 +13,7 @@ from safetensors.torch import load_file, save_file
 
 from ..model.model import Transformer
 from ..model.tokenizer import load_tokenizer
-from ..training.optimizer import Optimizer
+from ..model.training.optimizer import Optimizer
 
 
 def chat(prompt: str, system: str) -> str:
