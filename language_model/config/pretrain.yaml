@@ -5,6 +5,7 @@ data:
   tokenizer_prefix: byte_bpe
   vocabulary_size: 32768
   tokenizer_train_documents: 100000
+  validation_files: ["014_00000.parquet"]
   eos_token: "<|eos|>"
   shard_tokens: 100000000
 
@@ -22,7 +23,9 @@ training:
   maximum_gradient_norm: 1.0
   log_every: 50
   save_every: 1000
+  validation_batches: 8
   seed: 7
 
 checkpoint:
   path: language_model/checkpoints/transformer.safetensors
+  best_path: language_model/checkpoints/best.safetensors

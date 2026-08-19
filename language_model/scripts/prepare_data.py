@@ -60,7 +60,7 @@ def pretrain(data):
     buffers = {"train": [], "validation": []}
     for source in sorted(Path(data["raw_dir"]).rglob("*.parquet")):
         print(f"Encoding: {source}", flush=True)
-        split = "validation" if "valid" in source.name.lower() else "train"
+        split = "validation" if source.name in data.get("validation_files", []) or "valid" in source.name.lower() else "train"
         parquet = pq.ParquetFile(source)
         column = "text" if "text" in parquet.schema_arrow.names else "raw_content"
         for batch in parquet.iter_batches(columns=[column], batch_size=4096):
