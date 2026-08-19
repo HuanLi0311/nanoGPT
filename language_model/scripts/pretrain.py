@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -51,6 +52,11 @@ def main() -> None:
         dist.init_process_group("nccl")
         torch.cuda.set_device(local_rank)
     device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
+    if world_size > 1:
+        # ponytail: air-node-03's PyTorch install races while lazily importing dynamo; remove after reinstalling PyTorch.
+        time.sleep(rank)
+        torch._dynamo.config._get_optimize_ddp_mode()
+        dist.barrier()
     encoded_dir = Path(data["encoded_dir"])
     metadata = json.loads((encoded_dir / "metadata.json").read_text(encoding="utf-8"))
     shards = sorted(encoded_dir.glob("train_*.bin"))
