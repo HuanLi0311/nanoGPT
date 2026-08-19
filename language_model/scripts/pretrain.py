@@ -14,9 +14,15 @@ import yaml
 from safetensors.torch import save_file
 from torch.nn.parallel import DistributedDataParallel
 
-from ..model.model import Transformer
-from ..model.training.loss import pretrain_loss
-from ..model.training.optimizer import Optimizer
+if __package__:
+    from ..model.model import Transformer
+    from ..model.training.loss import pretrain_loss
+    from ..model.training.optimizer import Optimizer
+else:
+    sys.path.insert(0, str(Path(__file__).parents[2]))
+    from language_model.model.model import Transformer
+    from language_model.model.training.loss import pretrain_loss
+    from language_model.model.training.optimizer import Optimizer
 
 
 def validate(model, shards, length, batch_size, batches, device):
