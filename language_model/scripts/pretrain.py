@@ -47,6 +47,10 @@ def main() -> None:
     resume_path = Path(checkpoint["path"]).with_suffix(".resume.pt")
     save_every = int(training.get("save_every", 0))
     start_step = 0
+    if rank == 0:
+        resume_path.parent.mkdir(parents=True, exist_ok=True)
+    if world_size > 1:
+        dist.barrier()
     if resume_path.exists():
         state = torch.load(resume_path, map_location=device, weights_only=False)
         model.load_state_dict(state["model"])
@@ -72,7 +76,9 @@ def main() -> None:
         optimizer.step()
         if save_every and step % save_every == 0:
             if rank == 0:
-                torch.save({"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()}, resume_path)
+                temporary = resume_path.with_suffix(".tmp")
+                torch.save({"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()}, temporary)
+                temporary.replace(resume_path)
             if world_size > 1:
                 dist.barrier()
         if rank == 0 and (step == 1 or step % training["log_every"] == 0 or step == training["steps"]):
