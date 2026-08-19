@@ -44,10 +44,18 @@ def main() -> None:
     wrapped = DistributedDataParallel(model, device_ids=[local_rank]) if world_size > 1 else model
     optimizer = Optimizer(wrapped.parameters(), float(training["learning_rate"]))
     rng = np.random.default_rng(int(training["seed"]) + rank)
+    resume_path = Path(checkpoint["path"]).with_suffix(".resume.pt")
+    save_every = int(training.get("save_every", 0))
+    start_step = 0
+    if resume_path.exists():
+        state = torch.load(resume_path, map_location=device, weights_only=False)
+        model.load_state_dict(state["model"])
+        optimizer.load_state_dict(state["optimizer"])
+        start_step = state["step"]
     if rank == 0:
         print(f"Device: {device}; world_size: {world_size}; shards: {len(shards)}")
 
-    for step in range(1, int(training["steps"]) + 1):
+    for step in range(start_step + 1, int(training["steps"]) + 1):
         tokens = np.memmap(shards[(step * world_size + rank) % len(shards)], dtype=np.uint32, mode="r")
         maximum_start = len(tokens) - sequence_length - 1
 
@@ -62,6 +70,11 @@ def main() -> None:
 
         gradient_norm = float(torch.nn.utils.clip_grad_norm_(wrapped.parameters(), training["maximum_gradient_norm"]))
         optimizer.step()
+        if save_every and step % save_every == 0:
+            if rank == 0:
+                torch.save({"step": step, "model": model.state_dict(), "optimizer": optimizer.state_dict()}, resume_path)
+            if world_size > 1:
+                dist.barrier()
         if rank == 0 and (step == 1 or step % training["log_every"] == 0 or step == training["steps"]):
             print(f"step {step:5d}/{training['steps']}: loss={loss.item():.6f} grad_norm={gradient_norm:.4f}")
 

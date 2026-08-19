@@ -21,6 +21,7 @@ training:
   learning_rate: 0.0003
   maximum_gradient_norm: 1.0
   log_every: 50
+  save_every: 1000
   seed: 7
 
 checkpoint:

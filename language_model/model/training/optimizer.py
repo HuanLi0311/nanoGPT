@@ -50,3 +50,9 @@ class Optimizer:
 
     def step(self) -> None:
         muon(self.parameters, self.state, self.learning_rate)
+
+    def state_dict(self):
+        return [{name: value.detach().cpu() if isinstance(value, Tensor) else value for name, value in self.state.get(parameter, {}).items()} for parameter in self.parameters]
+
+    def load_state_dict(self, state):
+        self.state = {parameter: {name: value.to(parameter.device) if isinstance(value, Tensor) else value for name, value in values.items()} for parameter, values in zip(self.parameters, state)}
