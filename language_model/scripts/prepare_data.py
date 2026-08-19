@@ -7,6 +7,7 @@ from urllib.request import urlopen
 
 import numpy as np
 import pyarrow.parquet as pq
+from tokenizers import ByteLevelBPETokenizer
 
 from ..model.tokenizer import load_tokenizer
 
@@ -16,6 +17,25 @@ from ..model.tokenizer import load_tokenizer
 ####################################################################################
 def tokenizer(data):
     directory, prefix = Path(data["tokenizer_dir"]), data["tokenizer_prefix"]
+    if "tokenizer_repo" not in data:
+        encoder = ByteLevelBPETokenizer()
+        limit = int(data.get("tokenizer_train_documents", 100_000))
+
+        def texts():
+            seen = 0
+            for source in sorted(Path(data["raw_dir"]).rglob("*.parquet")):
+                column = "text" if "text" in pq.ParquetFile(source).schema_arrow.names else "raw_content"
+                for batch in pq.ParquetFile(source).iter_batches(columns=[column], batch_size=4096):
+                    values = batch.column(column).to_pylist()
+                    yield values[:limit - seen]
+                    seen += len(values)
+                    if seen >= limit:
+                        return
+
+        directory.mkdir(parents=True, exist_ok=True)
+        encoder.train_from_iterator(texts(), vocab_size=int(data["vocabulary_size"]), min_frequency=2, special_tokens=["<|eos|>", "<|im_start|>", "<|im_end|>"])
+        encoder.save_model(str(directory), prefix)
+        return
     endpoint = os.environ.get("HF_ENDPOINT", "https://huggingface.co").rstrip("/")
     directory.mkdir(parents=True, exist_ok=True)
     for name in ("vocab.json", "merges.txt"):
@@ -39,6 +59,7 @@ def pretrain(data):
     shards, counts = {"train": 0, "validation": 0}, {"train": 0, "validation": 0}
     buffers = {"train": [], "validation": []}
     for source in sorted(Path(data["raw_dir"]).rglob("*.parquet")):
+        print(f"Encoding: {source}", flush=True)
         split = "validation" if "valid" in source.name.lower() else "train"
         parquet = pq.ParquetFile(source)
         column = "text" if "text" in parquet.schema_arrow.names else "raw_content"
