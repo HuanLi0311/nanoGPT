@@ -41,7 +41,13 @@ class DecoderBlock(nn.Module):
         self.mlp_norm = nn.LayerNorm(hidden_size)
         self.mlp = FeedForward(hidden_size, dropout)
 
-    def forward(self, hidden_states: Tensor) -> Tensor:
-        hidden_states = hidden_states + self.attn(self.attn_norm(hidden_states))
+    def forward(
+        self, hidden_states: Tensor, past_key_value: tuple[Tensor, Tensor] | None = None,
+        use_cache: bool = False,
+    ) -> Tensor | tuple[Tensor, tuple[Tensor, Tensor]]:
+        attention = self.attn(self.attn_norm(hidden_states), past_key_value, use_cache)
+        if use_cache:
+            attention, past_key_value = attention
+        hidden_states = hidden_states + attention
         hidden_states = hidden_states + self.mlp(self.mlp_norm(hidden_states))
-        return hidden_states
+        return (hidden_states, past_key_value) if use_cache else hidden_states

@@ -36,10 +36,19 @@ class Transformer(nn.Module):
         self.lm_head = LMHead(hidden_size, vocabulary_size)
         nn.init.normal_(self.token_embedding, mean=0.0, std=0.02)
 
-    def forward(self, token_ids: Tensor) -> Tensor:
-
+    def forward(
+        self, token_ids: Tensor, past_key_values: list[tuple[Tensor, Tensor]] | None = None,
+        use_cache: bool = False,
+    ) -> Tensor | tuple[Tensor, list[tuple[Tensor, Tensor]]]:
         hidden_states = embedding(self.token_embedding, token_ids)
-        for block in self.blocks:
-            hidden_states = block(hidden_states)
+        if use_cache:
+            past_key_values = past_key_values or [None] * len(self.blocks)
+            present_key_values = []
+            for block, past_key_value in zip(self.blocks, past_key_values):
+                hidden_states, present_key_value = block(hidden_states, past_key_value, True)
+                present_key_values.append(present_key_value)
+        else:
+            for block in self.blocks:
+                hidden_states = block(hidden_states)
         logits = self.lm_head(hidden_states)
-        return logits
+        return (logits, present_key_values) if use_cache else logits

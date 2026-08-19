@@ -53,13 +53,18 @@ def generate(
     token_ids = tokenizer.encode(prompt).ids
     stop_ids = {tokenizer.token_to_id(token) for token in (stop_token, "<|im_end|>")}
     rng = np.random.default_rng(seed)
+    cache = None
     with torch.inference_mode():
         for _ in range(max_new_tokens):
-            inputs = torch.tensor(token_ids[-model.max_sequence_length :], dtype=torch.long, device=next(model.parameters()).device)[None]
-            next_token_id = sample_token(model(inputs)[0, -1].cpu().numpy(), temperature, top_k, rng)
+            inputs = token_ids[-model.max_sequence_length :] if cache is None else token_ids[-1:]
+            inputs = torch.tensor(inputs, dtype=torch.long, device=next(model.parameters()).device)[None]
+            logits, cache = model(inputs, cache, use_cache=True)
+            next_token_id = sample_token(logits[0, -1].cpu().numpy(), temperature, top_k, rng)
             if next_token_id in stop_ids:
                 break
             token_ids.append(next_token_id)
+            if cache[0][0].shape[-2] == model.max_sequence_length:
+                cache = None
     return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 

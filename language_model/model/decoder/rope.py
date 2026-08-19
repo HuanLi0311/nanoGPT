@@ -7,9 +7,10 @@ from torch import Tensor
 
 
 def rope(
-query: Tensor, key: Tensor, theta: float = 10_000.0) -> tuple[Tensor, Tensor]:
+    query: Tensor, key: Tensor, start_position: int = 0, theta: float = 10_000.0
+) -> tuple[Tensor, Tensor]:
     token_count, head_dim = query.shape[-2:]
-    positions = torch.arange(token_count, device=query.device, dtype=query.dtype)
+    positions = torch.arange(start_position, start_position + token_count, device=query.device, dtype=query.dtype)
     frequencies = theta ** (-torch.arange(0, head_dim, 2, device=query.device, dtype=query.dtype) / head_dim)
     angles = positions[:, None] * frequencies
     cosine = angles.cos()[None, None]

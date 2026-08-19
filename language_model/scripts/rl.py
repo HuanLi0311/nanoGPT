@@ -26,14 +26,18 @@ def reward(text: str, answer: str) -> float:
 
 def sample(model, prompt, stops, limit, temperature):
     ids, generated = prompt[:], []
+    cache = None
     with torch.inference_mode():
         for _ in range(limit):
-            logits = model(torch.tensor(ids[-model.max_sequence_length :], device=next(model.parameters()).device)[None])[0, -1]
+            inputs = ids[-model.max_sequence_length :] if cache is None else ids[-1:]
+            logits, cache = model(torch.tensor(inputs, device=next(model.parameters()).device)[None], cache, use_cache=True)
+            logits = logits[0, -1]
             token = int(torch.multinomial(torch.softmax(logits / temperature, -1), 1))
             if token in stops:
                 break
             ids.append(token)
             generated.append(token)
+            cache = None if cache[0][0].shape[-2] == model.max_sequence_length else cache
     return generated
 
 
