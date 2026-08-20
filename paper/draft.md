@@ -30,8 +30,11 @@ All measurements below were run on `air-node-03` with 8 A100 GPUs unless stated 
 | AdamW, 10 steps | before empty-label guard | NaN at step 8 |
 | AdamW, 10 steps | valid-label sampling and NaN guard | loss 9.89 to 1.36; fixed masked loss 0.72 |
 | GRPO smoke | AdamW, group 2, one step | checkpoint written; reward 0; response was whitespace |
+| Tool-call SFT, 1 GPU | 42,330 serialized Codex tool calls, 20 steps | loss 9.60 to 0.35; held-out and training prompts still produced empty output; GRPO reward 0 |
 
 The optimizer comparison is a pipeline result, not a generalization result. The SFT improvement is likely memorization on a tiny pilot. The full experiment must use a held-out agent benchmark and report task success, tool-call validity, recovery rate, and verifier score.
+
+The tool-call serialization ablation is important: before the fix, assistant `tool_calls` were discarded and the model was trained on empty assistant turns. After the fix, the encoded corpus contains 42,330 tool calls, but a 20-step one-GPU run still produced empty generations. This separates a data-contract bug from the remaining optimization, sampling, and model-capacity problems.
 
 ## 4. Limitations and Next Experiments
 
