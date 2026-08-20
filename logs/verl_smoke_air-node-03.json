@@ -1,0 +1,23 @@
+{
+  "status": "blocked_before_training",
+  "node": "air-node-03",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "configuration_validation": "passed",
+  "ray": {
+    "local_instance_started": true,
+    "failure_stage": "worker_initialization",
+    "error": "NodeHead: Cannot reach node 10.0.0.247; health timeout"
+  },
+  "training_steps": 0,
+  "existing_processes_preserved": [
+    2472575,
+    2472576,
+    2472577,
+    2472578,
+    2472579,
+    2472580,
+    2472581,
+    2472582
+  ],
+  "interpretation": "verl micro-batch configuration reached Ray startup, but no GRPO update or reward was produced. The existing 8-GPU pretraining job was not terminated."
+}

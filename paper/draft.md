@@ -40,6 +40,8 @@ The tool-call serialization ablation is important: before the fix, assistant `to
 
 The local NanoGPT checkpoint is a custom Transformer and cannot be loaded directly by verl's Hugging Face/vLLM workers. The current verl launcher therefore targets a compatible transformers checkpoint, while the local SFT/GRPO path exercises the custom model. A checkpoint adapter or a matched Hugging Face student is required for a true end-to-end verl run.
 
+The verl launcher reached configuration validation and started a local Ray instance on `air-node-03`, but worker initialization failed with a node-health timeout before the first training step. This is recorded in `logs/verl_smoke_air-node-03.json`; it is a protocol/infrastructure result, not a GRPO result. The node's pre-existing eight-process pretraining job was left running.
+
 The next controlled experiment is: freeze the 500-example pilot split, train AdamW and Muon for the same number of steps, evaluate on held-out Codex tasks, then compare the local policy with a DeepSeek teacher using identical prompts, tools, timeouts, and verifier rules. Results must be written to `logs/` and plotted in `assets/` before making a capability claim.
 
 ## 5. Reproducibility
