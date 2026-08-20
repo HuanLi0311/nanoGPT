@@ -29,8 +29,9 @@ if (command === "extract") {
 } else if (command === "run") {
   const prompt = process.argv.slice(3).join(" ");
   if (!prompt) throw new Error("usage: npm run cli -- run <prompt>");
-  const state = await run({ id: `run-${Date.now()}`, prompt, model: deepseek(), tools: toolSchemas,
-    context: { root: resolve("../..") }, statePath: resolve("../runs/latest.json") });
+  const id = (process.env.NANOAGENT_RUN_ID ?? `run-${Date.now()}-${process.pid}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const state = await run({ id, prompt, model: deepseek(), tools: toolSchemas,
+    context: { root: resolve("../..") }, statePath: resolve("../runs", `${id}.json`) });
   console.log(JSON.stringify(state, null, 2));
 } else {
   throw new Error(`unknown command: ${command}`);

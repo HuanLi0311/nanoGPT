@@ -25,6 +25,7 @@ environment):
 DEEPSEEK_API_KEY=... npm run run -- "inspect the repository and report its status"
 ```
 
-Each episode is checkpointed atomically in `agent/runs/`; rerunning a completed
-state is a no-op. `exec_command` is constrained to the workspace root and
-`apply_patch` accepts unified git diffs.
+Each episode is checkpointed atomically in `agent/runs/<run-id>.json`; set
+`NANOAGENT_RUN_ID` to resume a specific episode. `exec_command` resolves its
+working directory inside the workspace root and `apply_patch` accepts unified
+git diffs.

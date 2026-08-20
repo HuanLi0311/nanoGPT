@@ -4,6 +4,8 @@
 
 This draft describes a small agent post-training pipeline that connects Codex-style JSON trajectories to a workspace harness and a verl-compatible GRPO data contract. The harness preserves structured tool calls, executes commands inside a workspace boundary, supports atomic episode checkpoints and retries, and verifies tool outcomes. The current evidence is preliminary: a tokenizer mismatch and empty-label SFT windows were found and fixed; a 10-step AdamW SFT pilot reduced a fixed masked loss from 10.16 to 0.72 on a 500-example pilot, while a one-step GRPO smoke completed but produced reward 0 and an empty response. No agent capability improvement is claimed yet.
 
+A second harness review fixed four protocol/runtime gaps: run state files are now isolated by run id and reject mismatched or malformed state, relative command working directories are resolved from the workspace root, DeepSeek requests have a bounded timeout, and SFT rendering retains tool results with their call ids. The local self-check covers these paths, but no commercial-model episode has been run because the rotated API key has not been supplied.
+
 ## 1. Motivation
 
 Agent training data contains more than assistant text. Tool names, JSON arguments, tool results, exit codes, and the final answer form an execution protocol. Flattening these events into text loses the information needed to train or evaluate an agent in the same environment. NanoAgent therefore keeps a canonical trajectory format and exposes a narrow runtime contract to the trainer.

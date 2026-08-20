@@ -22,7 +22,14 @@ async function save(path: string, state: RunState) {
 
 export async function run(options: Options): Promise<RunState> {
   let state: RunState = { id: options.id, status: "running", attempt: 0, events: [{ role: "user", kind: "message", content: options.prompt }] };
-  try { state = JSON.parse(await readFile(options.statePath, "utf8")); } catch { /* first run */ }
+  try {
+    const saved = JSON.parse(await readFile(options.statePath, "utf8"));
+    if (!saved || saved.id !== options.id || !Array.isArray(saved.events) || !["running", "done", "failed"].includes(saved.status)) throw new Error("invalid or mismatched run state");
+    state = saved;
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
+    await save(options.statePath, state);
+  }
   if (state.status === "done") return state;
   const maxTurns = options.maxTurns ?? 20, retries = options.retries ?? 2;
   for (let turn = state.events.filter((x) => x.role === "assistant").length; turn < maxTurns; turn++) {
