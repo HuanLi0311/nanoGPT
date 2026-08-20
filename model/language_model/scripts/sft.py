@@ -38,8 +38,7 @@ def main() -> None:
     labels = sorted(encoded_dir.glob("labels_train_*.bin"))
 
     model = Transformer(int(pretrained_data["vocabulary_size"]), **model_config, seed=int(training["seed"]))
-    if rank == 0:
-        model.load_state_dict(load_file(str(pretrained_path)))
+    model.load_state_dict(load_file(str(pretrained_path)))
     model.to(device)
     wrapped = DistributedDataParallel(model, device_ids=[local_rank]) if world_size > 1 else model
     optimizer = torch.optim.AdamW(wrapped.parameters(), lr=float(training["learning_rate"]), weight_decay=float(training.get("weight_decay", 0.01))) if training.get("optimizer") == "adamw" else Optimizer(wrapped.parameters(), float(training["learning_rate"]))
