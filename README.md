@@ -264,4 +264,16 @@ git submodule update --init --recursive
 MODEL_PATH=deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B ./model/language_model/scripts/verl_grpo.sh
 ```
 
+SFT 使用与预训练 checkpoint 相同的 tokenizer；首次运行需从过滤后的 Codex JSONL 重编码：
+
+```bash
+.venv/bin/python -m model.language_model.scripts.prepare_post_train_sft \
+  model/language_model/data/post_train/data/filtered \
+  model/language_model/data/encode/sft \
+  --tokenizer-dir model/language_model/data/encode/pretrain
+./model/language_model/scripts/sft.sh
+```
+
+快速 pilot 可增加 `--limit 500 --shard-tokens 10000000`。SFT 入口会拒绝 tokenizer vocab 与 checkpoint 不一致的数据。
+
 本地 NanoGPT `best.safetensors` 是自定义 Transformer 格式，不能伪装成 Hugging Face checkpoint 直接交给 verl；`verl_grpo.sh` 的 `MODEL_PATH` 必须是 transformers/vLLM 可加载模型。SFT/本地 GRPO 入口仍分别使用 `config/sft.yaml` 和 `config/rl.yaml`。
