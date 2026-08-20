@@ -42,7 +42,7 @@ def main() -> None:
         model.load_state_dict(load_file(str(pretrained_path)))
     model.to(device)
     wrapped = DistributedDataParallel(model, device_ids=[local_rank]) if world_size > 1 else model
-    optimizer = Optimizer(wrapped.parameters(), float(training["learning_rate"]))
+    optimizer = torch.optim.AdamW(wrapped.parameters(), lr=float(training["learning_rate"]), weight_decay=float(training.get("weight_decay", 0.01))) if training.get("optimizer") == "adamw" else Optimizer(wrapped.parameters(), float(training["learning_rate"]))
     length, batch_size = int(model_config["max_sequence_length"]), int(training["batch_size"])
     rng = np.random.default_rng(int(training["seed"]) + rank)
     log_path = Path(os.environ.get("NANOGPT_LOG", "logs/sft.jsonl"))

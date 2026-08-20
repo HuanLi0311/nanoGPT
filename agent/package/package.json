@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "extract": "node --experimental-strip-types src/cli.ts extract",
-    "run": "node --experimental-strip-types src/cli.ts run"
+    "run": "node --experimental-strip-types src/cli.ts run",
+    "check": "node --experimental-strip-types src/self-check.ts"
   }
 }
