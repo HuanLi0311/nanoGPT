@@ -1,0 +1,16 @@
+{
+  "dataset": "500 Codex JSONL examples re-encoded with vocab 32768",
+  "node": "air-node-03",
+  "world_size": 8,
+  "runs": [
+    {"name": "muon_lr5e-5_before_guard", "steps": 10, "first_loss": 9.962697, "last_loss": 14.004341, "valid": false, "reason": "unstable trend"},
+    {"name": "muon_lr1e-5_before_guard", "steps": 10, "first_loss": 9.962697, "last_loss": 14.194479, "valid": false, "reason": "unstable trend"},
+    {"name": "adamw_lr5e-5_before_guard", "steps": 10, "nan_step": 8, "valid": false, "reason": "empty assistant-label window exposed NaN"},
+    {"name": "adamw_lr5e-5_after_guard", "steps": 10, "first_loss": 9.889987, "last_loss": 1.361520, "fixed_batch_loss": 0.718150, "valid": true}
+  ],
+  "base_fixed_batch_loss": 10.156105,
+  "caveats": [
+    "The pilot is a pipeline and optimizer check, not an agent capability benchmark.",
+    "An unrelated pretraining process shared the node GPUs; no existing process was terminated."
+  ]
+}
