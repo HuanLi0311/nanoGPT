@@ -62,7 +62,7 @@ def main() -> None:
                 start = int(rng.integers(0, len(token_ids) - length - 1))
             starts[item] = start
         input_batch = np.stack([token_ids[start : start + length] for start in starts])
-        target_batch = np.stack([target_ids[start : start + length] for start in starts])
+        target_batch = np.stack([target_ids[start + 1 : start + length + 1] for start in starts])
         inputs = torch.from_numpy(input_batch.astype(np.int64, copy=False)).to(device)
         targets = torch.from_numpy(target_batch.astype(np.int64, copy=False)).to(device)
         optimizer.zero_grad()
