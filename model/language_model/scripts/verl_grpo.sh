@@ -5,12 +5,14 @@ verl="$root/third_party/verl"
 data="$root/model/language_model/data/post_train/verl"
 model=${MODEL_PATH:-deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B}
 gpus=${NGPUS_PER_NODE:-$(python3 -c 'import torch; print(max(1, torch.cuda.device_count()))')}
+train_batch_size=${TRAIN_BATCH_SIZE:-4}
+ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-$train_batch_size}
 cd "$verl"
 exec python3 -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
   data.train_files="['$data/train.jsonl']" \
   data.val_files="['$data/val.jsonl']" \
-  data.train_batch_size="${TRAIN_BATCH_SIZE:-4}" \
+  data.train_batch_size="$train_batch_size" \
   data.max_prompt_length="${MAX_PROMPT_LENGTH:-1200}" \
   data.max_response_length="${MAX_RESPONSE_LENGTH:-256}" \
   data.filter_overlong_prompts=True \
@@ -19,7 +21,7 @@ exec python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.name="${ROLLOUT_BACKEND:-vllm}" \
   actor_rollout_ref.rollout.n="${ROLLOUT_N:-4}" \
   actor_rollout_ref.rollout.temperature="${TEMPERATURE:-0.7}" \
-  actor_rollout_ref.actor.ppo_mini_batch_size="${PPO_MINI_BATCH_SIZE:-16}" \
+  actor_rollout_ref.actor.ppo_mini_batch_size="$ppo_mini_batch_size" \
   actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu="${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}" \
   actor_rollout_ref.actor.ppo_epochs=1 \
   reward.custom_reward_function.path="$root/model/language_model/scripts/verl_reward.py" \
