@@ -1,0 +1,21 @@
+{
+  "status": "pilot",
+  "node": "air-node-03",
+  "world_size": 8,
+  "examples": 500,
+  "train_tokens": 6447860,
+  "validation_tokens": 239773,
+  "steps": 2,
+  "checkpoint": "/tmp/nanoagent_sft_valid.safetensors",
+  "masked_loss": {
+    "base_best": 10.156105041503906,
+    "pilot_sft": 10.060705184936523,
+    "tokens": 944
+  },
+  "training_loss": [9.75334358215332, 9.524832725524902],
+  "notes": [
+    "The pilot uses the 32768-vocabulary tokenizer matching best.safetensors.",
+    "The earlier 3200-vocabulary smoke was invalid and is excluded.",
+    "Two steps are a pipeline check, not a capability claim."
+  ]
+}
