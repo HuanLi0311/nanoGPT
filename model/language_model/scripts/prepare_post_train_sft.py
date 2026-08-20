@@ -69,6 +69,8 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
             if len(pending) >= batch_size:
                 process(pending)
                 pending.clear()
+                if seen % (batch_size * 10) == 0:
+                    print(json.dumps({"examples": seen, "tokens": counts, "shards": shards}), flush=True)
         if limit and seen >= limit:
             break
     process(pending)
