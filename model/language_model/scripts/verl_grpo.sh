@@ -23,6 +23,8 @@ exec python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.temperature="${TEMPERATURE:-0.7}" \
   actor_rollout_ref.actor.ppo_mini_batch_size="$ppo_mini_batch_size" \
   actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu="${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}" \
+  actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu="${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}" \
+  actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu="${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}" \
   actor_rollout_ref.actor.ppo_epochs=1 \
   reward.custom_reward_function.path="$root/model/language_model/scripts/verl_reward.py" \
   reward.custom_reward_function.name=compute_score \
