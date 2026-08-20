@@ -11,12 +11,13 @@ import numpy as np
 from ..model.tokenizer import load_tokenizer
 
 
-def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int) -> None:
+def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None) -> None:
     tokenizer = load_tokenizer(tokenizer_dir, prefix)
     for path in output.glob("input_*.bin"):
         path.unlink()
     for path in output.glob("labels_*.bin"):
         path.unlink()
+    (output / "metadata.json").unlink(missing_ok=True)
     output.mkdir(parents=True, exist_ok=True)
     buffers = {"train": ([], []), "validation": ([], [])}
     counts = {"train": 0, "validation": 0}
@@ -35,6 +36,8 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
 
     for path in sorted(source.rglob("*.jsonl")):
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            if limit and seen >= limit:
+                break
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
@@ -58,6 +61,8 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
             buffers[split][1].extend(labels)
             flush(split)
             seen += 1
+        if limit and seen >= limit:
+            break
     flush("train", True)
     flush("validation", True)
     (output / "metadata.json").write_text(json.dumps({
@@ -75,8 +80,9 @@ def main() -> None:
     parser.add_argument("--tokenizer-dir", type=Path, required=True)
     parser.add_argument("--tokenizer-prefix", default="byte_bpe")
     parser.add_argument("--shard-tokens", type=int, default=100_000_000)
+    parser.add_argument("--limit", type=int)
     args = parser.parse_args()
-    encode(args.source, args.output, args.tokenizer_dir, args.tokenizer_prefix, args.shard_tokens)
+    encode(args.source, args.output, args.tokenizer_dir, args.tokenizer_prefix, args.shard_tokens, args.limit)
 
 
 if __name__ == "__main__":
