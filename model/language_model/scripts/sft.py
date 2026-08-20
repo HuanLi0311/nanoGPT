@@ -56,6 +56,12 @@ def main() -> None:
         token_ids = np.memmap(shards[index], dtype=np.uint32, mode="r")
         target_ids = np.memmap(labels[index], dtype=np.int32, mode="r")
         starts = rng.integers(0, len(token_ids) - length - 1, size=batch_size)
+        for item, start in enumerate(starts):
+            for _ in range(100):
+                if np.any(target_ids[start : start + length] != -100):
+                    break
+                start = int(rng.integers(0, len(token_ids) - length - 1))
+            starts[item] = start
         input_batch = np.stack([token_ids[start : start + length] for start in starts])
         target_batch = np.stack([target_ids[start : start + length] for start in starts])
         inputs = torch.from_numpy(input_batch.astype(np.int64, copy=False)).to(device)

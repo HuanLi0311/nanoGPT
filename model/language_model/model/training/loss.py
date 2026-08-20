@@ -9,6 +9,8 @@ def pretrain_loss(logits: Tensor, target_ids: Tensor) -> Tensor:
 
 
 def sft_loss(logits: Tensor, target_ids: Tensor) -> Tensor:
+    if not target_ids.ne(-100).any():
+          return logits.sum() * 0.0
     loss = F.cross_entropy(
           logits.flatten(0, -2), 
           target_ids.flatten(),
