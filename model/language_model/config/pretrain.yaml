@@ -1,7 +1,7 @@
 data:
-  raw_dir: language_model/data/raw/pretrain/fineweb_sample
-  encoded_dir: language_model/data/encode/pretrain
-  tokenizer_dir: language_model/data/encode/pretrain
+  raw_dir: model/language_model/data/raw/pretrain/fineweb_sample
+  encoded_dir: model/language_model/data/encode/pretrain
+  tokenizer_dir: model/language_model/data/encode/pretrain
   tokenizer_prefix: byte_bpe
   vocabulary_size: 32768
   tokenizer_train_documents: 100000
@@ -27,5 +27,5 @@ training:
   seed: 7
 
 checkpoint:
-  path: language_model/checkpoints/transformer.safetensors
-  best_path: language_model/checkpoints/best.safetensors
+  path: model/language_model/checkpoints/transformer.safetensors
+  best_path: model/language_model/checkpoints/best.safetensors

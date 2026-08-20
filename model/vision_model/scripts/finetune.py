@@ -18,7 +18,7 @@ from ..model.training.optimizer import build_optimizer
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=Path("vision_model/config/finetune.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("model/vision_model/config/finetune.yaml"))
     return parser.parse_args()
 
 

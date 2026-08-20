@@ -126,7 +126,7 @@ def _save_checkpoint(
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train the SigLIP2 linear probe.")
-    parser.add_argument("--config", type=Path, default=Path("vision_model/config/train.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("model/vision_model/config/train.yaml"))
     return parser.parse_args()
 
 

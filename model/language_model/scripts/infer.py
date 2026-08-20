@@ -68,7 +68,7 @@ def generate(
     return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 
-def infer(prompt: str, config_path: Path = Path("language_model/config/observatory_rl.yaml")) -> str:
+def infer(prompt: str, config_path: Path = Path("model/language_model/config/observatory_rl.yaml")) -> str:
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     system = config["data"].get("system_prompt")
     if system:
@@ -80,7 +80,7 @@ def main() -> None:
     os.chdir(Path(__file__).parents[1])
     parser = ArgumentParser()
     parser.add_argument("--prompt", required=True)
-    parser.add_argument("--config", type=Path, default=Path("language_model/config/observatory_rl.yaml"))
+    parser.add_argument("--config", type=Path, default=Path("model/language_model/config/observatory_rl.yaml"))
     args = parser.parse_args()
     print(infer(args.prompt, args.config).split("assistant\n")[-1])
 

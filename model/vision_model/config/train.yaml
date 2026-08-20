@@ -1,6 +1,6 @@
 data:
-  train_dir: vision_model/data/imagenette_100/train
-  validation_dir: vision_model/data/imagenette_100/val
+  train_dir: model/vision_model/data/imagenette_100/train
+  validation_dir: model/vision_model/data/imagenette_100/val
 
 model:
   image_size: 160
@@ -22,4 +22,4 @@ training:
   seed: 7
 
 checkpoint:
-  path: vision_model/checkpoints/vit_imagenette.pt
+  path: model/vision_model/checkpoints/vit_imagenette.pt

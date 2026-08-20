@@ -49,7 +49,7 @@ def log_probability(model, prompt, completion):
 
 
 def main() -> None:
-    config = yaml.safe_load(Path(sys.argv[1] if len(sys.argv) > 1 else "language_model/config/rl.yaml").read_text(encoding="utf-8"))
+    config = yaml.safe_load(Path(sys.argv[1] if len(sys.argv) > 1 else "model/language_model/config/rl.yaml").read_text(encoding="utf-8"))
     data, training, checkpoint = config["data"], config["training"], config["checkpoint"]
     torch.manual_seed(int(training["seed"]))
     device, path = torch.device("cuda" if torch.cuda.is_available() else "cpu"), Path(checkpoint["sft_path"])
