@@ -8,6 +8,8 @@ A second harness review fixed four protocol/runtime gaps: run state files are no
 
 A data-quality iteration then enforced the filter's previously unused failure and tool-pair checks. The default corpus changed from 4,756 to 4,594 episodes after removing unresolved calls, orphan results, and invalid events; the clean set contains 39,785 calls and 39,785 results. Re-encoding produced 67.46M train tokens and 3.40M validation tokens with the 32,768-token vocabulary. This is a training-input correction, not evidence of improved agent capability.
 
+The next SFT audit found a more serious objective bug: the implementation compared logits at position `t` with the label at the same position, allowing the current token embedding to make the masked loss look nearly perfect without teaching next-token generation. After shifting SFT targets by one token, a 1,000-step five-GPU run went from loss 3.75 to 1.02 and generated non-empty text on train, validation, and held-out prompts. The outputs were still unstructured and produced no JSON tool action; a one-step GRPO smoke from this checkpoint reached reward 0.25 with a malformed natural-language completion. The before/after record and curve are in `logs/sft_alignment_iteration.json` and `assets/sft_clean_aligned_1000_loss.png`.
+
 ## 1. Motivation
 
 Agent training data contains more than assistant text. Tool names, JSON arguments, tool results, exit codes, and the final answer form an execution protocol. Flattening these events into text loses the information needed to train or evaluate an agent in the same environment. NanoAgent therefore keeps a canonical trajectory format and exposes a narrow runtime contract to the trainer.
