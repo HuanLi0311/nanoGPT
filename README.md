@@ -259,6 +259,7 @@ DEEPSEEK_API_KEY=... npm run run -- "检查仓库并报告状态"
 verl 数据和 GRPO 奖励契约由以下入口生成和启动：
 
 ```bash
+git submodule update --init --recursive
 ./model/language_model/scripts/prepare_verl_data.sh
 MODEL_PATH=deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B ./model/language_model/scripts/verl_grpo.sh
 ```
