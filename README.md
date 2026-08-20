@@ -245,3 +245,22 @@ Windows PowerShell 的激活命令为：
 ## 许可证
 
 本项目采用 [MIT License](LICENSE)。
+
+## Agent harness 与 verl
+
+`agent/` 提供 Codex JSONL 提取、结构化 tool call、工作区命令工具、断点续跑、重试和最小 verifier。它只使用 Node 内置 API；DeepSeek 兼容接口从 `DEEPSEEK_API_KEY` 环境变量读取密钥。
+
+```bash
+cd agent/package
+npm run extract -- ~/.codex/sessions ../data/canonical/codex-trajectories.jsonl
+DEEPSEEK_API_KEY=... npm run run -- "检查仓库并报告状态"
+```
+
+verl 数据和 GRPO 奖励契约由以下入口生成和启动：
+
+```bash
+./model/language_model/scripts/prepare_verl_data.sh
+MODEL_PATH=deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B ./model/language_model/scripts/verl_grpo.sh
+```
+
+本地 NanoGPT `best.safetensors` 是自定义 Transformer 格式，不能伪装成 Hugging Face checkpoint 直接交给 verl；`verl_grpo.sh` 的 `MODEL_PATH` 必须是 transformers/vLLM 可加载模型。SFT/本地 GRPO 入口仍分别使用 `config/sft.yaml` 和 `config/rl.yaml`。

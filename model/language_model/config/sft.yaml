@@ -1,7 +1,7 @@
 data:
   raw_dir: model/language_model/data/raw/sft/data
   encoded_dir: model/language_model/data/encode/sft
-  tokenizer_dir: model/language_model/checkpoints/tokenizer_model_3200
+  tokenizer_dir: model/language_model/data/encode/pretrain
   tokenizer_prefix: byte_bpe
   shard_tokens: 100000000
 
@@ -14,5 +14,5 @@ training:
   seed: 7
 
 checkpoint:
-  pretrained_path: model/language_model/checkpoints/transformer.safetensors
+  pretrained_path: model/language_model/checkpoints/best.safetensors
   path: model/language_model/checkpoints/transformer_sft.safetensors

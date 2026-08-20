@@ -43,6 +43,9 @@ def main() -> None:
     optimizer = Optimizer(wrapped.parameters(), float(training["learning_rate"]))
     length, batch_size = int(model_config["max_sequence_length"]), int(training["batch_size"])
     rng = np.random.default_rng(int(training["seed"]) + rank)
+    log_path = Path(os.environ.get("NANOGPT_LOG", "logs/sft.jsonl"))
+    if rank == 0:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
     if rank == 0:
         print(f"Device: {device}; world_size: {world_size}; shards: {len(shards)}")
 
@@ -52,7 +55,7 @@ def main() -> None:
         target_ids = np.memmap(labels[index], dtype=np.int32, mode="r")
         starts = rng.integers(0, len(token_ids) - length - 1, size=batch_size)
         input_batch = np.stack([token_ids[start : start + length] for start in starts])
-        target_batch = np.stack([target_ids[start + 1 : start + length + 1] for start in starts])
+        target_batch = np.stack([target_ids[start : start + length] for start in starts])
         inputs = torch.from_numpy(input_batch.astype(np.int64, copy=False)).to(device)
         targets = torch.from_numpy(target_batch.astype(np.int64, copy=False)).to(device)
         optimizer.zero_grad()
@@ -65,6 +68,8 @@ def main() -> None:
         optimizer.step()
         if rank == 0 and (step == 1 or step % training["log_every"] == 0 or step == training["steps"]):
             print(f"step {step:5d}/{training['steps']}: loss={loss.item():.6f} grad_norm={gradient_norm:.4f}")
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"step": step, "loss": loss.item(), "gradient_norm": gradient_norm}, ensure_ascii=False) + "\n")
 
     if rank == 0:
         output = Path(checkpoint["path"])

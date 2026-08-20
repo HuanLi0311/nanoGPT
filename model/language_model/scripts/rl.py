@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -21,7 +22,16 @@ def chat(prompt: str, system: str) -> str:
 
 
 def reward(text: str, answer: str) -> float:
-    return sum(part in text for part in answer.split(";")) / 4
+    if answer:
+        parts = [part for part in answer.split(";") if part]
+        return sum(part in text for part in parts) / max(1, len(parts))
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        return 0.25 if text.strip() else 0.0
+    if isinstance(value, dict) and ("message" in value or "tool_call" in value or "name" in value):
+        return 1.0
+    return 0.5
 
 
 def sample(model, prompt, stops, limit, temperature):
@@ -61,16 +71,22 @@ def main() -> None:
         parameter.requires_grad_(False)
     tokenizer = load_tokenizer(Path(data["tokenizer_dir"]), data["tokenizer_prefix"])
     rows = [json.loads(line) for line in Path(data["path"]).read_text(encoding="utf-8").splitlines()]
+    log_path = Path(os.environ.get("NANOGPT_LOG", "logs/rl.jsonl"))
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     stops = {tokenizer.token_to_id(token) for token in ("<|eos|>", "<|im_end|>")}
     optimizer, group = Optimizer(model.parameters(), float(training["learning_rate"])), int(training["group_size"])
     for step in range(1, int(training["steps"]) + 1):
         row = rows[(step - 1) % len(rows)]
-        prompt = tokenizer.encode(chat(row["prompt"], data["system_prompt"])).ids
+        prompt_value = row["prompt"]
+        if isinstance(prompt_value, list):
+            prompt_value = next((item.get("content", "") for item in prompt_value if item.get("role") == "user"), "")
+        prompt = tokenizer.encode(chat(prompt_value, data["system_prompt"])).ids
         model.eval()
         completions = [sample(model, prompt, stops, int(training["max_new_tokens"]), float(training["temperature"])) for _ in range(group)]
         completions = [item if item else [tokenizer.token_to_id("<|eos|>")] for item in completions]
         texts = [tokenizer.decode(item, skip_special_tokens=True) for item in completions]
-        rewards = torch.tensor([reward(text, row["answer"]) for text in texts], device=device)
+        answer = row.get("answer", row.get("reward_model", {}).get("ground_truth", ""))
+        rewards = torch.tensor([reward(text, answer) for text in texts], device=device)
         advantages = (rewards - rewards.mean()) / (rewards.std(unbiased=False) + 1e-4)
         with torch.inference_mode():
             old = [log_probability(model, prompt, item) for item in completions]
@@ -90,6 +106,8 @@ def main() -> None:
             optimizer.step()
         if step == 1 or step % int(training["log_every"]) == 0 or step == int(training["steps"]):
             print(f"step {step:4d}/{training['steps']}: reward={rewards.mean().item():.3f} answer={texts[0]!r}")
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"step": step, "reward": rewards.mean().item(), "text": texts[0]}, ensure_ascii=False) + "\n")
     output = Path(checkpoint["path"])
     output.parent.mkdir(parents=True, exist_ok=True)
     save_file({name: value.detach().cpu().contiguous() for name, value in model.state_dict().items()}, str(output))

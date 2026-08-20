@@ -1,0 +1,31 @@
+# verl contract for the agent dataset. Replace MODEL_PATH with a transformers
+# checkpoint; the local NanoGPT safetensors use a different architecture.
+algorithm:
+  adv_estimator: grpo
+data:
+  train_files: [model/language_model/data/post_train/verl/train.jsonl]
+  val_files: [model/language_model/data/post_train/verl/val.jsonl]
+  train_batch_size: 4
+  max_prompt_length: 1200
+  max_response_length: 256
+  filter_overlong_prompts: true
+  truncation: error
+actor_rollout_ref:
+  model:
+    path: ${oc.env:MODEL_PATH,deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B}
+  rollout:
+    name: vllm
+    n: 4
+    temperature: 0.7
+  actor:
+    ppo_mini_batch_size: 16
+    ppo_epochs: 1
+reward:
+  custom_reward_function:
+    path: model/language_model/scripts/verl_reward.py
+    name: compute_score
+trainer:
+  project_name: nanoagent
+  experiment_name: grpo_codex
+  n_gpus_per_node: 8
+  nnodes: 1
