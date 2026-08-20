@@ -98,9 +98,12 @@ def sft(data):
                 for messages in batch.column("messages").to_pylist():
                     text, answer = "", []
                     for message in messages:
+                        content = str(message.get("content") or "")
+                        if message.get("tool_calls"):
+                            content += "\n" + json.dumps({"tool_calls": message["tool_calls"]}, ensure_ascii=False, separators=(",", ":"))
                         text += f"<|im_start|>{message['role']}\n"
                         start = len(text)
-                        text += f"{message['content']}<|im_end|>\n"
+                        text += f"{content}<|im_end|>\n"
                         if message["role"] == "assistant":
                             answer.append((start, len(text)))
                     texts.append(text)

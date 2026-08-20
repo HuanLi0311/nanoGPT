@@ -11,6 +11,26 @@ import numpy as np
 from ..model.tokenizer import load_tokenizer
 
 
+def message_content(message: dict) -> str:
+    content = str(message.get("content") or "")
+    calls = message.get("tool_calls") or []
+    if not calls:
+        return content
+    functions = []
+    for call in calls:
+        function = call.get("function", call)
+        arguments = function.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                pass
+        functions.append({"name": function.get("name"), "arguments": arguments})
+    payload = {"tool_call": functions[0]} if len(functions) == 1 else {"tool_calls": functions}
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    return f"{content}\n{encoded}" if content else encoded
+
+
 def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None, batch_size: int = 32) -> None:
     tokenizer = load_tokenizer(tokenizer_dir, prefix)
     for path in output.glob("input_*.bin"):
@@ -57,7 +77,7 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
                 continue
             text, ranges = "", []
             for message in messages:
-                role, content = message.get("role"), str(message.get("content", ""))
+                role, content = message.get("role"), message_content(message)
                 text += f"<|im_start|>{role}\n"
                 start = len(text)
                 text += f"{content}<|im_end|>\n"
