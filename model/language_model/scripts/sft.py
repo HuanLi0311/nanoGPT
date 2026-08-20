@@ -31,6 +31,8 @@ def main() -> None:
     sft_metadata = json.loads((encoded_dir / "metadata.json").read_text(encoding="utf-8"))
     pretrained_metadata = json.loads(pretrained_path.with_suffix(".json").read_text(encoding="utf-8"))
     model_config, pretrained_data = pretrained_metadata["model"], pretrained_metadata["data"]
+    if int(sft_metadata["vocabulary_size"]) != int(pretrained_data["vocabulary_size"]):
+        raise ValueError(f"SFT tokenizer vocab {sft_metadata['vocabulary_size']} does not match checkpoint vocab {pretrained_data['vocabulary_size']}; re-encode SFT data first")
 
     shards = sorted(encoded_dir.glob("input_train_*.bin"))
     labels = sorted(encoded_dir.glob("labels_train_*.bin"))
