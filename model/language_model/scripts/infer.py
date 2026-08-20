@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -15,6 +14,12 @@ from safetensors.torch import load_file
 from ..model.model import Transformer
 from ..model.tokenizer import ByteLevelBPETokenizer, load_tokenizer
 
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def from_root(path: str | Path) -> Path:
+    path = Path(path)
+    return path if path.is_absolute() else ROOT / path
 
 
 def load_model(path: Path) -> Transformer:
@@ -68,19 +73,18 @@ def generate(
     return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 
-def infer(prompt: str, config_path: Path = Path("model/language_model/config/observatory_rl.yaml")) -> str:
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+def infer(prompt: str, config_path: Path = ROOT / "model/language_model/config/infer.yaml") -> str:
+    config = yaml.safe_load(from_root(config_path).read_text(encoding="utf-8"))
     system = config["data"].get("system_prompt")
     if system:
         prompt = f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-    return generate(load_model(Path(config["checkpoint"]["path"])), load_tokenizer(Path(config["data"]["tokenizer_dir"]), config["data"]["tokenizer_prefix"]), prompt, **config.get("inference", {}))
+    return generate(load_model(from_root(config["checkpoint"]["path"])), load_tokenizer(from_root(config["data"]["tokenizer_dir"]), config["data"]["tokenizer_prefix"]), prompt, **config.get("inference", {}))
 
 
 def main() -> None:
-    os.chdir(Path(__file__).parents[1])
     parser = ArgumentParser()
     parser.add_argument("--prompt", required=True)
-    parser.add_argument("--config", type=Path, default=Path("model/language_model/config/observatory_rl.yaml"))
+    parser.add_argument("--config", type=Path, default=ROOT / "model/language_model/config/infer.yaml")
     args = parser.parse_args()
     print(infer(args.prompt, args.config).split("assistant\n")[-1])
 
