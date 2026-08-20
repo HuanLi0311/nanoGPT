@@ -11,7 +11,7 @@ import numpy as np
 from ..model.tokenizer import load_tokenizer
 
 
-def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None) -> None:
+def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None, batch_size: int = 32) -> None:
     tokenizer = load_tokenizer(tokenizer_dir, prefix)
     for path in output.glob("input_*.bin"):
         path.unlink()
@@ -23,6 +23,7 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
     counts = {"train": 0, "validation": 0}
     shards = {"train": 0, "validation": 0}
     seen = 0
+    pending: list[tuple[str, list[tuple[int, int]], str]] = []
 
     def flush(split: str, final: bool = False) -> None:
         ids, labels = buffers[split]
@@ -33,6 +34,15 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
             del ids[:size], labels[:size]
             counts[split] += size
             shards[split] += 1
+
+    def process(items: list[tuple[str, list[tuple[int, int]], str]]) -> None:
+        encodings = tokenizer.encode_batch([item[0] for item in items])
+        for (text, ranges, split), encoded in zip(items, encodings, strict=True):
+            labels = [token if any(offset[1] > start and offset[0] < end for start, end in ranges) else -100
+                      for token, offset in zip(encoded.ids, encoded.offsets)]
+            buffers[split][0].extend(encoded.ids)
+            buffers[split][1].extend(labels)
+            flush(split)
 
     for path in sorted(source.rglob("*.jsonl")):
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -53,16 +63,15 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
                 text += f"{content}<|im_end|>\n"
                 if role == "assistant":
                     ranges.append((start, len(text)))
-            encoded = tokenizer.encode(text)
-            labels = [token if any(offset[1] > start and offset[0] < end for start, end in ranges) else -100
-                      for token, offset in zip(encoded.ids, encoded.offsets)]
             split = "validation" if seen % 20 == 0 else "train"
-            buffers[split][0].extend(encoded.ids)
-            buffers[split][1].extend(labels)
-            flush(split)
+            pending.append((text, ranges, split))
             seen += 1
+            if len(pending) >= batch_size:
+                process(pending)
+                pending.clear()
         if limit and seen >= limit:
             break
+    process(pending)
     flush("train", True)
     flush("validation", True)
     (output / "metadata.json").write_text(json.dumps({
@@ -81,8 +90,9 @@ def main() -> None:
     parser.add_argument("--tokenizer-prefix", default="byte_bpe")
     parser.add_argument("--shard-tokens", type=int, default=100_000_000)
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
-    encode(args.source, args.output, args.tokenizer_dir, args.tokenizer_prefix, args.shard_tokens, args.limit)
+    encode(args.source, args.output, args.tokenizer_dir, args.tokenizer_prefix, args.shard_tokens, args.limit, args.batch_size)
 
 
 if __name__ == "__main__":
