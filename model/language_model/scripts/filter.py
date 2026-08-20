@@ -129,6 +129,7 @@ def inspect(item: dict) -> tuple[dict | None, str | None, str]:
     flags = set()
     tool_calls = 0
     pending = set()
+    orphan_results = 0
     signals = set()
     for message, payload in events:
         kind = payload.get("type")
@@ -136,12 +137,17 @@ def inspect(item: dict) -> tuple[dict | None, str | None, str]:
             flags.add(kind)
         if PERMISSION.search(text_content(payload.get("output"))):
             flags.add("permission_error")
-        if kind in {"function_call", "custom_tool_call"}:
+        for call in message.get("tool_calls", []):
             tool_calls += 1
-            if payload.get("call_id"):
-                pending.add(payload["call_id"])
-        elif kind in {"function_call_output", "custom_tool_call_output"}:
-            pending.discard(payload.get("call_id"))
+            call_id = call.get("id") or call.get("call_id")
+            if call_id:
+                pending.add(call_id)
+        if message.get("role") == "tool" or kind in {"function_call_output", "custom_tool_call_output", "tool_result"}:
+            call_id = message.get("tool_call_id") or payload.get("tool_call_id") or payload.get("call_id")
+            if call_id and call_id in pending:
+                pending.discard(call_id)
+            else:
+                orphan_results += 1
         output = text_content(payload.get("output"))
         raw = json.dumps(payload, ensure_ascii=False)
         if payload.get("exit_code") == 0 or EXIT_OK.search(output + raw):
@@ -153,6 +159,12 @@ def inspect(item: dict) -> tuple[dict | None, str | None, str]:
     chars = sum(len(m.get("content", "")) for m in messages)
     if tool_calls > MAX_TOOLS:
         return None, "too_many_tools", user
+    if flags:
+        return None, "invalid_event", user
+    if pending:
+        return None, "unresolved_tool_calls", user
+    if orphan_results:
+        return None, "orphan_tool_results", user
     if chars > MAX_CHARS:
         return None, "too_long", user
     score = min(1.0, 0.5 + 0.15 * bool(signals) + 0.1 * ("tests_passed" in signals) + 0.1 * ("exit_code_0" in signals) + 0.05 * ("patch_success" in signals))

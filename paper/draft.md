@@ -6,6 +6,8 @@ This draft describes a small agent post-training pipeline that connects Codex-st
 
 A second harness review fixed four protocol/runtime gaps: run state files are now isolated by run id and reject mismatched or malformed state, relative command working directories are resolved from the workspace root, DeepSeek requests have a bounded timeout, and SFT rendering retains tool results with their call ids. The local self-check covers these paths, but no commercial-model episode has been run because the rotated API key has not been supplied.
 
+A data-quality iteration then enforced the filter's previously unused failure and tool-pair checks. The default corpus changed from 4,756 to 4,594 episodes after removing unresolved calls, orphan results, and invalid events; the clean set contains 39,785 calls and 39,785 results. Re-encoding produced 67.46M train tokens and 3.40M validation tokens with the 32,768-token vocabulary. This is a training-input correction, not evidence of improved agent capability.
+
 ## 1. Motivation
 
 Agent training data contains more than assistant text. Tool names, JSON arguments, tool results, exit codes, and the final answer form an execution protocol. Flattening these events into text loses the information needed to train or evaluate an agent in the same environment. NanoAgent therefore keeps a canonical trajectory format and exposes a narrow runtime contract to the trainer.

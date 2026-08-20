@@ -1,0 +1,32 @@
+{
+  "source": "model/language_model/data/post_train/data/raw",
+  "old_filtered_examples": 4756,
+  "clean_filtered_examples": 4594,
+  "clean_filter_drops": {
+    "unresolved_tool_calls": 663,
+    "orphan_tool_results": 94,
+    "invalid_event": 63,
+    "no_task_result": 1736,
+    "no_clear_task": 414,
+    "duplicate_task": 587,
+    "too_long": 169,
+    "possible_secret": 98,
+    "too_many_tools": 82
+  },
+  "clean_tool_pairs": {
+    "calls": 39785,
+    "results": 39785,
+    "unresolved_rows": 0,
+    "orphan_rows": 0
+  },
+  "verl_rows": {
+    "train": 4364,
+    "validation": 230
+  },
+  "sft_tokens": {
+    "train": 67460899,
+    "validation": 3404443,
+    "vocabulary_size": 32768
+  },
+  "interpretation": "The previous filter tracked bad-event and pending-call signals but did not enforce them. The clean dataset is now the default SFT/verl input; no capability improvement is claimed before retraining."
+}
