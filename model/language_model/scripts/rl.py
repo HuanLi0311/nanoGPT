@@ -74,7 +74,8 @@ def main() -> None:
     log_path = Path(os.environ.get("NANOGPT_LOG", "logs/rl.jsonl"))
     log_path.parent.mkdir(parents=True, exist_ok=True)
     stops = {tokenizer.token_to_id(token) for token in ("<|eos|>", "<|im_end|>")}
-    optimizer, group = Optimizer(model.parameters(), float(training["learning_rate"])), int(training["group_size"])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(training["learning_rate"]), weight_decay=float(training.get("weight_decay", 0.01))) if training.get("optimizer") == "adamw" else Optimizer(model.parameters(), float(training["learning_rate"]))
+    group = int(training["group_size"])
     for step in range(1, int(training["steps"]) + 1):
         row = rows[(step - 1) % len(rows)]
         prompt_value = row["prompt"]
