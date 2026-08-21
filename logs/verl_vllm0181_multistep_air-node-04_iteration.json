@@ -1,0 +1,29 @@
+{
+  "status": "blocked_before_rollout",
+  "node": "air-node-04",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "fixture": {"train_rows": 16, "validation_rows": 4, "expected_steps": 4},
+  "working_configuration": {
+    "torch": "2.10.0+cu128 via isolated site-packages",
+    "vllm": "0.18.1",
+    "ray_num_cpus": 8,
+    "max_prompt_length": 256,
+    "max_response_length": 64,
+    "max_model_len": 512,
+    "max_num_batched_tokens": 512,
+    "max_num_seqs": 512,
+    "offline_snapshot": true
+  },
+  "resolved": [
+    "Ray workers start with UTF-8 environment instead of failing init_fs_encoding",
+    "Qwen loads from a complete local Hugging Face snapshot without network access",
+    "vLLM SchedulerConfig accepts max_num_batched_tokens once max_num_seqs is capped"
+  ],
+  "remaining_blocker": "verl V1 TaskRunnerV1 remains in actor/TransferQueue initialization after dataset filtering; GPU model load, rollout, reward, and actor update never start",
+  "evidence": [
+    "dataset len 16; validation len 4; total training steps 4",
+    "no GPU allocation above driver baseline after initialization",
+    "no Training Progress, reward, validation, or actor update metrics"
+  ],
+  "interpretation": "This is an infrastructure/configuration iteration, not an RL or trajectory result. It cannot support a capability-improvement claim."
+}

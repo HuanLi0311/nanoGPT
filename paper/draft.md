@@ -58,6 +58,8 @@ An isolated compatibility environment then used Torch 2.10.0, vLLM 0.18.1, and t
 
 The tool-call-only continuation changes the failure mode from empty text to almost-valid raw call JSON. The parser now tolerates a duplicated closing brace at this trust boundary, but this does not prove that the generated commands are safe or correct. The next experiment should train directly against the harness's exact action serialization, then execute sampled calls in a controlled workspace before using a task-success reward.
 
+A later 16-row/4-row, four-step vLLM 0.18.1 reproduction removed three setup blockers (Ray UTF-8 worker startup, offline Qwen snapshot loading, and a vLLM scheduler constraint requiring `max_num_batched_tokens >= max_num_seqs`). It still stopped in verl V1 actor/TransferQueue initialization before GPU model loading, rollout, reward, or update. This is a negative infrastructure result rather than a trajectory result; the record is `logs/verl_vllm0181_multistep_air-node-04_iteration.json`.
+
 The next controlled experiment is: freeze the 500-example pilot split, train AdamW and Muon for the same number of steps, evaluate on held-out Codex tasks, then compare the local policy with a DeepSeek teacher using identical prompts, tools, timeouts, and verifier rules. Results must be written to `logs/` and plotted in `assets/` before making a capability claim.
 
 ## 5. Reproducibility

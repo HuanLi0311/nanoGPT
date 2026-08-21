@@ -14,6 +14,7 @@ max_prompt_length=${MAX_PROMPT_LENGTH:-1200}
 max_response_length=${MAX_RESPONSE_LENGTH:-256}
 max_model_len=${MAX_MODEL_LEN:-$((max_prompt_length + max_response_length))}
 max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS:-$max_model_len}
+max_num_seqs=${MAX_NUM_SEQS:-$max_num_batched_tokens}
 gpu_memory_utilization=${GPU_MEMORY_UTILIZATION:-0.5}
 enforce_eager=${VLLM_ENFORCE_EAGER:-false}
 logger=${VERL_LOGGER:-console}
@@ -34,6 +35,7 @@ exec python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.tensor_model_parallel_size="$tensor_parallel_size" \
   actor_rollout_ref.rollout.max_model_len="$max_model_len" \
   actor_rollout_ref.rollout.max_num_batched_tokens="$max_num_batched_tokens" \
+  actor_rollout_ref.rollout.max_num_seqs="$max_num_seqs" \
   actor_rollout_ref.rollout.gpu_memory_utilization="$gpu_memory_utilization" \
   actor_rollout_ref.rollout.enforce_eager="$enforce_eager" \
   +actor_rollout_ref.model.override_config.attn_implementation="$attn_implementation" \

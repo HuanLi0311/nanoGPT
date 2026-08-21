@@ -85,6 +85,7 @@ NanoGPT 的 `best.safetensors` 是自定义 Transformer，不能直接作为 Hug
 
 - air-node-03 的早期 verl smoke 在 Ray worker/node health 阶段失败；原有 8-GPU NanoGPT pretraining 未被终止，记录：`logs/verl_smoke_air-node-03.json`。
 - air-node-04 的多步 fixture 曾因 Ray worker 启动环境的 `init_fs_encoding: unknown encoding: UTF-8` 卡在 Ray 初始化，随后已停止本次实验进程；没有产生多步 reward/loss 结果，不能写成完成。
+- 后续 16 train / 4 validation、预期 4-step 复现排除了三个环境问题：显式 UTF-8 环境、离线完整 Qwen snapshot、以及 vLLM 0.18.1 要求 `max_num_batched_tokens >= max_num_seqs`。但 verl V1 `TaskRunnerV1` 仍卡在 actor/TransferQueue 初始化；GPU 未进入 model load，零 rollout/reward/update。记录：`logs/verl_vllm0181_multistep_air-node-04_iteration.json`。
 - air-node-02/03 可以作为后续候选节点，但每次必须先核对具体 GPU 和进程归属，不能终止已有训练。
 
 ## DeepSeek API 的正确角色
@@ -98,7 +99,7 @@ NanoGPT 的 `best.safetensors` 是自定义 Transformer，不能直接作为 Hug
 ## 下一步
 
 1. 先固定 held-out Codex task split 和 verifier，明确 workspace task success 定义。
-2. 用 Qwen 在 air-node-02 的确认空闲 GPU 复现多步 verl，记录每一步 reward、actor loss、validation 和 checkpoint；不碰 air-node-03 现有训练。
+2. 用 Qwen 在具有已验证 V1 worker 初始化的环境复现多步 verl，记录每一步 reward、actor loss、validation 和 checkpoint；不碰 air-node-03 现有训练。air-node-02 的 base vLLM 0.12 不满足当前 verl 要求，air-node-04 当前 V1 worker 初始化仍需修复。
 3. 对同一批任务运行本地 policy 与 DeepSeek teacher，统一 prompt、tool、timeout、workspace 和 verifier。
 4. 把真实工具执行结果写入 `logs/`，必要时绘制到 `assets/`；在此之前只报告 pipeline、格式和协议结果，不报告 capability gain。
 
