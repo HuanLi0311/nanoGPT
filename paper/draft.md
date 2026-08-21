@@ -48,6 +48,8 @@ The local NanoGPT checkpoint is a custom Transformer and cannot be loaded direct
 
 The verl launcher reached configuration validation and started a local Ray instance on `air-node-03`, but worker initialization failed with a node-health timeout before the first training step. This is recorded in `logs/verl_smoke_air-node-03.json`; it is a protocol/infrastructure result, not a GRPO result. The node's pre-existing eight-process pretraining job was left running.
 
+On `air-node-04`, a second clean-data smoke progressed further through Ray, TransferQueue, prompt filtering, and FSDP actor initialization for Qwen2.5-1.5B. It still stopped before rollout because this verl release requires vLLM >= 0.18 while the node's usable vLLM 0.12 is unsupported; vLLM 0.18's CUDA extension was ABI-incompatible with the installed Torch 2.9. The launcher now defaults to `sdpa`, single-GPU tensor parallelism, and no Ray dashboard for this environment. The complete record is `logs/verl_air-node-04_iteration.json`; it contains no GRPO reward or update.
+
 The next controlled experiment is: freeze the 500-example pilot split, train AdamW and Muon for the same number of steps, evaluate on held-out Codex tasks, then compare the local policy with a DeepSeek teacher using identical prompts, tools, timeouts, and verifier rules. Results must be written to `logs/` and plotted in `assets/` before making a capability claim.
 
 ## 5. Reproducibility

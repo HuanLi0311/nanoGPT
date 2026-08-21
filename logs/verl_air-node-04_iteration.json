@@ -1,0 +1,28 @@
+{
+  "node": "air-node-04",
+  "dataset": {"train_rows": 2, "validation_rows": 1, "filtered_train_rows": 1, "filtered_validation_rows": 1},
+  "configuration": {
+    "gpus": 1,
+    "rollout_n": 2,
+    "max_prompt_length": 512,
+    "max_response_length": 64,
+    "attention_implementation": "sdpa",
+    "tensor_model_parallel_size": 1,
+    "ray_dashboard": false
+  },
+  "reached": [
+    "Ray local instance",
+    "TransferQueue initialization",
+    "RLHFDataset filtering and dataloaders",
+    "FSDP actor initialization for Qwen2.5-1.5B"
+  ],
+  "environment_fixes": [
+    "Installed TransferQueue 0.1.8, required by this verl v1 trainer.",
+    "Used a short validation fixture after the original validation row was filtered as overlong.",
+    "Used sdpa because flash-attn is absent.",
+    "Used rollout tensor parallelism 1 for one GPU."
+  ],
+  "blocker": "verl requires vLLM >= 0.18, while the node's importable vLLM 0.12 is unsupported. vLLM 0.18 installed but its CUDA extension is ABI-incompatible with the node's Torch 2.9; the environment was restored to vLLM 0.12.",
+  "training_steps": 0,
+  "interpretation": "The launcher and data contract now reach actor model initialization, but no vLLM rollout, reward, or GRPO update ran."
+}
