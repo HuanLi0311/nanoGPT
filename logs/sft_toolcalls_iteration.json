@@ -1,0 +1,36 @@
+{
+  "node": "air-node-04",
+  "data": {
+    "examples": 4594,
+    "label_policy": "tool_calls_only",
+    "train_tokens": 67460899,
+    "validation_tokens": 3404443,
+    "train_supervised_tokens": 8450644,
+    "validation_supervised_tokens": 522471
+  },
+  "training": {
+    "gpus": 5,
+    "steps": 1000,
+    "pretrained_path": "model/language_model/checkpoints/transformer_sft_aligned_1000_5gpu.safetensors",
+    "checkpoint": "model/language_model/checkpoints/transformer_sft_toolcalls_1000_5gpu.safetensors",
+    "first_loss": 0.4825883209705353,
+    "last_loss": 0.6037354469299316,
+    "minimum_logged_loss": 0.12970080971717834
+  },
+  "evaluation": {
+    "examples": [
+      "train",
+      "validation",
+      "heldout"
+    ],
+    "json_valid_rate": 0.0,
+    "action_valid_rate": 0.0,
+    "raw_action_shape_after_removing_one_trailing_brace": [
+      true,
+      true,
+      true
+    ]
+  },
+  "interpretation": "Tool-call-only labels produced nonempty, near-structured raw call text, but all three greedy outputs had an extra closing brace. The harness cannot parse or execute them; no structured-action or GRPO capability gain is claimed.",
+  "curve": "logs/sft_toolcalls_1000_air-node-04.jsonl; PNG not generated because matplotlib is absent from the existing training environment."
+}

@@ -31,7 +31,11 @@ def message_content(message: dict) -> str:
     return f"{content}\n{encoded}" if content else encoded
 
 
-def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None, batch_size: int = 32) -> None:
+def is_supervised_message(message: dict, tool_calls_only: bool) -> bool:
+    return message.get("role") == "assistant" and (not tool_calls_only or bool(message.get("tool_calls")))
+
+
+def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None, batch_size: int = 32, tool_calls_only: bool = False) -> None:
     tokenizer = load_tokenizer(tokenizer_dir, prefix)
     for path in output.glob("input_*.bin"):
         path.unlink()
@@ -81,7 +85,7 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
                 text += f"<|im_start|>{role}\n"
                 start = len(text)
                 text += f"{content}<|im_end|>\n"
-                if role == "assistant":
+                if is_supervised_message(message, tool_calls_only):
                     ranges.append((start, len(text)))
             split = "validation" if seen % 20 == 0 else "train"
             pending.append((text, ranges, split))
@@ -100,6 +104,7 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
         "input_dtype": "uint32", "label_dtype": "int32", "ignore_index": -100,
         "vocabulary_size": tokenizer.get_vocab_size(), "tokens": counts, "shards": shards,
         "examples": seen, "chat_template": "<|im_start|>{role}\\n{content}<|im_end|>\\n",
+        "label_policy": "tool_calls_only" if tool_calls_only else "all_assistant",
     }, indent=2), encoding="utf-8")
     print(json.dumps({"examples": seen, "vocabulary_size": tokenizer.get_vocab_size(), "tokens": counts, "shards": shards}))
 
@@ -113,8 +118,9 @@ def main() -> None:
     parser.add_argument("--shard-tokens", type=int, default=100_000_000)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--tool-calls-only", action="store_true", help="label only assistant tool-call messages")
     args = parser.parse_args()
-    encode(args.source, args.output, args.tokenizer_dir, args.tokenizer_prefix, args.shard_tokens, args.limit, args.batch_size)
+    encode(args.source, args.output, args.tokenizer_dir, args.tokenizer_prefix, args.shard_tokens, args.limit, args.batch_size, args.tool_calls_only)
 
 
 if __name__ == "__main__":
