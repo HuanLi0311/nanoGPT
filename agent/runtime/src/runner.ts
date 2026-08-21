@@ -4,6 +4,7 @@ import type { ChatMessage, Event, ToolSpec } from "../../shared/src/types.ts";
 import { parseAction, eventFromAction } from "./parser.ts";
 import { callTool, type ToolContext } from "./tools/registry.ts";
 import { verify, type Verification } from "./reward.ts";
+import { renderEvents } from "../../shared/src/renderer.ts";
 
 export type Model = { complete(messages: ChatMessage[], tools: ToolSpec[]): Promise<{ content?: string; tool_calls?: { id?: string; function: { name: string; arguments: string } }[] }> };
 export type RunState = { id: string; status: "running" | "done" | "failed"; attempt: number; events: Event[]; final?: string; verification?: Verification };
@@ -33,9 +34,7 @@ export async function run(options: Options): Promise<RunState> {
   if (state.status === "done") return state;
   const maxTurns = options.maxTurns ?? 20, retries = options.retries ?? 2;
   for (let turn = state.events.filter((x) => x.role === "assistant").length; turn < maxTurns; turn++) {
-    const messages: ChatMessage[] = state.events.map((event) => event.kind === "tool_call"
-      ? { role: "assistant", content: null, tool_calls: [{ id: event.toolCallId ?? "call_0", type: "function", function: { name: event.tool!, arguments: JSON.stringify(event.arguments ?? {}) } }] }
-      : { role: event.role, content: event.content ?? "", ...(event.kind === "tool_result" ? { tool_call_id: event.toolCallId } : {}) });
+    const messages = renderEvents(state.events);
     let response;
     for (let attempt = 0; ; attempt++) {
       try { response = await options.model.complete(messages, options.tools); break; }
@@ -44,7 +43,9 @@ export async function run(options: Options): Promise<RunState> {
     if (response.tool_calls?.length) {
       for (const call of response.tool_calls) {
         const event = eventFromAction({ kind: "tool_call", tool: call.function.name, arguments: parseArguments(call.function.arguments) });
-        event.toolCallId = call.id ?? `call_${turn}`; state.events.push(event);
+        event.toolCallId = call.id ?? `call_${turn}_${state.events.filter((item) => item.kind === "tool_call").length}`; state.events.push(event);
+      }
+      for (const event of state.events.slice(-response.tool_calls.length)) {
         try { const result = await callTool(event.tool!, event.arguments, options.context); state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: result.content, exitCode: result.exitCode }); }
         catch (error) { state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: String(error), exitCode: 1 }); }
       }

@@ -4,7 +4,7 @@
 
 This draft describes a small agent post-training pipeline that connects Codex-style JSON trajectories to a workspace harness and a verl-compatible GRPO data contract. The harness preserves structured tool calls, executes commands inside a workspace boundary, supports atomic episode checkpoints and retries, and verifies tool outcomes. The current evidence is preliminary: a tokenizer mismatch and empty-label SFT windows were found and fixed; a 10-step AdamW SFT pilot reduced a fixed masked loss from 10.16 to 0.72 on a 500-example pilot, while a one-step GRPO smoke completed but produced reward 0 and an empty response. No agent capability improvement is claimed yet.
 
-A second harness review fixed four protocol/runtime gaps: run state files are now isolated by run id and reject mismatched or malformed state, relative command working directories are resolved from the workspace root, DeepSeek requests have a bounded timeout, and SFT rendering retains tool results with their call ids. A distributed-training audit also fixed SFT so every DDP rank loads the same pretrained checkpoint. The local self-check covers the harness paths, but no commercial-model episode has been run because the rotated API key has not been supplied.
+A second harness review fixed four protocol/runtime gaps: run state files are now isolated by run id and reject mismatched or malformed state, relative command working directories are resolved from the workspace root, DeepSeek requests have a bounded timeout, and SFT rendering retains tool results with their call ids. A distributed-training audit also fixed SFT so every DDP rank loads the same pretrained checkpoint. A real DeepSeek API smoke then completed a repository inspection, and a follow-up probe returned two parallel tool calls in one response. This exposed and fixed a protocol bug where the harness split one assistant multi-call message into interleaved assistant/tool messages.
 
 A data-quality iteration then enforced the filter's previously unused failure and tool-pair checks. The default corpus changed from 4,756 to 4,594 episodes after removing unresolved calls, orphan results, and invalid events; the clean set contains 39,785 calls and 39,785 results. Re-encoding produced 67.46M train tokens and 3.40M validation tokens with the 32,768-token vocabulary. This is a training-input correction, not evidence of improved agent capability.
 
@@ -25,7 +25,7 @@ The pipeline has four boundaries:
 3. A verifier scores final responses using tool failures and completion evidence. The reward hook for verl scores structured JSON actions and can be replaced by a task-specific verifier.
 4. Filtered trajectories are converted to the verl `data_source/prompt/reward_model/extra_info` contract. SFT uses the base checkpoint tokenizer and refuses mismatched vocabularies.
 
-DeepSeek is integrated through its OpenAI-compatible `/chat/completions` endpoint. The key is read only from `DEEPSEEK_API_KEY`; no secret is stored in the repository. A teacher comparison is intentionally not reported until a rotated key is supplied and the same benchmark is run against the local policy.
+DeepSeek is integrated through its OpenAI-compatible `/chat/completions` endpoint. The key is read only from `DEEPSEEK_API_KEY`; no secret is stored in the repository. The API smoke and parallel-call probe validate the runtime contract, but a teacher comparison is not reported until the same held-out benchmark is run against the local policy.
 
 ## 3. Preliminary Experiments
 
@@ -40,6 +40,7 @@ All measurements below were run on `air-node-03` with 8 A100 GPUs unless stated 
 | GRPO smoke | AdamW, group 2, one step | checkpoint written; reward 0; response was whitespace |
 | Tool-call SFT, 1 GPU | 42,330 serialized Codex tool calls, 20 steps | loss 9.60 to 0.35; held-out and training prompts still produced empty output; GRPO reward 0 |
 | Tool-call-only SFT, 5 GPUs (air-node-04) | 1,000-step continuation from aligned SFT; 8.45M labeled train tokens | loss 0.48 to 0.60; strict JSON 0/3, repaired parser 3/3, no tool execution |
+| verl V1 sync-GRPO, 1 GPU (air-node-04) | Qwen2.5-1.5B, vLLM 0.18.1/Torch 2.10 isolated env, one-row fixture, one step | rollout/reward/update/validation completed; reward 0.70 train and 0.65 validation; no capability claim |
 
 The optimizer comparison is a pipeline result, not a generalization result. The SFT improvement is likely memorization on a tiny pilot. The full experiment must use a held-out agent benchmark and report task success, tool-call validity, recovery rate, and verifier score.
 
@@ -53,7 +54,9 @@ The verl launcher reached configuration validation and started a local Ray insta
 
 On `air-node-04`, a second clean-data smoke progressed further through Ray, TransferQueue, prompt filtering, and FSDP actor initialization for Qwen2.5-1.5B. It still stopped before rollout because this verl release requires vLLM >= 0.18 while the node's usable vLLM 0.12 is unsupported; vLLM 0.18's CUDA extension was ABI-incompatible with the installed Torch 2.9. The launcher now defaults to `sdpa`, single-GPU tensor parallelism, and no Ray dashboard for this environment. The complete record is `logs/verl_air-node-04_iteration.json`; it contains no GRPO reward or update.
 
-The tool-call-only continuation changes the failure mode from empty text to almost-valid raw call JSON. The parser now tolerates a duplicated closing brace at this trust boundary, but this does not prove that the generated commands are safe or correct. GRPO is deferred because the current reward would conflate syntax repair with verified task execution. The next experiment should train directly against the harness's exact action serialization, then execute sampled calls in a controlled workspace before any reward update.
+An isolated compatibility environment then used Torch 2.10.0, vLLM 0.18.1, and the cached Qwen2.5-1.5B-Instruct checkpoint without changing the node's base environment. A real one-step verl V1 sync-GRPO smoke completed rollout generation, custom reward computation, actor update, weight synchronization, and validation. The one-row fixture reported reward 0.70 during training and 0.65 on validation. This verifies the verl protocol path, not agent capability: the reward is heuristic, the fixture has one row, no checkpoint was saved, and no generated command was executed in a workspace. The complete metrics are in `logs/verl_vllm0181_smoke_air-node-04.json` and the raw run is in `logs/verl_vllm0181_smoke_air-node-04.log`.
+
+The tool-call-only continuation changes the failure mode from empty text to almost-valid raw call JSON. The parser now tolerates a duplicated closing brace at this trust boundary, but this does not prove that the generated commands are safe or correct. The next experiment should train directly against the harness's exact action serialization, then execute sampled calls in a controlled workspace before using a task-success reward.
 
 The next controlled experiment is: freeze the 500-example pilot split, train AdamW and Muon for the same number of steps, evaluate on held-out Codex tasks, then compare the local policy with a DeepSeek teacher using identical prompts, tools, timeouts, and verifier rules. Results must be written to `logs/` and plotted in `assets/` before making a capability claim.
 

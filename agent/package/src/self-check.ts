@@ -13,7 +13,10 @@ let calls = 0;
 const model = { complete: async (messages: any[]) => {
   calls++;
   return messages.length === 1
-    ? { tool_calls: [{ id: "patch", function: { name: "apply_patch", arguments: JSON.stringify({ patch }) } }] }
+    ? { tool_calls: [
+      { id: "patch", function: { name: "apply_patch", arguments: JSON.stringify({ patch }) } },
+      { id: "read", function: { name: "exec_command", arguments: JSON.stringify({ command: "cat result.txt" }) } },
+    ] }
     : { content: JSON.stringify({ message: "completed" }) };
 } };
 const state = await run({ id: "check", prompt: "make the result file", model, tools: toolSchemas,
@@ -36,6 +39,13 @@ const rendered = renderSftRow([
   { role: "tool", kind: "tool_result", toolCallId: "call_1", content: "ok", exitCode: 0 },
 ]);
 if (rendered.messages[1]?.role !== "tool" || rendered.messages[1].tool_call_id !== "call_1") throw new Error("tool result was dropped from SFT rendering");
+const parallel = renderSftRow([
+  { role: "assistant", kind: "tool_call", tool: "a", toolCallId: "a", arguments: {} },
+  { role: "assistant", kind: "tool_call", tool: "b", toolCallId: "b", arguments: {} },
+  { role: "tool", kind: "tool_result", toolCallId: "a", content: "ok", exitCode: 0 },
+  { role: "tool", kind: "tool_result", toolCallId: "b", content: "ok", exitCode: 0 },
+]);
+if (parallel.messages.length !== 3 || parallel.messages[0]?.tool_calls?.length !== 2) throw new Error("parallel tool calls were split into invalid messages");
 if (parseAction('{"name":"exec_command","arguments":{"command":"true"}}}').kind !== "tool_call") throw new Error("near-JSON tool call was not recovered");
 await rm(root, { recursive: true, force: true });
 console.log("harness self-check passed");

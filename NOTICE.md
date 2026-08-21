@@ -8,8 +8,8 @@ resume /retry逻辑 智能体的环境(这一部分目前完全没有) verifier 
 harness/环境是否capable并逐步改进(调取商用模型以进一步修改harness框架的不足之处) 我们认为调取商用模型足够强大 可以将
 不良结果倒逼到harness本身的不良上 从而进一步修改harness框架的不足之处
 
-DEEPSEEK_API_KEY: 请通过环境变量提供，勿写入仓库；NOTICE 中曾出现的旧 key 应立即轮换。
-计算节点: ssh aie-node-02 多卡训练
+DEEPSEEK_API_KEY: 请在air-node-02/03 通过source ~/.bashrc调用
+计算节点: ssh air-node-02/03 多卡训练
 训练配置在/home/JJ_Group/lih2511/test/nanoGPT/model/language_model/config/~
 实验结果 loss曲线 实验指标请记录并绘图到/home/JJ_Group/lih2511/test/nanoGPT/assets 实验结果分组汇总至/home/JJ_Group/lih2511/test/nanoGPT/logs
 

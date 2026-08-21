@@ -1,0 +1,12 @@
+{
+  "status": "completed",
+  "node": "air-node-02",
+  "model": "deepseek-chat",
+  "request": "repository inspection with two independent exec_command calls requested in one assistant turn",
+  "http_status": 200,
+  "tool_calls_returned": 2,
+  "tool_names": ["exec_command", "exec_command"],
+  "content_present": false,
+  "finding": "DeepSeek emits parallel tool calls; the harness must preserve one assistant message containing both calls before their tool results.",
+  "secret_policy": "API key supplied through sourced environment only; no key recorded"
+}
