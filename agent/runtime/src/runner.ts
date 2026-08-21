@@ -24,7 +24,7 @@ export async function run(options: Options): Promise<RunState> {
   let state: RunState = { id: options.id, status: "running", attempt: 0, events: [{ role: "user", kind: "message", content: options.prompt }] };
   try {
     const saved = JSON.parse(await readFile(options.statePath, "utf8"));
-    if (!saved || saved.id !== options.id || !Array.isArray(saved.events) || !["running", "done", "failed"].includes(saved.status)) throw new Error("invalid or mismatched run state");
+    if (!saved || saved.id !== options.id || !Array.isArray(saved.events) || saved.events[0]?.role !== "user" || saved.events[0].content !== options.prompt || !["running", "done", "failed"].includes(saved.status)) throw new Error("invalid or mismatched run state");
     state = saved;
   } catch (error: any) {
     if (error?.code !== "ENOENT") throw error;

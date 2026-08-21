@@ -12,23 +12,27 @@
       "prompt": "\"MoM3R/data/download_kitti.sh\"\n我想用这个脚本进行数据集下载但是这个脚本现在已经被魔改得不成样子了，请你把正确的路径修复进去然后把数据全部下载到这个路径下data/，并把相应的预处理脚本MoM3R/datasets_preprocess/prepare_kitti.py也路径修复一下。请你把这两个脚本的路径重新改对\n",
       "completion": "{\"name\":\"exec_command\",\"arguments\":{\"cmd\":\"sed -n '1,260p' slurm/run_kitti_video_depth_topk_ablation_4way.sbatch\"}}}",
       "json_valid": false,
-      "action_valid": false
+      "action_valid": false,
+      "harness_action": "tool_call"
     },
     {
       "name": "validation",
       "prompt": "# Context from my IDE setup:\n\n## Active file: slurm_out/mom3r-kitti-views-81777.out\n\n## Open tabs:\n- mom3r-kitti-views-81777.out: slurm_out/mom3r-kitti-views-81777.out\n- mom3r-kitti-views-81777.err: slurm_out/mom3r-kitti-views-81777.err\n- mom3r-kitti-views-81769.out: slurm_out/mom3r-kitti-views-81769.out\n- model.py: MoM3R/src/dust3r/model.py\n- mom3r-kitti-views-81773.err: slurm_out/mom3r-kitti-views-81773.err\n\n## My request for Codex:\neval_results\n帮我把这两个实验结果打个表出来\n",
       "completion": "{\"name\":\"shell_command\",\"arguments\":{\"command\":\"sed -n '1,260p' slurm_out/mom3r-kitti-views-81777.err\",\"workdir\":\"/home/JJ_Group/lih2511/mom3r\"}}}",
       "json_valid": false,
-      "action_valid": false
+      "action_valid": false,
+      "harness_action": "tool_call"
     },
     {
       "name": "heldout",
       "prompt": "inspect the repository and report its status",
       "completion": "{\"name\":\"write_stdin\",\"arguments\":{\"session_id\":76060,\"chars\":\"\",\"yield_time_ms\":1000,\"max_output_tokens\":12000}}}",
       "json_valid": false,
-      "action_valid": false
+      "action_valid": false,
+      "harness_action": "tool_call"
     }
   ],
-  "json_valid_rate": 0.0,
-  "action_valid_rate": 0.0
+  "json_valid_rate": 0,
+  "action_valid_rate": 0,
+  "harness_action_rate": 1
 }

@@ -23,14 +23,15 @@
       "validation",
       "heldout"
     ],
-    "json_valid_rate": 0.0,
-    "action_valid_rate": 0.0,
+    "json_valid_rate": 0,
+    "action_valid_rate": 0,
     "raw_action_shape_after_removing_one_trailing_brace": [
       true,
       true,
       true
-    ]
+    ],
+    "harness_action_rate_after_parser_fix": 1
   },
-  "interpretation": "Tool-call-only labels produced nonempty, near-structured raw call text, but all three greedy outputs had an extra closing brace. The harness cannot parse or execute them; no structured-action or GRPO capability gain is claimed.",
+  "interpretation": "The original model outputs were invalid JSON with one extra closing brace, but the repaired parser recognizes all three as tool calls. No real tool execution was attempted from these sampled completions, so no agent capability gain is claimed.",
   "curve": "logs/sft_toolcalls_1000_air-node-04.jsonl; PNG not generated because matplotlib is absent from the existing training environment."
 }

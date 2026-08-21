@@ -10,7 +10,7 @@ A data-quality iteration then enforced the filter's previously unused failure an
 
 The next SFT audit found a more serious objective bug: the implementation compared logits at position `t` with the label at the same position, allowing the current token embedding to make the masked loss look nearly perfect without teaching next-token generation. After shifting SFT targets by one token, a 1,000-step five-GPU run went from loss 3.75 to 1.02 and generated non-empty text on train, validation, and held-out prompts. The outputs were still unstructured and produced no JSON tool action; a one-step GRPO smoke from this checkpoint reached reward 0.25 with a malformed natural-language completion. The before/after record and curve are in `logs/sft_alignment_iteration.json` and `assets/sft_clean_aligned_1000_loss.png`.
 
-A focused follow-up retained all trajectory text as context but supervised only the 39,785 assistant tool-call turns (8.45M train labels and 0.52M validation labels). Continuing the aligned checkpoint for 1,000 steps on five A100s produced nonempty raw call-shaped text, but all greedy train, validation, and held-out completions had one extra closing brace. The harness parsed and executed none of the three outputs. This is a format failure, not an agent capability gain; the full record is `logs/sft_toolcalls_iteration.json`.
+A focused follow-up retained all trajectory text as context but supervised only the 39,785 assistant tool-call turns (8.45M train labels and 0.52M validation labels). Continuing the aligned checkpoint for 1,000 steps on five A100s produced nonempty raw call-shaped text, but all greedy train, validation, and held-out completions had one extra closing brace. Strict JSON acceptance was 0/3. A later parser repair recovered all three as tool calls, but none was executed in this sampled-completion check. This is a format-repair result, not an agent capability gain; the full record is `logs/sft_toolcalls_iteration.json`.
 
 ## 1. Motivation
 
@@ -39,7 +39,7 @@ All measurements below were run on `air-node-03` with 8 A100 GPUs unless stated 
 | AdamW, 10 steps | valid-label sampling and NaN guard | loss 9.89 to 1.36; fixed masked loss 0.72 |
 | GRPO smoke | AdamW, group 2, one step | checkpoint written; reward 0; response was whitespace |
 | Tool-call SFT, 1 GPU | 42,330 serialized Codex tool calls, 20 steps | loss 9.60 to 0.35; held-out and training prompts still produced empty output; GRPO reward 0 |
-| Tool-call-only SFT, 5 GPUs (air-node-04) | 1,000-step continuation from aligned SFT; 8.45M labeled train tokens | loss 0.48 to 0.60; 0/3 parseable JSON actions, each completion had one trailing `}` |
+| Tool-call-only SFT, 5 GPUs (air-node-04) | 1,000-step continuation from aligned SFT; 8.45M labeled train tokens | loss 0.48 to 0.60; strict JSON 0/3, repaired parser 3/3, no tool execution |
 
 The optimizer comparison is a pipeline result, not a generalization result. The SFT improvement is likely memorization on a tiny pilot. The full experiment must use a held-out agent benchmark and report task success, tool-call validity, recovery rate, and verifier score.
 
@@ -53,7 +53,7 @@ The verl launcher reached configuration validation and started a local Ray insta
 
 On `air-node-04`, a second clean-data smoke progressed further through Ray, TransferQueue, prompt filtering, and FSDP actor initialization for Qwen2.5-1.5B. It still stopped before rollout because this verl release requires vLLM >= 0.18 while the node's usable vLLM 0.12 is unsupported; vLLM 0.18's CUDA extension was ABI-incompatible with the installed Torch 2.9. The launcher now defaults to `sdpa`, single-GPU tensor parallelism, and no Ray dashboard for this environment. The complete record is `logs/verl_air-node-04_iteration.json`; it contains no GRPO reward or update.
 
-The tool-call-only continuation changes the failure mode from empty text to almost-valid raw call JSON, but it does not meet the runtime contract. GRPO is deferred because the current reward would conflate a syntax-repair problem with verified task execution. The next experiment should either train directly against the harness's exact action serialization or add a deterministic constrained decoder, then remeasure parser acceptance before any reward update.
+The tool-call-only continuation changes the failure mode from empty text to almost-valid raw call JSON. The parser now tolerates a duplicated closing brace at this trust boundary, but this does not prove that the generated commands are safe or correct. GRPO is deferred because the current reward would conflate syntax repair with verified task execution. The next experiment should train directly against the harness's exact action serialization, then execute sampled calls in a controlled workspace before any reward update.
 
 The next controlled experiment is: freeze the 500-example pilot split, train AdamW and Muon for the same number of steps, evaluate on held-out Codex tasks, then compare the local policy with a DeepSeek teacher using identical prompts, tools, timeouts, and verifier rules. Results must be written to `logs/` and plotted in `assets/` before making a capability claim.
 

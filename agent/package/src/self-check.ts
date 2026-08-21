@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { run } from "../../runtime/src/runner.ts";
+import { parseAction } from "../../runtime/src/parser.ts";
 import { execCommand } from "../../runtime/src/tools/exec-command.ts";
 import { toolSchemas } from "../../runtime/src/tools/registry.ts";
 import { renderSftRow } from "../../shared/src/renderer.ts";
@@ -24,6 +25,10 @@ let mismatchRejected = false;
 try { await run({ id: "other", prompt: "wrong run", model, tools: toolSchemas, context: { root }, statePath: join(root, "state.json") }); }
 catch { mismatchRejected = true; }
 if (!mismatchRejected) throw new Error("mismatched run state was accepted");
+let promptMismatchRejected = false;
+try { await run({ id: "check", prompt: "wrong prompt", model, tools: toolSchemas, context: { root }, statePath: join(root, "state.json") }); }
+catch { promptMismatchRejected = true; }
+if (!promptMismatchRejected) throw new Error("mismatched run prompt was accepted");
 const cwd = await execCommand("pwd", root, ".");
 if (cwd.exitCode !== 0 || cwd.output.trim() !== root) throw new Error(`relative cwd failed: ${cwd.output}`);
 const rendered = renderSftRow([
@@ -31,5 +36,6 @@ const rendered = renderSftRow([
   { role: "tool", kind: "tool_result", toolCallId: "call_1", content: "ok", exitCode: 0 },
 ]);
 if (rendered.messages[1]?.role !== "tool" || rendered.messages[1].tool_call_id !== "call_1") throw new Error("tool result was dropped from SFT rendering");
+if (parseAction('{"name":"exec_command","arguments":{"command":"true"}}}').kind !== "tool_call") throw new Error("near-JSON tool call was not recovered");
 await rm(root, { recursive: true, force: true });
 console.log("harness self-check passed");

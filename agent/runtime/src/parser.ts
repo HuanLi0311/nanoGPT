@@ -3,8 +3,14 @@ import type { Event } from "../../shared/src/types.ts";
 export type Action = { kind: "message"; content: string } | { kind: "tool_call"; tool: string; arguments: Record<string, unknown> };
 
 function objectText(text: string): string {
-  const match = text.match(/```(?:json)?\s*([\s\S]*?)```/) ?? text.match(/\{[\s\S]*\}/);
-  return match?.[1] ?? match?.[0] ?? text;
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) return fenced[1];
+  const start = text.indexOf("{");
+  for (let end = text.lastIndexOf("}") + 1; start >= 0 && end > start; end = text.lastIndexOf("}", end - 2) + 1) {
+    try { JSON.parse(text.slice(start, end)); return text.slice(start, end); }
+    catch { /* tolerate trailing prose or a duplicated closing brace */ }
+  }
+  return text;
 }
 
 export function parseAction(text: string): Action {
