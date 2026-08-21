@@ -23,7 +23,8 @@
   "evidence": [
     "dataset len 16; validation len 4; total training steps 4",
     "no GPU allocation above driver baseline after initialization",
-    "no Training Progress, reward, validation, or actor update metrics"
+    "no Training Progress, reward, validation, or actor update metrics",
+    "a repeat with train_batch_size=1 and ppo_mini_batch_size=1 reached the same V1 initialization wait, so batch size is not the root cause"
   ],
   "interpretation": "This is an infrastructure/configuration iteration, not an RL or trajectory result. It cannot support a capability-improvement claim."
 }
