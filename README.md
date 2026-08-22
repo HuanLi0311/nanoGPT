@@ -122,7 +122,7 @@ token IDs
 4. 对 assistant 标签之外的位置使用 `-100`；
 5. 保存独立的 SFT checkpoint 和 JSON 元数据。
 
-`model/language_model/scripts/rl.py` 实现了紧凑的 GRPO：对每个规划题采样一个 completion group，按方案、顺序、预计时长、风险四个最终字段打分，组内标准化 reward；随后以旧策略 ratio 裁剪和冻结 SFT reference 的 KL 项更新策略。奖励不读取或要求 CoT，completion 只是一行可执行的最终计划。
+`model/language_model/scripts/rl.py` 只实现不带 workspace 的紧凑计划 GRPO；遇到 environment/unscored 契约会直接拒绝。Codex coding-agent 的多轮工具训练统一走 `verl_grpo.sh`，由独立 verifier 产生 task reward。
 
 可复现的小型完整实验使用北岭观测站数据，三个 YAML 都从同一 tokenizer 路径读取：
 
@@ -261,7 +261,13 @@ verl 数据和 GRPO 奖励契约由以下入口生成和启动：
 ```bash
 git submodule update --init --recursive
 ./model/language_model/scripts/prepare_verl_data.sh
-MODEL_PATH=deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B ./model/language_model/scripts/verl_grpo.sh
+# 历史 Codex replay 没有独立 verifier，默认会被 launcher 拒绝进入 RL。
+# 先用带 postcondition 的任务 manifest 做 tool-agent smoke：
+TASK_MANIFEST=agent/tasks/harness_smoke.jsonl ./model/language_model/scripts/prepare_verl_data.sh
+TASK_MANIFEST=agent/tasks/harness_smoke.jsonl \
+  TRAIN_BATCH_SIZE=1 TOTAL_TRAINING_STEPS=1 \
+  MODEL_PATH=Qwen/Qwen2.5-Coder-7B-Instruct \
+  ./model/language_model/scripts/verl_grpo.sh
 ```
 
 SFT 使用与预训练 checkpoint 相同的 tokenizer；首次运行需从过滤后的 Codex JSONL 重编码：
@@ -276,4 +282,8 @@ SFT 使用与预训练 checkpoint 相同的 tokenizer；首次运行需从过滤
 
 快速 pilot 可增加 `--limit 500 --shard-tokens 10000000`。SFT 入口会拒绝 tokenizer vocab 与 checkpoint 不一致的数据。
 
+上面的 NanoGPT SFT 入口只适用于本地 NanoGPT checkpoint。若 student 改用 Qwen，Codex messages 需要用 Qwen tokenizer/chat template 重新渲染，并使用 verl/Hugging Face 的 Qwen SFT 训练入口；不能把 NanoGPT 的 `.bin` 或 JSON tool-call 文本直接当成 Qwen checkpoint 的训练格式。
+
 本地 NanoGPT `best.safetensors` 是自定义 Transformer 格式，不能伪装成 Hugging Face checkpoint 直接交给 verl；`verl_grpo.sh` 的 `MODEL_PATH` 必须是 transformers/vLLM 可加载模型。SFT/本地 GRPO 入口仍分别使用 `config/sft.yaml` 和 `config/rl.yaml`。
+
+Harness 选型是分层复用：verl 负责训练和 token-preserving Agent Loop，本项目维护很薄的 Codex/Qwen/DeepSeek 协议适配、episode workspace 和独立 verifier；DSH 只用于 teacher 调试与 harness 探索，PRIME 只作为后续 process-reward/RL ablation，不直接替代 runtime。

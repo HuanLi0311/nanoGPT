@@ -40,12 +40,20 @@ export async function run(options: Options): Promise<RunState> {
       try { response = await options.model.complete(messages, options.tools); break; }
       catch (error) { state.attempt++; if (attempt >= retries) { state.status = "failed"; await save(options.statePath, state); throw error; } await new Promise((r) => setTimeout(r, 250 * 2 ** attempt)); }
     }
-    if (response.tool_calls?.length) {
-      for (const call of response.tool_calls) {
+    const calls = response.tool_calls?.length
+      ? response.tool_calls
+      : (() => {
+          const action = parseAction(response.content ?? "");
+          return action.kind === "tool_call"
+            ? [{ function: { name: action.tool, arguments: JSON.stringify(action.arguments) } }]
+            : [];
+        })();
+    if (calls.length) {
+      for (const call of calls) {
         const event = eventFromAction({ kind: "tool_call", tool: call.function.name, arguments: parseArguments(call.function.arguments) });
         event.toolCallId = call.id ?? `call_${turn}_${state.events.filter((item) => item.kind === "tool_call").length}`; state.events.push(event);
       }
-      for (const event of state.events.slice(-response.tool_calls.length)) {
+      for (const event of state.events.slice(-calls.length)) {
         try { const result = await callTool(event.tool!, event.arguments, options.context); state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: result.content, exitCode: result.exitCode }); }
         catch (error) { state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: String(error), exitCode: 1 }); }
       }

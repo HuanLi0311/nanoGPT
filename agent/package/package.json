@@ -5,6 +5,7 @@
   "scripts": {
     "extract": "node --experimental-strip-types src/cli.ts extract",
     "run": "node --experimental-strip-types src/cli.ts run",
+    "diagnose": "node --experimental-strip-types src/diagnose.ts",
     "check": "node --experimental-strip-types src/self-check.ts"
   }
 }

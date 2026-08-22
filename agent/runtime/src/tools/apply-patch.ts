@@ -1,8 +1,21 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, unlink, rename, writeFile } from "node:fs/promises";
-import { promisify } from "node:util";
 import { resolve, relative } from "node:path";
-const apply = promisify(execFile);
+
+function applyGit(diff: string, cwd: string): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn("git", ["apply", "--whitespace=nowarn", "-"], { cwd });
+    let stdout = "", stderr = "";
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolvePromise(stdout || "patch applied");
+      else reject(Object.assign(new Error(stderr || `git apply exited ${code}`), { stdout, stderr, code }));
+    });
+    child.stdin.end(diff);
+  });
+}
 
 function find(lines: string[], wanted: string[], from: number): number {
   for (let i = from; i <= lines.length - wanted.length; i++) {
@@ -55,13 +68,13 @@ export async function applyPatch(diff: string, root: string): Promise<string> {
   const paths = codex
     ? [...diff.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((m) => m[1])
     : [...diff.matchAll(/^(?:---|\+\+\+) [ab]\/([^\t\n]+)/gm)].map((m) => m[1]);
-  if ((!codex && !/(^|\n)diff --git a\//.test(diff)) || (codex && !paths.length)) {
+  const unified = /^(?:---|\+\+\+) (?:[ab]\/|\/dev\/null)/m.test(diff);
+  if ((!codex && !(/(^|\n)diff --git a\//.test(diff) || (unified && paths.length))) || (codex && !paths.length)) {
     throw new Error("patch must be a Codex Begin Patch or unified git diff");
   }
   for (const path of paths) {
     if (relative(base, resolve(base, path)).startsWith("..")) throw new Error("patch escapes workspace");
   }
   if (codex) return applyCodex(diff, root, paths);
-  const result = await apply("git", ["apply", "--whitespace=nowarn", "--"], { cwd: base, input: diff });
-  return result.stdout || "patch applied";
+  return applyGit(diff, base);
 }

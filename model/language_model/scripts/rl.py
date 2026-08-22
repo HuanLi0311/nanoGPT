@@ -1,4 +1,4 @@
-"""GRPO on compact final plans; rewards inspect plans, never hidden reasoning."""
+"""GRPO on compact final plans; coding-agent tasks belong to the verl path."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import torch
 import yaml
@@ -21,7 +22,12 @@ def chat(prompt: str, system: str) -> str:
     return f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
 
-def reward(text: str, answer: str) -> float:
+def reward(text: str, answer: Any) -> float:
+    if isinstance(answer, dict):
+        if answer.get("kind") == "exact_text":
+            expected = str(answer.get("expected_output", answer.get("value", ""))).strip()
+            return float(text.strip() == expected)
+        raise ValueError("environment/unscored rows require verl tool-agent and an external verifier")
     if answer:
         parts = [part for part in answer.split(";") if part]
         return sum(part in text for part in parts) / max(1, len(parts))
@@ -71,6 +77,13 @@ def main() -> None:
         parameter.requires_grad_(False)
     tokenizer = load_tokenizer(Path(data["tokenizer_dir"]), data["tokenizer_prefix"])
     rows = [json.loads(line) for line in Path(data["path"]).read_text(encoding="utf-8").splitlines()]
+    for index, row in enumerate(rows):
+        ground_truth = row.get("answer", row.get("reward_model", {}).get("ground_truth", ""))
+        if isinstance(ground_truth, dict) and ground_truth.get("kind") != "exact_text":
+            raise SystemExit(
+                f"row {index} has an environment/unscored reward contract; "
+                "run model/language_model/scripts/verl_grpo.sh with a verified task manifest"
+            )
     log_path = Path(os.environ.get("NANOGPT_LOG", "logs/rl.jsonl"))
     log_path.parent.mkdir(parents=True, exist_ok=True)
     stops = {tokenizer.token_to_id(token) for token in ("<|eos|>", "<|im_end|>")}
