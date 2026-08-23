@@ -10,6 +10,7 @@ save_path=${SAVE_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Bas
 workers=${NPROC_PER_NODE:-$("$python" -c 'import torch; print(torch.cuda.device_count())')}
 master_addr=${MASTER_ADDR:-127.0.0.1}
 master_port=${MASTER_PORT:-29501}
+attn_implementation=${ATTN_IMPLEMENTATION:-sdpa}
 
 train_shards=("$data"/train_sft-*.parquet "$data"/codex_train.parquet)
 val_shards=("$data"/test_sft-*.parquet "$data"/codex_test.parquet)
@@ -48,6 +49,7 @@ exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_po
   optim.lr_scheduler_type=cosine \
   engine=fsdp \
   model.path="$model" \
+  +model.override_config.attn_implementation="$attn_implementation" \
   model.use_remove_padding=true \
   trainer.default_local_dir="$save_path" \
   trainer.project_name=nanoagent-sft \
