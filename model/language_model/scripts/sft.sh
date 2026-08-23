@@ -8,6 +8,8 @@ data="$root/model/language_model/data/post_train/data/rendered/sft"
 model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Base"}
 save_path=${SAVE_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Base-sft-verl"}
 workers=${NPROC_PER_NODE:-$("$python" -c 'import torch; print(torch.cuda.device_count())')}
+master_addr=${MASTER_ADDR:-127.0.0.1}
+master_port=${MASTER_PORT:-29501}
 
 train_shards=("$data"/train_sft-*.parquet "$data"/codex_train.parquet)
 val_shards=("$data"/test_sft-*.parquet "$data"/codex_test.parquet)
@@ -29,7 +31,7 @@ cd "$verl"
 
 # ponytail: the no-padding FSDP path truncates rows past 8192 tokens on the right;
 # add a dataset preprocessing policy if preserving trailing turns becomes necessary.
-exec "$python" -m torch.distributed.run --standalone --nproc_per_node="$workers" \
+exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_port="$master_port" --nproc_per_node="$workers" \
   -m verl.trainer.sft_trainer \
   data.train_files="$(hydra_list "${train_shards[@]}")" \
   data.val_files="$(hydra_list "${val_shards[@]}")" \
