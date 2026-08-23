@@ -9,6 +9,7 @@ export type Event = {
   arguments?: unknown;
   toolCallId?: string;
   exitCode?: number;
+  toolResult?: unknown;
   timestamp?: string;
 };
 
@@ -20,14 +21,25 @@ export type Trajectory = {
   events: Event[];
 };
 
+export type MessageContent = string | null | { type: "text"; text: string }[] | { type: "image_url"; image_url: { url: string; detail?: string } }[] | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } })[];
+
 export type ChatMessage = {
   role: Role;
-  content: string | null;
+  content: MessageContent;
   tool_call_id?: string;
   tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
 };
 
-export type ToolSpec = {
+export type FunctionToolSpec = {
   type: "function";
   function: { name: string; description?: string; parameters: Record<string, unknown> };
 };
+
+export type CustomToolSpec = {
+  type: "custom";
+  name: string;
+  description?: string;
+  input?: Record<string, unknown>;
+};
+
+export type ToolSpec = FunctionToolSpec | CustomToolSpec;

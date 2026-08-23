@@ -11,8 +11,8 @@ type Response = { content?: string; tool_calls?: { id?: string; function: { name
 type TaskResult = { passed: boolean; score: number; reason: string };
 type Task = { id: string; prompt: string; setup(root: string): Promise<void>; verify(root: string): Promise<TaskResult>; scripted(messages: ChatMessage[]): Response };
 
-const call = (id: string, name: string, args: unknown) => ({ id, function: { name, arguments: JSON.stringify(args) } });
-const patch = (body: string) => ({ patch: `*** Begin Patch\n${body}\n*** End Patch\n` });
+const call = (id: string, name: string, args: unknown) => ({ id, function: { name, arguments: typeof args === "string" ? args : JSON.stringify(args) } });
+const patch = (body: string) => `*** Begin Patch\n${body}\n*** End Patch\n`;
 const noSetup = async (_root: string) => {};
 const fileCheck = (name: string, expected: string) => async (root: string): Promise<TaskResult> => {
   try {
@@ -44,7 +44,7 @@ const tasks: Task[] = [
     },
     scripted: (messages) => messages.some((m) => m.role === "tool")
       ? { content: JSON.stringify({ message: "DONE" }) }
-      : { tool_calls: [call("p1", "apply_patch", { patch: "--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n def add(a, b):\n-    return a - b\n+    return a + b\n" }), call("t1", "exec_command", { command: "python3 test_calc.py" })] },
+      : { tool_calls: [call("p1", "apply_patch", "--- a/calc.py\n+++ b/calc.py\n@@ -1,2 +1,2 @@\n def add(a, b):\n-    return a - b\n+    return a + b\n"), call("t1", "exec_command", { cmd: "python3 test_calc.py" })] },
   },
   {
     id: "parallel_files",
@@ -98,7 +98,10 @@ async function one(task: Task, modelName: string) {
     let error = "";
     try {
       state = await run({ id: `diagnose-${task.id}`, prompt: task.prompt, model: wrap(base, trace), tools: toolSchemas,
-        context: { root }, statePath: join(root, "state.json"),
+        context: { root, verifyTask: async () => {
+          const outcome = await task.verify(root);
+          return { ...outcome, harnessStatus: "healthy" };
+        } }, statePath: join(root, "state.json"),
         maxTurns: Number(process.env.DIAGNOSE_MAX_TURNS ?? 8), retries: Number(process.env.DIAGNOSE_RETRIES ?? 1) });
     } catch (caught) { error = String(caught); }
     const postcondition = await task.verify(root);

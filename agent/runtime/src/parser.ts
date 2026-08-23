@@ -1,6 +1,6 @@
 import type { Event } from "../../shared/src/types.ts";
 
-export type Action = { kind: "message"; content: string } | { kind: "tool_call"; tool: string; arguments: Record<string, unknown> };
+export type Action = { kind: "message"; content: string } | { kind: "tool_call"; tool: string; arguments: unknown };
 
 function objectText(text: string): string {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);

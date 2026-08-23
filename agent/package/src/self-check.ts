@@ -4,61 +4,132 @@ import { tmpdir } from "node:os";
 import { run } from "../../runtime/src/runner.ts";
 import { parseAction } from "../../runtime/src/parser.ts";
 import { execCommand } from "../../runtime/src/tools/exec-command.ts";
-import { applyPatch } from "../../runtime/src/tools/apply-patch.ts";
-import { toolSchemas } from "../../runtime/src/tools/registry.ts";
+import { callTool, toolSchemas, type ToolContext } from "../../runtime/src/tools/registry.ts";
 import { renderSftRow } from "../../shared/src/renderer.ts";
 
 const root = await mkdtemp(join(tmpdir(), "nanoagent-check-"));
 const patch = ["*** Begin Patch", "*** Add File: result.txt", "+ok", "*** End Patch", ""].join("\n");
+const verifyTask = async () => {
+  const passed = await readFile(join(root, "result.txt"), "utf8").then((value) => value === "ok\n", () => false);
+  return { score: passed ? 1 : 0, passed, reason: passed ? "file verifier passed" : "file verifier failed" };
+};
 let calls = 0;
 const model = { complete: async (messages: any[]) => {
   calls++;
   return messages.length === 1
     ? { tool_calls: [
-      { id: "patch", function: { name: "apply_patch", arguments: JSON.stringify({ patch }) } },
-      { id: "read", function: { name: "exec_command", arguments: JSON.stringify({ command: "cat result.txt" }) } },
+      { id: "patch", function: { name: "apply_patch", arguments: patch } },
+      { id: "read", function: { name: "exec_command", arguments: JSON.stringify({ cmd: "cat result.txt" }) } },
     ] }
     : { content: JSON.stringify({ message: "completed" }) };
 } };
+
 const state = await run({ id: "check", prompt: "make the result file", model, tools: toolSchemas,
-  context: { root }, statePath: join(root, "state.json") });
+  context: { root, verifyTask }, statePath: join(root, "state.json") });
 if (state.status !== "done" || calls !== 2 || await readFile(join(root, "result.txt"), "utf8") !== "ok\n") {
   throw new Error(`harness self-check failed: ${JSON.stringify(state)}`);
 }
+
 let mismatchRejected = false;
-try { await run({ id: "other", prompt: "wrong run", model, tools: toolSchemas, context: { root }, statePath: join(root, "state.json") }); }
+try { await run({ id: "other", prompt: "wrong run", model, tools: toolSchemas, context: { root, verifyTask }, statePath: join(root, "state.json") }); }
 catch { mismatchRejected = true; }
 if (!mismatchRejected) throw new Error("mismatched run state was accepted");
-let promptMismatchRejected = false;
-try { await run({ id: "check", prompt: "wrong prompt", model, tools: toolSchemas, context: { root }, statePath: join(root, "state.json") }); }
-catch { promptMismatchRejected = true; }
-if (!promptMismatchRejected) throw new Error("mismatched run prompt was accepted");
+
 const cwd = await execCommand("pwd", root, ".");
 if (cwd.exitCode !== 0 || cwd.output.trim() !== root) throw new Error(`relative cwd failed: ${cwd.output}`);
+
 const nearRoot = await mkdtemp(join(tmpdir(), "nanoagent-near-json-"));
 const nearPatch = ["*** Begin Patch", "*** Add File: near.txt", "+near", "*** End Patch", ""].join("\n");
 const nearState = await run({ id: "near", prompt: "create near.txt", model: {
   complete: async (messages: any[]) => messages.some((message) => message.role === "tool")
     ? { content: JSON.stringify({ message: "done" }) }
-    : { content: `${JSON.stringify({ tool_call: { name: "apply_patch", arguments: { patch: nearPatch } } })}}` },
-}, tools: toolSchemas, context: { root: nearRoot }, statePath: join(nearRoot, "state.json") });
-if (nearState.status !== "done" || await readFile(join(nearRoot, "near.txt"), "utf8") !== "near\n") throw new Error("text tool-call execution failed");
-await writeFile(join(nearRoot, "calc.py"), "return a - b\n");
-await applyPatch("--- a/calc.py\n+++ b/calc.py\n@@ -1 +1 @@\n-return a - b\n+return a + b\n", nearRoot);
-if (await readFile(join(nearRoot, "calc.py"), "utf8") !== "return a + b\n") throw new Error("standard unified patch failed");
-await rm(nearRoot, { recursive: true, force: true });
+    : { content: `${JSON.stringify({ tool_call: { name: "apply_patch", arguments: nearPatch } })}}` },
+}, tools: toolSchemas, context: {
+  root: nearRoot,
+  verifyTask: async () => ({ score: 1, passed: true, reason: "near verifier" }),
+}, statePath: join(nearRoot, "state.json") });
+if (nearState.status !== "done" || await readFile(join(nearRoot, "near.txt"), "utf8") !== "near\n") throw new Error("raw text tool-call execution failed");
+
+const toolRoot = await mkdtemp(join(tmpdir(), "nanoagent-tools-"));
+const context: ToolContext = {
+  root: toolRoot,
+  userResponses: [{ selected: "first" }],
+  mcpResources: [{ server: "demo", uri: "demo://one", name: "one" }],
+  mcpResourceTemplates: [{ server: "demo", uri_template: "demo://{id}", name: "template" }],
+  spawnAgent: async ({ taskName, message }) => ({ nickname: taskName, completed: message.toUpperCase() }),
+};
+const data = async (name: string, input: unknown) => (await callTool(name, input, context)).data as any;
+
+await data("update_plan", { plan: [{ step: "one", status: "in_progress" }] });
+await data("create_goal", { objective: "finish check" });
+if ((await data("get_goal", {})).goal.objective !== "finish check") throw new Error("goal was not stored");
+if ((await data("update_goal", { status: "complete" })).goal.status !== "complete") throw new Error("goal was not completed");
+if ((await data("request_user_input", { questions: [{ id: "q", header: "Q", question: "choose", options: [{ label: "one", description: "one" }] }] })).answers.selected !== "first") throw new Error("user response failed");
+await data("spawn_agent", { task_name: "child", message: "work" });
+if (!(await data("wait_agent", { timeout_ms: 1_000 })).agents[0].status.completed) throw new Error("subagent did not complete");
+await data("send_message", { target: "child", message: "note" });
+await data("followup_task", { target: "child", message: "again" });
+await data("interrupt_agent", { target: "child" });
+if ((await data("list_agents", {})).agents.length !== 1) throw new Error("agent list failed");
+if ((await data("list_mcp_resources", {})).resources.length !== 1) throw new Error("MCP resource list failed");
+if ((await data("list_mcp_resource_templates", {})).resource_templates.length !== 1) throw new Error("MCP template list failed");
+
+let shell = await data("exec_command", { cmd: "printf first; sleep .01; printf second", yield_time_ms: 1 });
+if (!shell.session_id) throw new Error("exec_command did not create a session");
+shell = await data("write_stdin", { session_id: shell.session_id, yield_time_ms: 1_000 });
+if (shell.exit_code !== 0 || !shell.output.includes("second")) throw new Error("write_stdin failed");
+if ((await data("shell_command", { command: "printf legacy", workdir: "." })).output !== "legacy") throw new Error("shell_command failed");
+await data("apply_patch", "*** Begin Patch\n*** Add File: raw.txt\n+raw\n*** End Patch\n");
+if (await readFile(join(toolRoot, "raw.txt"), "utf8") !== "raw\n") throw new Error("raw apply_patch failed");
+await writeFile(join(toolRoot, "old.txt"), "old\n");
+let atomicRejected = false;
+try {
+  await data("apply_patch", "*** Begin Patch\n*** Add File: half.txt\n+half\n*** Update File: old.txt\n@@\n-missing\n+changed\n*** End Patch\n");
+} catch { atomicRejected = true; }
+if (!atomicRejected || await readFile(join(toolRoot, "old.txt"), "utf8") !== "old\n" || await readFile(join(toolRoot, "half.txt"), "utf8").then(() => true, () => false)) {
+  throw new Error("failed patch was not atomic");
+}
+const cell = await data("exec", "const r = await tools.exec_command({cmd: 'printf cell'}); text(r.output);");
+if (cell.status !== "completed" || !cell.output.includes("cell")) throw new Error("exec cell failed");
+if ((await data("wait", { cell_id: cell.cell_id, yield_time_ms: 1 })).exit_code !== 0) throw new Error("wait failed");
+await writeFile(join(toolRoot, "image.png"), Buffer.from("iVBORw0KGgo=", "base64"));
+if (!(await data("view_image", { path: "image.png" })).image_url.startsWith("data:image/png")) throw new Error("view_image failed");
+
+if (toolSchemas.length !== 20 || new Set(toolSchemas.map((tool) => tool.type === "function" ? tool.function.name : tool.name)).size !== 20) {
+  throw new Error("tool registry does not expose exactly 20 tools");
+}
+
 const rendered = renderSftRow([
-  { role: "assistant", kind: "tool_call", tool: "exec_command", toolCallId: "call_1", arguments: { command: "true" } },
-  { role: "tool", kind: "tool_result", toolCallId: "call_1", content: "ok", exitCode: 0 },
+  { role: "assistant", kind: "tool_call", tool: "apply_patch", toolCallId: "call_1", arguments: nearPatch },
+  { role: "tool", kind: "tool_result", toolCallId: "call_1", toolResult: { output: "ok", exit_code: 0 }, exitCode: 0 },
 ]);
-if (rendered.messages[1]?.role !== "tool" || rendered.messages[1].tool_call_id !== "call_1") throw new Error("tool result was dropped from SFT rendering");
-const parallel = renderSftRow([
-  { role: "assistant", kind: "tool_call", tool: "a", toolCallId: "a", arguments: {} },
-  { role: "assistant", kind: "tool_call", tool: "b", toolCallId: "b", arguments: {} },
-  { role: "tool", kind: "tool_result", toolCallId: "a", content: "ok", exitCode: 0 },
-  { role: "tool", kind: "tool_result", toolCallId: "b", content: "ok", exitCode: 0 },
-]);
-if (parallel.messages.length !== 3 || parallel.messages[0]?.tool_calls?.length !== 2) throw new Error("parallel tool calls were split into invalid messages");
-if (parseAction('{"name":"exec_command","arguments":{"command":"true"}}}').kind !== "tool_call") throw new Error("near-JSON tool call was not recovered");
+if (rendered.messages[0]?.tool_calls?.[0]?.function.arguments !== nearPatch || rendered.messages[1]?.tool_call_id !== "call_1") {
+  throw new Error("raw arguments or tool result were not preserved in rendering");
+}
+const renderedImage = renderSftRow([{ role: "tool", kind: "tool_result", toolCallId: "image", toolResult: { detail: "high", image_url: "data:image/png;base64,AA==" } }]);
+if (!Array.isArray(renderedImage.messages[0]?.content) || renderedImage.messages[0]?.content[1]?.type !== "image_url") {
+  throw new Error("image tool result was flattened to text");
+}
+if (parseAction('{"name":"exec_command","arguments":{"cmd":"true"}}').kind !== "tool_call") throw new Error("JSON tool call was not recovered");
+
+let childRan = false;
+const defaultAgentState = await run({ id: "default-agent", prompt: "parent", tools: toolSchemas, context: {
+  root: toolRoot, verifyTask: async () => ({ score: 1, passed: true, reason: "parent verifier" }),
+}, statePath: join(toolRoot, "default-agent.json"), maxTurns: 4, model: {
+  complete: async (messages: any[]) => {
+    const prompt = messages.find((message) => message.role === "user")?.content;
+    if (prompt === "child") { childRan = true; return { content: "child done" }; }
+    return messages.some((message) => message.role === "tool")
+      ? { content: "parent done" }
+      : { tool_calls: [
+        { id: "spawn", function: { name: "spawn_agent", arguments: JSON.stringify({ task_name: "child", message: "child" }) } },
+        { id: "wait", function: { name: "wait_agent", arguments: JSON.stringify({ timeout_ms: 1_000 }) } },
+      ] };
+  },
+} });
+if (!childRan || defaultAgentState.status !== "done") throw new Error("default subagent runner failed");
+
+await rm(nearRoot, { recursive: true, force: true });
+await rm(toolRoot, { recursive: true, force: true });
 await rm(root, { recursive: true, force: true });
 console.log("harness self-check passed");

@@ -1,5 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type { ChatMessage, Event, ToolSpec } from "../../shared/src/types.ts";
 import { parseAction, eventFromAction } from "./parser.ts";
 import { callTool, type ToolContext } from "./tools/registry.ts";
@@ -9,10 +9,28 @@ import { renderEvents } from "../../shared/src/renderer.ts";
 export type Model = { complete(messages: ChatMessage[], tools: ToolSpec[]): Promise<{ content?: string; tool_calls?: { id?: string; function: { name: string; arguments: string } }[] }> };
 export type RunState = { id: string; status: "running" | "done" | "failed"; attempt: number; events: Event[]; final?: string; verification?: Verification };
 type Options = { id: string; prompt: string; model: Model; tools: ToolSpec[]; context: ToolContext; statePath: string; maxTurns?: number; retries?: number };
-const parseArguments = (value: string): Record<string, unknown> => {
-  try { const parsed = JSON.parse(value || "{}"); return parsed && typeof parsed === "object" ? parsed : {}; }
-  catch { return { raw: value }; }
+const parseArguments = (value: string): unknown => {
+  try { return JSON.parse(value || "{}"); }
+  catch { return value; }
 };
+
+const renderArguments = (value: unknown): string => typeof value === "string" ? value : JSON.stringify(value ?? {});
+
+async function taskVerification(events: Event[], final: string, context: ToolContext): Promise<Verification> {
+  const protocol = verify(events, final);
+  if (protocol.harnessStatus === "protocol" || protocol.harnessStatus === "healthy") return protocol;
+  if (!context.verifyTask) return protocol;
+  try {
+    const outcome = await context.verifyTask();
+    return {
+      score: Math.max(0, Math.min(1, Number(outcome.score) || 0)),
+      passed: Boolean(outcome.passed), reason: String(outcome.reason),
+      harnessStatus: String(outcome.harnessStatus ?? "healthy"),
+    };
+  } catch (error) {
+    return { score: 0, passed: false, reason: String(error), harnessStatus: "harness_fault" };
+  }
+}
 
 async function save(path: string, state: RunState) {
   await mkdir(dirname(path), { recursive: true });
@@ -22,6 +40,49 @@ async function save(path: string, state: RunState) {
 }
 
 export async function run(options: Options): Promise<RunState> {
+  if (!options.context.spawnAgent) {
+    type Child = { prompt: string; queue: string[]; promise: Promise<{ completed?: string; error?: string }>; interrupted: boolean };
+    const children = new Map<string, Child>();
+    const childContext = (): ToolContext => ({
+      ...options.context, state: undefined, spawnAgent: undefined, sendAgentMessage: undefined,
+      interruptAgent: undefined, verifyTask: undefined,
+    });
+    const launch = async (taskName: string, child: Child, prompt: string) => {
+      if (child.interrupted) return { error: "subagent interrupted" };
+      try {
+        const childState = await run({
+          ...options,
+          id: `${options.id}.${taskName}`,
+          prompt,
+          context: childContext(),
+          statePath: join(dirname(options.statePath), `${options.id}.${taskName}.json`),
+        });
+        return childState.final ? { completed: childState.final } : { error: childState.verification?.reason ?? "subagent returned no final message" };
+      } catch (error) {
+        return { error: String(error) };
+      }
+    };
+    options.context.spawnAgent = async ({ taskName, message }) => {
+      if (children.has(taskName)) return { error: `agent already exists: ${taskName}` };
+      const child = { prompt: message, queue: [], interrupted: false, promise: Promise.resolve({} as { completed?: string; error?: string }) };
+      children.set(taskName, child);
+      child.promise = launch(taskName, child, message);
+      return child.promise;
+    };
+    options.context.sendAgentMessage = async (taskName, message, trigger) => {
+      const child = children.get(taskName);
+      if (!child) throw new Error(`unknown agent: ${taskName}`);
+      child.queue.push(message);
+      if (trigger) {
+        child.promise = child.promise.then(() => launch(taskName, child, child.queue.splice(0).join("\n")));
+      }
+    };
+    options.context.interruptAgent = async (taskName) => {
+      const child = children.get(taskName);
+      if (!child) throw new Error(`unknown agent: ${taskName}`);
+      child.interrupted = true;
+    };
+  }
   let state: RunState = { id: options.id, status: "running", attempt: 0, events: [{ role: "user", kind: "message", content: options.prompt }] };
   try {
     const saved = JSON.parse(await readFile(options.statePath, "utf8"));
@@ -45,7 +106,7 @@ export async function run(options: Options): Promise<RunState> {
       : (() => {
           const action = parseAction(response.content ?? "");
           return action.kind === "tool_call"
-            ? [{ function: { name: action.tool, arguments: JSON.stringify(action.arguments) } }]
+            ? [{ function: { name: action.tool, arguments: renderArguments(action.arguments) } }]
             : [];
         })();
     if (calls.length) {
@@ -54,14 +115,27 @@ export async function run(options: Options): Promise<RunState> {
         event.toolCallId = call.id ?? `call_${turn}_${state.events.filter((item) => item.kind === "tool_call").length}`; state.events.push(event);
       }
       for (const event of state.events.slice(-calls.length)) {
-        try { const result = await callTool(event.tool!, event.arguments, options.context); state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: result.content, exitCode: result.exitCode }); }
+        try {
+          const result = await callTool(event.tool!, event.arguments, options.context);
+          state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: result.content, toolResult: result.data, exitCode: result.exitCode });
+        }
         catch (error) { state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: String(error), exitCode: 1 }); }
       }
     } else {
       const action = parseAction(response.content ?? ""); state.events.push(eventFromAction(action));
-      if (action.kind === "message") { state.final = action.content; state.verification = verify(state.events, action.content); state.status = state.verification.passed ? "done" : "failed"; await save(options.statePath, state); return state; }
+      if (action.kind === "message") {
+        state.final = action.content;
+        state.verification = await taskVerification(state.events, action.content, options.context);
+        state.status = state.verification.passed ? "done" : "failed";
+        await save(options.statePath, state);
+        return state;
+      }
     }
     await save(options.statePath, state);
   }
-  state.status = "failed"; state.verification = { score: 0, passed: false, reason: "turn limit exceeded" }; await save(options.statePath, state); return state;
+  state.status = "failed";
+  state.verification = await taskVerification(state.events, "", options.context);
+  if (state.verification.reason === "empty final answer") state.verification = { score: 0, passed: false, reason: "turn limit exceeded", harnessStatus: "protocol" };
+  await save(options.statePath, state);
+  return state;
 }
