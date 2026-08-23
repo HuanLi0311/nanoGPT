@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import functools
 import itertools
 import json
@@ -28,7 +30,10 @@ import torch.distributed as dist
 import torch.nn as nn
 from packaging import version
 from peft.utils.save_and_load import get_peft_model_state_dict
-from torch.distributed import DeviceMesh
+try:
+    from torch.distributed import DeviceMesh
+except ImportError:
+    from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp._runtime_utils import _lazy_init
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy, transformer_auto_wrap_policy

@@ -29,7 +29,10 @@ from peft import LoraConfig, TaskType, get_peft_model
 from tensordict import TensorDict
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.api import FullStateDictConfig, ShardedStateDictConfig, StateDictType
-from torch.distributed.tensor import DTensor
+try:
+    from torch.distributed.tensor import DTensor
+except ImportError:
+    from torch.distributed._tensor import DTensor
 
 import verl.utils.torch_functional as verl_F
 from verl.models.transformers.monkey_patch import apply_monkey_patch
@@ -703,7 +706,8 @@ class FSDPEngine(BaseEngine):
         return_model_output = tu.get_non_tensor_data(data=data, key="return_model_output", default=False)
 
         # compute num_tokens in global batch for loss normalization
-        batch_num_tokens = data["loss_mask"].sum().to(get_device_id())
+        loss_mask = data["loss_mask"]
+        batch_num_tokens = (loss_mask.values().sum() if loss_mask.is_nested else loss_mask.sum()).to(get_device_id())
         torch.distributed.all_reduce(
             batch_num_tokens, op=torch.distributed.ReduceOp.SUM, group=self.get_data_parallel_group()
         )
