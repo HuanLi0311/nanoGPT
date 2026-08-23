@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import runpy
 import sys
+import builtins
 
 import torch
 
@@ -17,6 +18,9 @@ def patch_torch_23() -> None:
         from torch.distributed._tensor import DTensor
 
         dist_tensor.DTensor = DTensor
+        from torch.distributed._tensor.placement_types import DTensorSpec
+
+        builtins.DTensorSpec = DTensorSpec
     if hasattr(torch.nested, "nested_tensor_from_jagged"):
         return
 
