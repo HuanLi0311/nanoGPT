@@ -26,7 +26,8 @@ hydra_list() {
 }
 
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
-export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/nanogpt_pycache}"
+unset PYTHONPYCACHEPREFIX
+export PYTHONDONTWRITEBYTECODE=1
 cd "$verl"
 "$python" -c 'import verl.trainer.sft_trainer'
 
