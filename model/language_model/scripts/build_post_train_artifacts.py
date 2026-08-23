@@ -9,8 +9,10 @@ from tempfile import TemporaryDirectory
 
 try:
     from .filter import event_message
+    from .tool_message import message_content
 except ImportError:  # Supports direct execution from this scripts directory.
     from filter import event_message
+    from tool_message import message_content
 
 
 def payload_for(event: dict) -> dict:
@@ -97,30 +99,9 @@ def build_trajectory_artifacts(raw: Path, output: Path) -> dict[str, int]:
     return counts
 
 
-def sft_message_content(message: dict) -> str:
-    """Mirror prepare_post_train_sft.message_content without loading the model stack."""
-    content = str(message.get("content") or "")
-    calls = message.get("tool_calls") or []
-    if not calls:
-        return content
-    functions = []
-    for call in calls:
-        function = call.get("function", call)
-        arguments = function.get("arguments", {})
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                pass
-        functions.append({"name": function.get("name"), "arguments": arguments})
-    payload = {"tool_call": functions[0]} if len(functions) == 1 else {"tool_calls": functions}
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return f"{content}\n{encoded}" if content else encoded
-
-
 def sft_template(messages: list[dict]) -> str:
     return "".join(
-        f"<|im_start|>{message.get('role', '')}\n{sft_message_content(message)}<|im_end|>\n"
+        f"<|im_start|>{message.get('role', '')}\n{message_content(message)}<|im_end|>\n"
         for message in messages
     )
 
@@ -166,7 +147,7 @@ def self_check() -> None:
         assert counts["skipped_no_structured_exit_code"] == 1
         assert (root / "artifacts/success/sample-episode-0000.json").is_file()
         assert not (root / "artifacts/failure/sample-episode-0002.json").exists()
-        assert "{\"tool_call\":{\"name\":\"exec_command\",\"arguments\":{\"cmd\":\"pwd\"}}}" in (root / "template/sample.txt").read_text(encoding="utf-8")
+        assert "{\"tool_calls\":[{\"id\":null,\"type\":\"function\",\"function\":{\"name\":\"exec_command\",\"arguments\":{\"cmd\":\"pwd\"}}}]}" in (root / "template/sample.txt").read_text(encoding="utf-8")
 
 
 def main() -> None:

@@ -1,6 +1,9 @@
-"""Small regression checks for SFT label selection."""
+"""Small regression checks for SFT message rendering and label selection."""
+
+import json
 
 from model.language_model.scripts.prepare_post_train_sft import is_supervised_message
+from model.language_model.scripts.tool_message import message_content
 
 
 def main() -> None:
@@ -11,6 +14,10 @@ def main() -> None:
     assert not is_supervised_message(prose, True)
     assert is_supervised_message(call, True)
     assert not is_supervised_message(user, False)
+    call_text = message_content({"role": "assistant", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "exec_command", "arguments": "{\"cmd\":\"true\"}"}}]})
+    assert json.loads(call_text)["tool_calls"][0]["id"] == "call_1"
+    result_text = message_content({"role": "tool", "tool_call_id": "call_1", "content": "ok"})
+    assert json.loads(result_text) == {"tool_call_id": "call_1", "content": "ok"}
     print("SFT label-selection checks passed")
 
 

@@ -9,26 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from ..model.tokenizer import load_tokenizer
-
-
-def message_content(message: dict) -> str:
-    content = str(message.get("content") or "")
-    calls = message.get("tool_calls") or []
-    if not calls:
-        return content
-    functions = []
-    for call in calls:
-        function = call.get("function", call)
-        arguments = function.get("arguments", {})
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                pass
-        functions.append({"name": function.get("name"), "arguments": arguments})
-    payload = {"tool_call": functions[0]} if len(functions) == 1 else {"tool_calls": functions}
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return f"{content}\n{encoded}" if content else encoded
+from .tool_message import message_content
 
 
 def is_supervised_message(message: dict, tool_calls_only: bool) -> bool:

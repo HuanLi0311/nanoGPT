@@ -10,6 +10,7 @@ import pyarrow.parquet as pq
 from tokenizers import ByteLevelBPETokenizer
 
 from ..model.tokenizer import load_tokenizer
+from .tool_message import message_content
 
 
 ####################################################################################
@@ -98,9 +99,7 @@ def sft(data):
                 for messages in batch.column("messages").to_pylist():
                     text, answer = "", []
                     for message in messages:
-                        content = str(message.get("content") or "")
-                        if message.get("tool_calls"):
-                            content += "\n" + json.dumps({"tool_calls": message["tool_calls"]}, ensure_ascii=False, separators=(",", ":"))
+                        content = message_content(message)
                         text += f"<|im_start|>{message['role']}\n"
                         start = len(text)
                         text += f"{content}<|im_end|>\n"

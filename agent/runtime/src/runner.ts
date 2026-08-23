@@ -122,7 +122,10 @@ export async function run(options: Options): Promise<RunState> {
     if (calls.length) {
       for (const call of calls) {
         const event = eventFromAction({ kind: "tool_call", tool: call.function.name, arguments: parseArguments(call.function.arguments) });
-        event.toolCallId = call.id ?? `call_${turn}_${state.events.filter((item) => item.kind === "tool_call").length}`; state.events.push(event);
+        event.toolCallId = typeof call.id === "string" && call.id.trim()
+          ? call.id
+          : `call_${turn}_${state.events.filter((item) => item.kind === "tool_call").length}`;
+        state.events.push(event);
       }
       for (const event of state.events.slice(-calls.length)) {
         try {

@@ -35,6 +35,32 @@ enforce_eager=${VLLM_ENFORCE_EAGER:-false}
 logger=${VERL_LOGGER:-console}
 tool_config="$root/model/language_model/config/verl_tools.yaml"
 
+if [[ "${ALLOW_LEGACY_VERL_TOOLS:-0}" != "1" ]]; then
+  python3 - "$tool_config" "$root/agent/runtime/src/tools/registry.ts" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+configured = set(re.findall(r"^\s+name:\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", Path(sys.argv[1]).read_text(encoding="utf-8"), re.MULTILINE))
+source = Path(sys.argv[2]).read_text(encoding="utf-8")
+block = re.search(r"const TOOL_NAMES = \[(.*?)\] as const;", source, re.DOTALL)
+expected = set(re.findall(r'"([a-z_]+)"', block.group(1) if block else ""))
+missing = sorted(expected - configured)
+exposed_verifier = "verify_task" in configured
+if missing or exposed_verifier:
+    details = []
+    if missing:
+        details.append(f"missing Codex tools: {', '.join(missing)}")
+    if exposed_verifier:
+        details.append("verify_task is exposed as a model tool")
+    raise SystemExit(
+        "refusing RL with a legacy Verl tool profile (" + "; ".join(details) + "). "
+        "Implement the NanoAgent-to-Verl runtime bridge first. "
+        "Set ALLOW_LEGACY_VERL_TOOLS=1 only for the isolated legacy workspace smoke test."
+    )
+PY
+fi
+
 if [[ "${REQUIRE_SCORED_DATA:-1}" != "0" ]]; then
   python3 - "$data_train" "$data_val" <<'PY'
 import json
