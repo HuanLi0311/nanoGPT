@@ -286,17 +286,27 @@ async function requestUserInput(input: unknown, context: ToolContext): Promise<T
   return response({ answers: answer });
 }
 
+function canonicalTaskName(taskName: string): string {
+  return taskName === "/root" || taskName.startsWith("/root/") ? taskName : `/root/${taskName.replace(/^\/+/, "")}`;
+}
+
 function agentFor(state: HarnessState, target: string): Agent {
-  const agent = state.agents.get(target);
+  const agent = state.agents.get(canonicalTaskName(target));
   if (!agent) throw new Error(`unknown agent: ${target}`);
   return agent;
 }
 
+function agentStatus(agent: Agent): string | JsonObject {
+  if (agent.status === "completed") return { completed: agent.completed ?? null };
+  if (agent.status === "errored") return { errored: agent.error ?? "agent failed" };
+  return agent.status;
+}
+
 function agentView(agent: Agent): JsonObject {
   return {
-    task_name: agent.taskName, nickname: agent.nickname,
-    status: agent.status === "completed" ? { completed: agent.completed ?? "" } : agent.status,
-    ...(agent.error ? { error: agent.error } : {}),
+    agent_name: agent.taskName,
+    agent_status: agentStatus(agent),
+    last_task_message: agent.messages.at(-1) ?? null,
   };
 }
 
@@ -307,9 +317,10 @@ async function spawnAgent(input: unknown, context: ToolContext): Promise<ToolRes
   if (!/^[a-z0-9_]+$/.test(taskName)) throw new Error("task_name must use lowercase letters, digits, and underscores");
   if (!context.spawnAgent) throw new Error("spawn_agent requires a configured subagent runner");
   const state = stateFor(context);
-  if (state.agents.has(taskName)) throw new Error(`agent already exists: ${taskName}`);
-  const agent: Agent = { taskName, nickname: null, status: "pending_init", messages: [message] };
-  state.agents.set(taskName, agent);
+  const canonicalName = canonicalTaskName(taskName);
+  if (state.agents.has(canonicalName)) throw new Error(`agent already exists: ${taskName}`);
+  const agent: Agent = { taskName: canonicalName, localName: taskName, nickname: null, status: "pending_init", messages: [message] };
+  state.agents.set(canonicalName, agent);
   agent.promise = Promise.resolve(context.spawnAgent({ taskName, message, forkTurns: string(args.fork_turns, "fork_turns", false) }))
     .then((result) => {
       agent.nickname = result.nickname ?? null;
@@ -319,15 +330,16 @@ async function spawnAgent(input: unknown, context: ToolContext): Promise<ToolRes
     })
     .catch((error) => { agent.status = "errored"; agent.error = String(error); });
   agent.status = "running";
-  return response({ task_name: taskName, nickname: agent.nickname });
+  return response({ task_name: canonicalName });
 }
 
 async function listAgents(input: unknown, context: ToolContext): Promise<ToolResult> {
   const args = object(input ?? {}, "list_agents");
   const prefix = string(args.path_prefix, "path_prefix", false);
-  const agents = [...stateFor(context).agents.values()]
-    .filter((agent) => !prefix || agent.taskName.startsWith(prefix))
-    .map(agentView);
+  const agents = [
+    { agent_name: "/root", agent_status: "running", last_task_message: "Main thread" },
+    ...[...stateFor(context).agents.values()].map(agentView),
+  ].filter((agent) => !prefix || agent.agent_name.startsWith(prefix));
   return response({ agents });
 }
 
@@ -337,25 +349,31 @@ async function sendAgentMessage(input: unknown, context: ToolContext, trigger: b
   const message = string(args.message, "message")!;
   const agent = agentFor(stateFor(context), target);
   agent.messages.push(message);
-  if (context.sendAgentMessage) await context.sendAgentMessage(target, message, trigger);
-  return response({ target, queued: true, trigger });
+  if (context.sendAgentMessage) await context.sendAgentMessage(agent.localName, message, trigger);
+  return response({}, 0, "");
 }
 
 async function waitAgent(input: unknown, context: ToolContext): Promise<ToolResult> {
   const args = object(input ?? {}, "wait_agent");
-  const timeout = number(args.timeout_ms, "timeout_ms") ?? 10_000;
-  const prefix = string(args.path_prefix, "path_prefix", false);
-  const agents = [...stateFor(context).agents.values()].filter((agent) => !prefix || agent.taskName.startsWith(prefix));
-  if (!agents.length) return response({ agents: [] });
-  await Promise.race([Promise.all(agents.map((agent) => agent.promise ?? Promise.resolve())), delay(timeout)]);
-  return response({ agents: agents.map(agentView) });
+  if (Object.keys(args).some((key) => key !== "timeout_ms")) throw new Error("wait_agent accepts only timeout_ms");
+  const requested = number(args.timeout_ms, "timeout_ms");
+  if (requested !== undefined && requested < 0) throw new Error("timeout_ms must be non-negative");
+  const timeout = Math.max(10_000, requested ?? 30_000);
+  const agents = [...stateFor(context).agents.values()];
+  const completed = await Promise.race([
+    Promise.all(agents.map((agent) => agent.promise ?? Promise.resolve())).then(() => true),
+    delay(timeout).then(() => false),
+  ]);
+  const clamped = requested !== undefined && requested < timeout
+    ? `\n\nRequested timeout of ${requested}ms was clamped to the minimum of ${timeout}ms.` : "";
+  return response({ message: completed ? `Wait completed.${clamped}` : `Wait timed out.${clamped}`, timed_out: !completed });
 }
 
 async function interruptAgent(input: unknown, context: ToolContext): Promise<ToolResult> {
   const target = string(object(input, "interrupt_agent").target, "target")!;
   const agent = agentFor(stateFor(context), target);
-  const previousStatus = agent.status;
-  if (context.interruptAgent) await context.interruptAgent(target);
+  const previousStatus = agentStatus(agent);
+  if (context.interruptAgent) await context.interruptAgent(agent.localName);
   if (agent.status === "running" || agent.status === "pending_init") agent.status = "interrupted";
   return response({ previous_status: previousStatus });
 }
@@ -366,19 +384,26 @@ function selectResources<T extends { server: string }>(items: T[], args: JsonObj
 }
 
 async function listMcpResources(input: unknown, context: ToolContext): Promise<ToolResult> {
-  if (context.mcpResources === undefined) throw new Error("MCP resources are not configured for this task");
   const args = object(input ?? {}, "list_mcp_resources");
-  return response({ resources: selectResources(context.mcpResources, args), cursor: null });
+  return response({ resources: selectResources(context.mcpResources ?? [], args).map((resource) => ({
+    ...resource, ...(resource.mime_type ? { mimeType: resource.mime_type } : {}),
+  })) });
 }
 
 async function listMcpResourceTemplates(input: unknown, context: ToolContext): Promise<ToolResult> {
-  if (context.mcpResourceTemplates === undefined) throw new Error("MCP resource templates are not configured for this task");
   const args = object(input ?? {}, "list_mcp_resource_templates");
-  return response({ resource_templates: selectResources(context.mcpResourceTemplates, args), cursor: null });
+  return response({ resourceTemplates: selectResources(context.mcpResourceTemplates ?? [], args).map((resource) => ({
+    server: resource.server, uriTemplate: resource.uri_template, ...(resource.name ? { name: resource.name } : {}),
+    ...(resource.description ? { description: resource.description } : {}), ...(resource.mime_type ? { mimeType: resource.mime_type } : {}),
+  })) });
 }
 
 function goalView(goal: Goal | undefined): JsonObject {
-  return { goal: goal ?? null, remaining_tokens: goal?.token_budget ?? null, completion_budget_report: null };
+  const remainingTokens = goal?.tokenBudget === undefined ? null : Math.max(0, goal.tokenBudget - goal.tokensUsed);
+  const completionBudgetReport = goal?.status === "complete" && (goal.tokenBudget !== undefined || goal.timeUsedSeconds > 0)
+    ? "Goal achieved. Report final usage from this tool result's structured goal fields. If `goal.tokenBudget` is present, include token usage from `goal.tokensUsed` and `goal.tokenBudget`. If `goal.timeUsedSeconds` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
+    : null;
+  return { goal: goal ?? null, remainingTokens, completionBudgetReport };
 }
 
 async function getGoal(input: unknown, context: ToolContext): Promise<ToolResult> {
@@ -393,7 +418,8 @@ async function createGoal(input: unknown, context: ToolContext): Promise<ToolRes
   if (tokenBudget !== undefined && (!Number.isInteger(tokenBudget) || tokenBudget <= 0)) throw new Error("token_budget must be a positive integer");
   const state = stateFor(context);
   if (state.goal?.status === "active") throw new Error("cannot create a new goal while an unfinished goal exists");
-  state.goal = { objective, status: "active", token_budget: tokenBudget, created_at: new Date().toISOString() };
+  const now = Math.floor(Date.now() / 1_000);
+  state.goal = { threadId: context.goalThreadId ?? "root", objective, status: "active", ...(tokenBudget === undefined ? {} : { tokenBudget }), tokensUsed: 0, timeUsedSeconds: 0, createdAt: now, updatedAt: now };
   return response(goalView(state.goal));
 }
 
@@ -403,6 +429,8 @@ async function updateGoal(input: unknown, context: ToolContext): Promise<ToolRes
   const state = stateFor(context);
   if (!state.goal) throw new Error("cannot update goal because no goal exists");
   state.goal.status = status;
+  state.goal.updatedAt = Math.floor(Date.now() / 1_000);
+  state.goal.timeUsedSeconds = Math.max(0, state.goal.updatedAt - state.goal.createdAt);
   return response(goalView(state.goal));
 }
 
@@ -421,18 +449,20 @@ async function shellCommand(input: unknown, context: ToolContext): Promise<ToolR
   }
   if (result.session_id !== undefined) stateFor(context).shell.terminate(result.session_id);
   const value = { ...result, output } as ExecResult;
-  return response(value, value.exit_code ?? 124);
+  return response(value, value.exit_code ?? 124, legacyShellOutput(value));
 }
 
 function cellResult(cell: Cell, maxTokens?: number): JsonObject {
-  const output = truncate(cell.output.join(""), maxTokens);
+  const allOutput = cell.output.join("");
+  const output = truncate(allOutput.slice(cell.cursor), maxTokens);
+  cell.cursor = allOutput.length;
   return {
     cell_id: cell.id, status: cell.status, output,
     ...(cell.exitCode === undefined ? {} : { exit_code: cell.exitCode }),
   };
 }
 
-function cellTools(context: ToolContext, append: (value: unknown) => void): JsonObject {
+function cellTools(context: ToolContext): JsonObject {
   const tools: JsonObject = {};
   for (const name of TOOL_NAMES) {
     tools[name] = async (input: unknown) => {
@@ -443,18 +473,41 @@ function cellTools(context: ToolContext, append: (value: unknown) => void): Json
   return Object.freeze(tools);
 }
 
+function execOptions(source: string): { yieldTime: number; maxTokens?: number } {
+  const match = source.match(/^\s*\/\/\s*@exec:\s*(\{[^\r\n]*\})/);
+  if (!match) return { yieldTime: 10_000 };
+  let options: JsonObject;
+  try { options = object(JSON.parse(match[1]), "@exec"); }
+  catch { throw new Error("@exec must contain a JSON object"); }
+  return {
+    yieldTime: number(options.yield_time_ms, "@exec.yield_time_ms") ?? 10_000,
+    maxTokens: number(options.max_output_tokens, "@exec.max_output_tokens"),
+  };
+}
+
+function cellOutput(cell: Cell, maxTokens?: number): ToolResult {
+  const data = cellResult(cell, maxTokens);
+  const status = cell.status === "running" ? `Script running with cell ID ${cell.id}`
+    : cell.status === "terminated" ? "Script terminated" : cell.status === "errored" ? "Script failed" : "Script completed";
+  const content = `${status}\nWall time ${((Date.now() - cell.startedAt) / 1_000).toFixed(1)} seconds\nOutput:\n${data.output}`;
+  return response(data, cell.status === "errored" ? 1 : 0, content);
+}
+
 async function execCell(input: unknown, context: ToolContext): Promise<ToolResult> {
-  if (input && typeof input === "object" && !Array.isArray(input) && "cmd" in input) return execCommand(input, context);
+  if (input && typeof input === "object" && !Array.isArray(input) && "cmd" in input) {
+    const args = { ...(input as JsonObject) };
+    if (args.max_output_tokens === undefined && typeof args.max_output_chars === "number") args.max_output_tokens = Math.ceil(args.max_output_chars / 4);
+    return execCommand(args, context);
+  }
   if (typeof input !== "string") throw new Error("exec requires raw JavaScript source");
+  const options = execOptions(input);
   const state = stateFor(context);
   const id = String(state.nextCellId++);
-  let resolveDone = () => {};
-  const done = new Promise<void>((resolve) => { resolveDone = resolve; });
-  const cell: Cell = { id, output: [], status: "running", promise: done, cancelled: false };
+  const cell: Cell = { id, output: [], status: "running", promise: Promise.resolve(), cancelled: false, cursor: 0, startedAt: Date.now() };
   state.cells.set(id, cell);
   const append = (value: unknown) => { if (!cell.cancelled) cell.output.push(parseText(value)); };
   const sandbox = createContext({
-    tools: cellTools(context, append),
+    tools: cellTools(context),
     text: append,
     image: append,
     notify: append,
@@ -475,13 +528,9 @@ async function execCell(input: unknown, context: ToolContext): Promise<ToolResul
   } catch (error) {
     cell.status = "errored"; cell.exitCode = 1; append(String(error));
     cell.promise = Promise.resolve();
-  } finally {
-    resolveDone();
   }
-  const yieldTime = typeof input === "object" ? 10_000 : 10_000;
-  await Promise.race([cell.promise, delay(yieldTime)]);
-  const data = cellResult(cell);
-  return response(data, cell.exitCode ?? 0);
+  await Promise.race([cell.promise, delay(Math.max(0, options.yieldTime))]);
+  return cellOutput(cell, outputLimit(options.maxTokens));
 }
 
 async function waitCell(input: unknown, context: ToolContext): Promise<ToolResult> {
@@ -493,8 +542,7 @@ async function waitCell(input: unknown, context: ToolContext): Promise<ToolResul
   } else {
     await Promise.race([cell.promise, delay(number(args.yield_time_ms, "yield_time_ms") ?? 10_000)]);
   }
-  const data = cellResult(cell, outputLimit(args.max_tokens));
-  return response(data, cell.exitCode ?? 0);
+  return cellOutput(cell, outputLimit(args.max_tokens));
 }
 
 export async function callTool(name: string, input: unknown, context: ToolContext): Promise<ToolResult> {
@@ -548,14 +596,14 @@ export const toolSchemas: ToolSpec[] = [
   functionTool("list_agents", "List live subagents.", { path_prefix: stringProperty }),
   functionTool("send_message", "Queue a message for a subagent.", { target: stringProperty, message: stringProperty }, ["target", "message"]),
   functionTool("followup_task", "Send a follow-up task to a subagent.", { target: stringProperty, message: stringProperty }, ["target", "message"]),
-  functionTool("wait_agent", "Wait for subagent activity.", { timeout_ms: numberProperty, path_prefix: stringProperty }),
+  functionTool("wait_agent", "Wait for mailbox activity from a subagent.", { timeout_ms: numberProperty }),
   functionTool("interrupt_agent", "Interrupt a subagent.", { target: stringProperty }, ["target"]),
   functionTool("list_mcp_resources", "List resources provided by configured MCP servers.", { server: stringProperty, cursor: stringProperty }),
   functionTool("list_mcp_resource_templates", "List templates provided by configured MCP servers.", { server: stringProperty, cursor: stringProperty }),
   functionTool("get_goal", "Get the current thread goal.", {}),
   functionTool("create_goal", "Create a thread goal.", { objective: stringProperty, token_budget: { type: "integer" } }, ["objective"]),
   functionTool("update_goal", "Mark the current goal complete or blocked.", { status: { type: "string", enum: ["complete", "blocked"] } }, ["status"]),
-  functionTool("shell_command", "Run a command using the legacy shell_command fields.", { command: stringProperty, workdir: stringProperty, timeout_ms: numberProperty }, ["command"]),
+  functionTool("shell_command", "Run a command using the legacy shell_command fields.", { command: stringProperty, workdir: stringProperty, timeout_ms: numberProperty, sandbox_permissions: stringProperty, justification: stringProperty }, ["command"]),
   { type: "custom", name: "exec", description: "Run a raw JavaScript tool-orchestration cell. The cell can call tools.<name>(...) and text(...).", input: { type: "string" } },
   functionTool("wait", "Wait for or terminate an exec cell.", { cell_id: stringProperty, yield_time_ms: numberProperty, max_tokens: numberProperty, terminate: booleanProperty }, ["cell_id"]),
 ];
