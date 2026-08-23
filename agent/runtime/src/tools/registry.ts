@@ -361,7 +361,7 @@ async function waitAgent(input: unknown, context: ToolContext): Promise<ToolResu
   const timeout = Math.max(10_000, requested ?? 30_000);
   const agents = [...stateFor(context).agents.values()];
   const completed = await Promise.race([
-    Promise.all(agents.map((agent) => agent.promise ?? Promise.resolve())).then(() => true),
+    ...(agents.length ? [Promise.all(agents.map((agent) => agent.promise ?? Promise.resolve())).then(() => true)] : []),
     delay(timeout).then(() => false),
   ]);
   const clamped = requested !== undefined && requested < timeout

@@ -71,11 +71,15 @@ if ((await data("wait_agent", { timeout_ms: 1_000 })).timed_out) throw new Error
 await data("send_message", { target: "child", message: "note" });
 await data("followup_task", { target: "child", message: "again" });
 await data("interrupt_agent", { target: "child" });
-if ((await data("list_agents", {})).agents.length !== 2) throw new Error("agent list failed");
+const agents = await data("list_agents", {});
+if (agents.agents.length !== 2 || agents.agents[0].agent_name !== "/root" || agents.agents[1].agent_name !== "/root/child") throw new Error("agent list failed");
 if ((await data("list_mcp_resources", {})).resources.length !== 1) throw new Error("MCP resource list failed");
-if ((await data("list_mcp_resource_templates", {})).resourceTemplates.length !== 1) throw new Error("MCP template list failed");
+const templates = await data("list_mcp_resource_templates", {});
+if (templates.resourceTemplates.length !== 1 || templates.resourceTemplates[0].uriTemplate !== "demo://{id}") throw new Error("MCP template list failed");
 
-let shell = await data("exec_command", { cmd: "printf first; sleep .01; printf second", yield_time_ms: 1 });
+const firstCommand = await callTool("exec_command", { cmd: "printf first; sleep .01; printf second", yield_time_ms: 1 }, context);
+if (!firstCommand.content.startsWith("Chunk ID:")) throw new Error("exec output format changed");
+let shell = firstCommand.data as any;
 if (!shell.session_id) throw new Error("exec_command did not create a session");
 shell = await data("write_stdin", { session_id: shell.session_id, yield_time_ms: 1_000 });
 if (shell.exit_code !== 0 || !shell.output.includes("second")) throw new Error("write_stdin failed");
@@ -92,7 +96,9 @@ try {
 if (!atomicRejected || await readFile(join(toolRoot, "old.txt"), "utf8") !== "old\n" || await readFile(join(toolRoot, "half.txt"), "utf8").then(() => true, () => false)) {
   throw new Error("failed patch was not atomic");
 }
-const cell = await data("exec", "const r = await tools.exec_command({cmd: 'printf cell'}); text(r.output);");
+const cellResult = await callTool("exec", "const r = await tools.exec_command({cmd: 'printf cell'}); text(r.output);", context);
+if (!cellResult.content.startsWith("Script completed")) throw new Error("exec cell output format changed");
+const cell = cellResult.data as any;
 if (cell.status !== "completed" || !cell.output.includes("cell")) throw new Error("exec cell failed");
 if ((await data("wait", { cell_id: cell.cell_id, yield_time_ms: 1 })).exit_code !== 0) throw new Error("wait failed");
 await writeFile(join(toolRoot, "image.png"), Buffer.from("iVBORw0KGgo=", "base64"));
@@ -112,6 +118,9 @@ if (rendered.messages[0]?.tool_calls?.[0]?.function.arguments !== nearPatch || r
 const renderedImage = renderSftRow([{ role: "tool", kind: "tool_result", toolCallId: "image", toolResult: { detail: "high", image_url: "data:image/png;base64,AA==" } }]);
 if (!Array.isArray(renderedImage.messages[0]?.content) || renderedImage.messages[0]?.content[1]?.type !== "image_url") {
   throw new Error("image tool result was flattened to text");
+}
+if (renderSftRow([{ role: "tool", kind: "tool_result", toolCallId: "plan", content: "Plan updated", toolResult: {} }]).messages[0]?.content !== "Plan updated") {
+  throw new Error("tool text result was rewritten during rendering");
 }
 if (parseAction('{"name":"exec_command","arguments":{"cmd":"true"}}').kind !== "tool_call") throw new Error("JSON tool call was not recovered");
 
