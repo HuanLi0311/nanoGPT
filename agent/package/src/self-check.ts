@@ -101,6 +101,10 @@ if (!cellResult.content.startsWith("Script completed")) throw new Error("exec ce
 const cell = cellResult.data as any;
 if (cell.status !== "completed" || !cell.output.includes("cell")) throw new Error("exec cell failed");
 if ((await data("wait", { cell_id: cell.cell_id, yield_time_ms: 1 })).exit_code !== 0) throw new Error("wait failed");
+const yielded = await data("exec", "// @exec: {\"yield_time_ms\": 1}\nawait new Promise((resolve) => setTimeout(() => { text('late'); resolve(); }, 20));");
+if (yielded.status !== "running") throw new Error("exec did not yield a live cell");
+const waited = await data("wait", { cell_id: yielded.cell_id, yield_time_ms: 1_000 });
+if (waited.status !== "completed" || !waited.output.includes("late")) throw new Error("wait did not return new cell output");
 await writeFile(join(toolRoot, "image.png"), Buffer.from("iVBORw0KGgo=", "base64"));
 if (!(await data("view_image", { path: "image.png" })).image_url.startsWith("data:image/png")) throw new Error("view_image failed");
 
