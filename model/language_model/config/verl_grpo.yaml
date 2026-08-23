@@ -1,5 +1,5 @@
-# verl contract for the agent dataset. Replace MODEL_PATH with a transformers
-# checkpoint; the local NanoGPT safetensors use a different architecture.
+# verl contract for the agent dataset. The default is the Qwen3 SFT output;
+# replace MODEL_PATH only with another transformers/vLLM-compatible student.
 algorithm:
   adv_estimator: grpo
 data:
@@ -15,7 +15,7 @@ data:
   truncation: error
 actor_rollout_ref:
   model:
-    path: ${oc.env:MODEL_PATH,Qwen/Qwen2.5-Coder-7B-Instruct}
+    path: ${oc.env:MODEL_PATH,model/language_model/checkpoints/qwen/Qwen3-8B-Base-sft-verl}
   rollout:
     name: vllm
     mode: async

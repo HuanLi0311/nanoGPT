@@ -262,11 +262,12 @@ verl 数据和 GRPO 奖励契约由以下入口生成和启动：
 git submodule update --init --recursive
 ./model/language_model/scripts/prepare_verl_data.sh
 # 历史 Codex replay 没有独立 verifier，默认会被 launcher 拒绝进入 RL。
-# 先用带 postcondition 的任务 manifest 做 tool-agent smoke：
+# 旧三工具 workspace smoke 只验证遗留 adapter，不是 20 工具 RL：
 TASK_MANIFEST=agent/tasks/harness_smoke.jsonl ./model/language_model/scripts/prepare_verl_data.sh
 TASK_MANIFEST=agent/tasks/harness_smoke.jsonl \
   TRAIN_BATCH_SIZE=1 TOTAL_TRAINING_STEPS=1 \
-  MODEL_PATH=Qwen/Qwen2.5-Coder-7B-Instruct \
+  ALLOW_LEGACY_VERL_TOOLS=1 \
+  MODEL_PATH=model/language_model/checkpoints/qwen/Qwen3-8B-Base \
   ./model/language_model/scripts/verl_grpo.sh
 ```
 

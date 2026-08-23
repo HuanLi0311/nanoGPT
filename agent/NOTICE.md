@@ -18,6 +18,18 @@
 
 任务 verifier 是运行时的独立评估步骤，不增加为第 21 个模型工具。它负责判断任务是否完成和区分 harness 故障，不能被“工具调用格式正确”替代。
 
+## 当前实现门槛（2026-08-24）
+
+独立审查确认，本文件所述目标尚未由当前 verl 启动路径实现，因此不能清空本文件或转入知识图谱数据扩充：
+
+1. `verl_grpo.sh` 现有 YAML 只加载 `exec_command`、`apply_patch`、`verify_task` 三个旧工具；字段也与轨迹不一致，并错误地把独立 verifier 暴露给模型。启动器已默认拒绝该配置。`ALLOW_LEGACY_VERL_TOOLS=1` 只保留给隔离的旧 workspace smoke，不是训练开关。
+2. verl 的标准 loop 对每次调用都 create/release 一个 Python tool；它不会保留 shell、cell、goal 或子 agent 的 episode 状态。当前的 20 工具 TypeScript runtime 没有进入该 loop。
+3. Qwen3 默认 chat template 会在渲染时丢弃 assistant call ID 和 tool result ID；对于 raw `apply_patch` 又会生成标准 JSON parser 无法读回的文本。Parquet 中虽保留字段，实际 SFT/rollout token 序列仍不对齐。
+4. 轨迹中的 `apply_patch` 是 raw patch 字符串，`exec` 是 raw JavaScript 字符串；其余工具是 JSON 字符串。不能把前两者改成 `{patch: ...}`、`{source: ...}` 之类的新模型可见参数再称为语义对齐。
+5. Qwen SFT 当前默认从 `Qwen3-8B-Base` 开始，而旧 GRPO 默认是 `Qwen2.5-Coder-7B-Instruct`。两阶段必须指向同一个 student checkpoint；默认值现已统一为 Qwen3 SFT 产物。
+
+下一阶段应提供一个能同时满足以下外部行为的 runtime bridge：训练模板和 rollout 都可表达并回传同一 `tool_call_id`；解析层保留 raw patch/JavaScript 输入；一个 episode 内的 20 工具共享真实状态；任务结束后独立执行 verifier，并把 verifier、工具、协议和 harness 故障分开写入 reward。实现可以复用现有 TypeScript runtime 或等价地移植其行为，但不能只扩写 YAML。
+
 ## 20 个工具的来源与边界
 
 | 工具 | 调用次数 | 来源 | 本次要求 |

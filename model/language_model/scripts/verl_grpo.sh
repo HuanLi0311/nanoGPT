@@ -3,9 +3,9 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../../.." && pwd)
 verl="$root/third_party/verl"
 data="$root/model/language_model/data/post_train/verl"
-# Student default: a Hugging Face Qwen coding checkpoint. DeepSeek is used as
-# the external teacher/calibration model, not as the policy in this launcher.
-model=${MODEL_PATH:-Qwen/Qwen2.5-Coder-7B-Instruct}
+# Student default matches sft.sh's Qwen3 base and output path. DeepSeek is the
+# external teacher/calibration model, not the policy in this launcher.
+model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Base-sft-verl"}
 gpus=${NGPUS_PER_NODE:-}
 
 if [[ -n "${TASK_MANIFEST:-}" ]]; then
