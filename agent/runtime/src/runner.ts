@@ -41,7 +41,7 @@ async function save(path: string, state: RunState) {
 
 export async function run(options: Options): Promise<RunState> {
   if (!options.context.spawnAgent) {
-    type Child = { prompt: string; queue: string[]; promise: Promise<{ completed?: string; error?: string }>; interrupted: boolean; runs: number };
+    type Child = { queue: string[]; promise: Promise<{ completed?: string; error?: string }>; interrupted: boolean; runs: number };
     const children = new Map<string, Child>();
     const childContext = (): ToolContext => ({
       ...options.context, state: undefined, spawnAgent: undefined, sendAgentMessage: undefined,
@@ -65,7 +65,7 @@ export async function run(options: Options): Promise<RunState> {
     };
     options.context.spawnAgent = async ({ taskName, message }) => {
       if (children.has(taskName)) return { error: `agent already exists: ${taskName}` };
-      const child = { prompt: message, queue: [], interrupted: false, runs: 0, promise: Promise.resolve({} as { completed?: string; error?: string }) };
+      const child = { queue: [], interrupted: false, runs: 0, promise: Promise.resolve({} as { completed?: string; error?: string }) };
       children.set(taskName, child);
       child.promise = launch(taskName, child, message);
       return child.promise;

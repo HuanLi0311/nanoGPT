@@ -138,6 +138,11 @@ const verifierState = await run({ id: "verifier-overrides-tool-failure", prompt:
 if (verifierState.status !== "done" || verifierState.events.find((event) => event.kind === "tool_result" && event.toolCallId === "fails")?.exitCode !== 1) {
   throw new Error("independent verifier did not override a recoverable tool failure");
 }
+const faultState = await run({ id: "verifier-fault", prompt: "verify", tools: toolSchemas,
+  context: { root: toolRoot, verifyTask: async () => { throw new Error("verifier unavailable"); } }, statePath: join(toolRoot, "verifier-fault.json"), model: {
+    complete: async () => ({ content: "done" }),
+  } });
+if (faultState.verification?.harnessStatus !== "harness_fault") throw new Error("verifier fault was attributed to the model");
 
 let childRuns = 0;
 const defaultAgentState = await run({ id: "default-agent", prompt: "parent", tools: toolSchemas, context: {

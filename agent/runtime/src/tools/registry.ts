@@ -26,7 +26,7 @@ export type McpResourceTemplate = {
 };
 
 export type SpawnAgentRequest = { taskName: string; message: string; forkTurns?: string };
-export type SpawnAgentResponse = { nickname?: string | null; completed?: string; error?: string };
+export type SpawnAgentResponse = { completed?: string; error?: string };
 
 export type ToolContext = {
   root: string;
@@ -48,7 +48,6 @@ export type ToolResult = { content: string; exitCode: number; data: unknown };
 type Agent = {
   taskName: string;
   localName: string;
-  nickname: string | null;
   status: AgentStatus;
   messages: string[];
   completed?: string;
@@ -319,11 +318,10 @@ async function spawnAgent(input: unknown, context: ToolContext): Promise<ToolRes
   const state = stateFor(context);
   const canonicalName = canonicalTaskName(taskName);
   if (state.agents.has(canonicalName)) throw new Error(`agent already exists: ${taskName}`);
-  const agent: Agent = { taskName: canonicalName, localName: taskName, nickname: null, status: "pending_init", messages: [message] };
+  const agent: Agent = { taskName: canonicalName, localName: taskName, status: "pending_init", messages: [message] };
   state.agents.set(canonicalName, agent);
   agent.promise = Promise.resolve(context.spawnAgent({ taskName, message, forkTurns: string(args.fork_turns, "fork_turns", false) }))
     .then((result) => {
-      agent.nickname = result.nickname ?? null;
       agent.completed = result.completed;
       agent.error = result.error;
       agent.status = result.error ? "errored" : "completed";
