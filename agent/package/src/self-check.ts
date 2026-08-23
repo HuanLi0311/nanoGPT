@@ -54,7 +54,7 @@ const toolRoot = await mkdtemp(join(tmpdir(), "nanoagent-tools-"));
 const context: ToolContext = {
   root: toolRoot,
   userResponses: [{ selected: "first" }],
-  mcpResources: [{ server: "demo", uri: "demo://one", name: "one" }],
+  mcpResources: [{ server: "demo", uri: "demo://one", name: "one", mime_type: "text/plain" }],
   mcpResourceTemplates: [{ server: "demo", uri_template: "demo://{id}", name: "template" }],
   spawnAgent: async ({ taskName, message }) => ({ nickname: taskName, completed: message.toUpperCase() }),
 };
@@ -73,7 +73,8 @@ await data("followup_task", { target: "child", message: "again" });
 await data("interrupt_agent", { target: "child" });
 const agents = await data("list_agents", {});
 if (agents.agents.length !== 2 || agents.agents[0].agent_name !== "/root" || agents.agents[1].agent_name !== "/root/child") throw new Error("agent list failed");
-if ((await data("list_mcp_resources", {})).resources.length !== 1) throw new Error("MCP resource list failed");
+const resources = await data("list_mcp_resources", {});
+if (resources.resources.length !== 1 || resources.resources[0].mimeType !== "text/plain" || "mime_type" in resources.resources[0]) throw new Error("MCP resource list failed");
 const templates = await data("list_mcp_resource_templates", {});
 if (templates.resourceTemplates.length !== 1 || templates.resourceTemplates[0].uriTemplate !== "demo://{id}") throw new Error("MCP template list failed");
 
