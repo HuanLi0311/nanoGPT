@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../../.." && pwd)
+python=${PYTHON_BIN:-"$root/.venv/bin/python"}
 verl="$root/third_party/verl"
 data="$root/model/language_model/data/post_train/verl"
 # Student default matches sft.sh's Qwen3 base and output path. DeepSeek is the
@@ -35,8 +36,10 @@ enforce_eager=${VLLM_ENFORCE_EAGER:-false}
 logger=${VERL_LOGGER:-console}
 tool_config="$root/model/language_model/config/verl_tools.yaml"
 
+[[ -x "$python" ]] || { echo "missing Python environment: $python" >&2; exit 1; }
+
 if [[ "${ALLOW_LEGACY_VERL_TOOLS:-0}" != "1" ]]; then
-  python3 - "$tool_config" "$root/agent/runtime/src/tools/registry.ts" <<'PY'
+  "$python" - "$tool_config" "$root/agent/runtime/src/tools/registry.ts" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -62,7 +65,7 @@ PY
 fi
 
 if [[ "${REQUIRE_SCORED_DATA:-1}" != "0" ]]; then
-  python3 - "$data_train" "$data_val" <<'PY'
+  "$python" - "$data_train" "$data_val" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -101,12 +104,12 @@ PY
 fi
 
 if [[ -z "$gpus" ]]; then
-  gpus=$(python3 -c 'import torch; print(max(1, torch.cuda.device_count()))' 2>/dev/null || echo 1)
+  gpus=$("$python" -c 'import torch; print(max(1, torch.cuda.device_count()))' 2>/dev/null || echo 1)
 fi
 
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 cd "$verl"
-exec python3 -m verl.trainer.main_ppo \
+exec "$python" -m verl.trainer.main_ppo \
   algorithm.adv_estimator=grpo \
   data.train_files="['$data_train']" \
   data.val_files="['$data_val']" \
