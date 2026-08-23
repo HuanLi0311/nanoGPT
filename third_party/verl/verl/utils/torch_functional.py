@@ -1004,7 +1004,7 @@ def expand_as_nested(tensor: torch.Tensor, nested_tensor: torch.Tensor) -> torch
     assert len(tensor.shape) == 1, "The ndim of tensor must be 1"
     assert len(nested_tensor.shape) == 2, "The ndim of nested_tensor must be 2"
 
-    offsets = nested_tensor.offsets()
+    offsets = nested_tensor.offsets().to(tensor.device)
     seqlens = offsets.diff()
     output = torch.repeat_interleave(tensor, seqlens, dim=0)
     output = torch.nested.nested_tensor_from_jagged(values=output, offsets=offsets)
