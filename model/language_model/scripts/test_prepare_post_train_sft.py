@@ -2,8 +2,7 @@
 
 import json
 
-from model.language_model.scripts.prepare_post_train_sft import is_supervised_message
-from model.language_model.scripts.tool_message import message_content
+from model.language_model.scripts.tool_message import is_supervised_message, message_content
 
 
 def main() -> None:

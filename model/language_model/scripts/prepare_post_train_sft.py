@@ -9,11 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from ..model.tokenizer import load_tokenizer
-from .tool_message import message_content
-
-
-def is_supervised_message(message: dict, tool_calls_only: bool) -> bool:
-    return message.get("role") == "assistant" and (not tool_calls_only or bool(message.get("tool_calls")))
+from .tool_message import is_supervised_message, message_content
 
 
 def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_tokens: int, limit: int | None = None, batch_size: int = 32, tool_calls_only: bool = False) -> None:

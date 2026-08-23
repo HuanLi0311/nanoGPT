@@ -39,3 +39,7 @@ def message_content(message: dict) -> str:
             separators=(",", ":"),
         )
     return content
+
+
+def is_supervised_message(message: dict, tool_calls_only: bool) -> bool:
+    return message.get("role") == "assistant" and (not tool_calls_only or bool(message.get("tool_calls")))
