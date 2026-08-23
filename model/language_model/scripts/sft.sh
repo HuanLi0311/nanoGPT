@@ -11,6 +11,7 @@ workers=${NPROC_PER_NODE:-$("$python" -c 'import torch; print(torch.cuda.device_
 master_addr=${MASTER_ADDR:-127.0.0.1}
 master_port=${MASTER_PORT:-29501}
 attn_implementation=${ATTN_IMPLEMENTATION:-sdpa}
+truncation=${TRUNCATION:-left}
 
 train_shards=("$data"/train_sft-*.parquet "$data"/codex_train.parquet)
 val_shards=("$data"/test_sft-*.parquet "$data"/codex_test.parquet)
@@ -31,8 +32,7 @@ export PYTHONDONTWRITEBYTECODE=1
 cd "$verl"
 "$python" -c 'import verl.trainer.sft_trainer'
 
-# ponytail: the no-padding FSDP path truncates rows past 8192 tokens on the right;
-# add a dataset preprocessing policy if preserving trailing turns becomes necessary.
+# ponytail: left truncation keeps the most recent supervised turn; preprocess rows if preserving full history matters.
 exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_port="$master_port" --nproc_per_node="$workers" \
   -m verl.trainer.sft_trainer \
   data.train_files="$(hydra_list "${train_shards[@]}")" \
@@ -42,7 +42,7 @@ exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_po
   data.micro_batch_size_per_gpu="${MICRO_BATCH_SIZE_PER_GPU:-1}" \
   data.max_token_len_per_gpu="${MAX_TOKEN_LEN_PER_GPU:-8192}" \
   data.max_length="${MAX_LENGTH:-8192}" \
-  data.truncation=right \
+  data.truncation="$truncation" \
   data.ignore_input_ids_mismatch=True \
   optim.lr="${LEARNING_RATE:-1e-5}" \
   optim.weight_decay="${WEIGHT_DECAY:-0.1}" \

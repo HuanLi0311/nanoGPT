@@ -404,11 +404,12 @@ class MultiTurnSFTDataset(Dataset):
         elif self.pad_mode == DatasetPadMode.NO_PADDING:
             if sequence_length > self.max_length and self.truncation == "error":
                 raise ValueError(f"{sequence_length=} is larger than {self.max_length=}")
-            # truncate input_ids if it is longer than max_length
+            # Truncate the entire sample consistently with the configured direction.
             if len(input_ids) > self.max_length:
-                input_ids = input_ids[: self.max_length]
-                loss_mask = loss_mask[: self.max_length]
-                position_ids = position_ids[..., : self.max_length]
+                token_slice = slice(-self.max_length, None) if self.truncation == "left" else slice(None, self.max_length)
+                input_ids = input_ids[token_slice]
+                loss_mask = loss_mask[token_slice]
+                position_ids = position_ids[..., token_slice]
 
             # return nested tensor with out padding
             res = {
