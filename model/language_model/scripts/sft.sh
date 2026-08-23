@@ -4,6 +4,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../../.." && pwd)
 python="$root/.venv/bin/python"
 verl="$root/third_party/verl"
+launcher="$root/model/language_model/scripts/verl_sft_launcher.py"
 data="$root/model/language_model/data/post_train/data/rendered/sft"
 model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Base"}
 save_path=${SAVE_PATH:-"$root/logs/Qwen3-8B-Base-sft"}
@@ -15,7 +16,7 @@ attn_implementation=${ATTN_IMPLEMENTATION:-sdpa}
 train_shards=("$data"/train_sft-*.parquet "$data"/codex_train.parquet)
 val_shards=("$data"/test_sft-*.parquet "$data"/codex_test.parquet)
 
-for path in "$python" "$verl" "$model" "${train_shards[@]}" "${val_shards[@]}"; do
+for path in "$python" "$verl" "$launcher" "$model" "${train_shards[@]}" "${val_shards[@]}"; do
   [[ -e "$path" ]] || { echo "missing required path: $path" >&2; exit 1; }
 done
 (( workers > 0 )) || { echo "no CUDA devices found; set NPROC_PER_NODE explicitly" >&2; exit 1; }
@@ -29,12 +30,12 @@ export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 unset PYTHONPYCACHEPREFIX
 export PYTHONDONTWRITEBYTECODE=1
 cd "$verl"
-"$python" -c 'import verl.trainer.sft_trainer'
+"$python" "$launcher" --check
 
 # ponytail: the no-padding FSDP path truncates rows past 8192 tokens on the right;
 # add a dataset preprocessing policy if preserving trailing turns becomes necessary.
-exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_port="$master_port" --nproc_per_node="$workers" \
-  -m verl.trainer.sft_trainer \
+exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_port="$master_port" --nproc_per_node="$workers" --no_python \
+  "$python" "$launcher" \
   data.train_files="$(hydra_list "${train_shards[@]}")" \
   data.val_files="$(hydra_list "${val_shards[@]}")" \
   data.messages_key=messages \

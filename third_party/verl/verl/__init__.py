@@ -17,23 +17,6 @@ import logging
 import os
 
 from packaging.version import parse as parse_version
-import torch
-
-
-if not hasattr(torch.nested, "nested_tensor_from_jagged"):
-    from torch.nested._internal.nested_tensor import (
-        nested_view_from_values_offsets,
-        nested_view_from_values_offsets_lengths,
-    )
-
-    def nested_tensor_from_jagged(values, offsets, lengths=None, ragged_idx=1):
-        """Backport the PyTorch 2.4 jagged-tensor constructor for PyTorch 2.3."""
-        offsets = offsets.to(values.device)
-        if lengths is None:
-            return nested_view_from_values_offsets(values, offsets, ragged_idx)
-        return nested_view_from_values_offsets_lengths(values, offsets, lengths.to(values.device), ragged_idx)
-
-    torch.nested.nested_tensor_from_jagged = nested_tensor_from_jagged
 
 # `verl.protocol` (imported just below) is the first module that pulls in Ray, so any
 # Ray flag read at import time must be set here first. When the training driver runs
