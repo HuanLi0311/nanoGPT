@@ -31,6 +31,7 @@ export type SpawnAgentResponse = { nickname?: string | null; completed?: string;
 export type ToolContext = {
   root: string;
   cwd?: string;
+  goalThreadId?: string;
   state?: HarnessState;
   requestUserInput?: (questions: unknown[]) => Promise<unknown>;
   userResponses?: unknown[];
@@ -46,6 +47,7 @@ export type ToolResult = { content: string; exitCode: number; data: unknown };
 
 type Agent = {
   taskName: string;
+  localName: string;
   nickname: string | null;
   status: AgentStatus;
   messages: string[];
@@ -55,10 +57,14 @@ type Agent = {
 };
 
 type Goal = {
+  threadId: string;
   objective: string;
   status: "active" | "complete" | "blocked";
-  token_budget?: number;
-  created_at: string;
+  tokenBudget?: number;
+  tokensUsed: number;
+  timeUsedSeconds: number;
+  createdAt: number;
+  updatedAt: number;
 };
 
 type Cell = {
@@ -68,6 +74,8 @@ type Cell = {
   exitCode?: number;
   promise: Promise<void>;
   cancelled: boolean;
+  cursor: number;
+  startedAt: number;
 };
 
 export type HarnessState = {
@@ -131,8 +139,8 @@ function boolean(value: unknown, field: string): boolean | undefined {
   return value;
 }
 
-function response(data: unknown, exitCode = 0): ToolResult {
-  return { content: JSON.stringify(data), exitCode, data };
+function response(data: unknown, exitCode = 0, content = JSON.stringify(data)): ToolResult {
+  return { content, exitCode, data };
 }
 
 function parseText(value: unknown): string {
@@ -148,10 +156,26 @@ function truncate(value: string, limit?: number): string {
   return limit && value.length > limit ? value.slice(-limit) : value;
 }
 
-function pathsFromPatch(patch: string): string[] {
-  const codex = [...patch.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((match) => match[1]);
-  const unified = [...patch.matchAll(/^(?:---|\+\+\+) [ab]\/([^\t\n]+)/gm)].map((match) => match[1]);
-  return [...new Set([...codex, ...unified])];
+function patchSummary(patch: string): string {
+  const codex = [...patch.matchAll(/^\*\*\* (Add|Update|Delete) File: (.+)$/gm)]
+    .map((match) => `${match[1] === "Add" ? "A" : match[1] === "Delete" ? "D" : "M"} ${match[2]}`);
+  const unified = [...patch.matchAll(/^\+\+\+ b\/([^\t\n]+)/gm)].map((match) => `M ${match[1]}`);
+  const changes = [...new Set([...codex, ...unified])];
+  return `Success. Updated the following files:\n${changes.join("\n")}\n`;
+}
+
+function execOutput(result: ExecResult): string {
+  return [
+    ...(result.chunk_id ? [`Chunk ID: ${result.chunk_id}`] : []),
+    `Wall time: ${result.wall_time_seconds.toFixed(3)} seconds`,
+    result.exit_code === undefined ? `Process running with session ID ${result.session_id}` : `Process exited with code ${result.exit_code}`,
+    ...(result.original_token_count === undefined ? [] : [`Original token count: ${result.original_token_count}`]),
+    "Output:", result.output,
+  ].join("\n");
+}
+
+function legacyShellOutput(result: ExecResult): string {
+  return `Exit code: ${result.exit_code ?? 124}\nWall time: ${Math.round(result.wall_time_seconds)} seconds\nOutput:\n${result.output}`;
 }
 
 async function workspaceFile(root: string, value: string): Promise<string> {
@@ -195,18 +219,19 @@ function writeInput(input: JsonObject): WriteStdinInput {
 
 async function execCommand(input: unknown, context: ToolContext): Promise<ToolResult> {
   const result = await stateFor(context).shell.exec(execInput(object(input, "exec_command")), context.root, context.cwd);
-  return response(result, result.exit_code ?? 0);
+  return response(result, result.exit_code ?? 0, execOutput(result));
 }
 
 async function writeStdin(input: unknown, context: ToolContext): Promise<ToolResult> {
   const result = await stateFor(context).shell.write(writeInput(object(input, "write_stdin")));
-  return response(result, result.exit_code ?? 0);
+  return response(result, result.exit_code ?? 0, execOutput(result));
 }
 
 async function applyPatchTool(input: unknown, context: ToolContext): Promise<ToolResult> {
   const patch = typeof input === "string" ? input : string(object(input, "apply_patch").patch, "patch")!;
-  const output = await applyPatchText(patch, context.root);
-  return response({ output, exit_code: 0, changed_paths: pathsFromPatch(patch) });
+  const startedAt = Date.now();
+  await applyPatchText(patch, context.root);
+  return response({ output: patchSummary(patch), metadata: { exit_code: 0, duration_seconds: (Date.now() - startedAt) / 1_000 } });
 }
 
 async function applyPatchText(patch: string, root: string): Promise<string> {
@@ -237,7 +262,7 @@ async function updatePlan(input: unknown, context: ToolContext): Promise<ToolRes
   const state = stateFor(context);
   state.plan = args.plan;
   state.planExplanation = string(args.explanation, "explanation", false);
-  return response({ plan: state.plan, ...(state.planExplanation ? { explanation: state.planExplanation } : {}) });
+  return response({}, 0, "Plan updated");
 }
 
 async function requestUserInput(input: unknown, context: ToolContext): Promise<ToolResult> {
@@ -246,7 +271,12 @@ async function requestUserInput(input: unknown, context: ToolContext): Promise<T
   for (const question of questions) {
     const item = object(question, "question");
     string(item.id, "questions[].id"); string(item.header, "questions[].header"); string(item.question, "questions[].question");
-    if (!Array.isArray(item.options) || !item.options.length) throw new Error("questions[].options must not be empty");
+    if (!Array.isArray(item.options) || item.options.length < 2 || item.options.length > 3) throw new Error("questions[].options must contain two to three entries");
+    for (const option of item.options) {
+      const value = object(option, "question option");
+      string(value.label, "questions[].options[].label");
+      string(value.description, "questions[].options[].description");
+    }
   }
   const state = stateFor(context);
   const answer = context.requestUserInput
