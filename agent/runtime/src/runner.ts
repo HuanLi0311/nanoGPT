@@ -41,7 +41,7 @@ async function save(path: string, state: RunState) {
 
 export async function run(options: Options): Promise<RunState> {
   if (!options.context.spawnAgent) {
-    type Child = { prompt: string; queue: string[]; promise: Promise<{ completed?: string; error?: string }>; interrupted: boolean };
+    type Child = { prompt: string; queue: string[]; promise: Promise<{ completed?: string; error?: string }>; interrupted: boolean; runs: number };
     const children = new Map<string, Child>();
     const childContext = (): ToolContext => ({
       ...options.context, state: undefined, spawnAgent: undefined, sendAgentMessage: undefined,
@@ -49,13 +49,14 @@ export async function run(options: Options): Promise<RunState> {
     });
     const launch = async (taskName: string, child: Child, prompt: string) => {
       if (child.interrupted) return { error: "subagent interrupted" };
+      const id = `${options.id}.${taskName}.${child.runs++}`;
       try {
         const childState = await run({
           ...options,
-          id: `${options.id}.${taskName}`,
+          id,
           prompt,
           context: childContext(),
-          statePath: join(dirname(options.statePath), `${options.id}.${taskName}.json`),
+          statePath: join(dirname(options.statePath), `${id}.json`),
         });
         return childState.final ? { completed: childState.final } : { error: childState.verification?.reason ?? "subagent returned no final message" };
       } catch (error) {
@@ -64,7 +65,7 @@ export async function run(options: Options): Promise<RunState> {
     };
     options.context.spawnAgent = async ({ taskName, message }) => {
       if (children.has(taskName)) return { error: `agent already exists: ${taskName}` };
-      const child = { prompt: message, queue: [], interrupted: false, promise: Promise.resolve({} as { completed?: string; error?: string }) };
+      const child = { prompt: message, queue: [], interrupted: false, runs: 0, promise: Promise.resolve({} as { completed?: string; error?: string }) };
       children.set(taskName, child);
       child.promise = launch(taskName, child, message);
       return child.promise;
@@ -75,6 +76,15 @@ export async function run(options: Options): Promise<RunState> {
       child.queue.push(message);
       if (trigger) {
         child.promise = child.promise.then(() => launch(taskName, child, child.queue.splice(0).join("\n")));
+        const agent = options.context.state?.agents.get(`/root/${taskName}`);
+        if (agent) {
+          agent.status = "running";
+          agent.promise = child.promise.then((result) => {
+            agent.completed = result.completed;
+            agent.error = result.error;
+            agent.status = result.error ? "errored" : "completed";
+          }).catch((error) => { agent.status = "errored"; agent.error = String(error); });
+        }
       }
     };
     options.context.interruptAgent = async (taskName) => {

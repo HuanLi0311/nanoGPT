@@ -139,22 +139,26 @@ if (verifierState.status !== "done" || verifierState.events.find((event) => even
   throw new Error("independent verifier did not override a recoverable tool failure");
 }
 
-let childRan = false;
+let childRuns = 0;
 const defaultAgentState = await run({ id: "default-agent", prompt: "parent", tools: toolSchemas, context: {
   root: toolRoot, verifyTask: async () => ({ score: 1, passed: true, reason: "parent verifier" }),
-}, statePath: join(toolRoot, "default-agent.json"), maxTurns: 4, model: {
+}, statePath: join(toolRoot, "default-agent.json"), maxTurns: 5, model: {
   complete: async (messages: any[]) => {
     const prompt = messages.find((message) => message.role === "user")?.content;
-    if (prompt === "child") { childRan = true; return { content: "child done" }; }
-    return messages.some((message) => message.role === "tool")
-      ? { content: "parent done" }
-      : { tool_calls: [
+    if (prompt === "child" || prompt === "again") { childRuns++; return { content: `${prompt} done` }; }
+    const results = messages.filter((message) => message.role === "tool").length;
+    if (results === 0) return { tool_calls: [
         { id: "spawn", function: { name: "spawn_agent", arguments: JSON.stringify({ task_name: "child", message: "child" }) } },
         { id: "wait", function: { name: "wait_agent", arguments: JSON.stringify({ timeout_ms: 1_000 }) } },
       ] };
+    if (results === 2) return { tool_calls: [
+      { id: "followup", function: { name: "followup_task", arguments: JSON.stringify({ target: "child", message: "again" }) } },
+      { id: "wait-followup", function: { name: "wait_agent", arguments: JSON.stringify({ timeout_ms: 1_000 }) } },
+    ] };
+    return { content: "parent done" };
   },
 } });
-if (!childRan || defaultAgentState.status !== "done") throw new Error("default subagent runner failed");
+if (childRuns !== 2 || defaultAgentState.status !== "done") throw new Error("default subagent runner failed");
 
 await rm(nearRoot, { recursive: true, force: true });
 await rm(toolRoot, { recursive: true, force: true });
