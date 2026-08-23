@@ -7,7 +7,7 @@ export function verify(events: Event[], final: string): Verification {
   const failures = results.filter((event) => (event.exitCode ?? 0) !== 0).length;
   if (!final.trim()) return { score: 0, passed: false, reason: "empty final answer", harnessStatus: "protocol" };
   if (results.length < calls) return { score: 0, passed: false, reason: "unresolved tool call", harnessStatus: "protocol" };
-  if (failures) return { score: 0, passed: false, reason: `${failures} tool failure(s)`, harnessStatus: "healthy" };
+  if (failures) return { score: 0, passed: false, reason: `${failures} tool failure(s)`, harnessStatus: "tool_failure" };
   return { score: 0, passed: false, reason: "missing independent verifier", harnessStatus: "unscored" };
 }
 

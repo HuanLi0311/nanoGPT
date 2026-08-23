@@ -60,26 +60,29 @@ const context: ToolContext = {
 };
 const data = async (name: string, input: unknown) => (await callTool(name, input, context)).data as any;
 
-await data("update_plan", { plan: [{ step: "one", status: "in_progress" }] });
+const planResult = await callTool("update_plan", { plan: [{ step: "one", status: "in_progress" }] }, context);
+if (planResult.content !== "Plan updated") throw new Error("plan result format changed");
 await data("create_goal", { objective: "finish check" });
-if ((await data("get_goal", {})).goal.objective !== "finish check") throw new Error("goal was not stored");
+if ((await data("get_goal", {})).goal.threadId !== "root") throw new Error("goal response fields changed");
 if ((await data("update_goal", { status: "complete" })).goal.status !== "complete") throw new Error("goal was not completed");
-if ((await data("request_user_input", { questions: [{ id: "q", header: "Q", question: "choose", options: [{ label: "one", description: "one" }] }] })).answers.selected !== "first") throw new Error("user response failed");
+if ((await data("request_user_input", { questions: [{ id: "q", header: "Q", question: "choose", options: [{ label: "one", description: "one" }, { label: "two", description: "two" }] }] })).answers.selected !== "first") throw new Error("user response failed");
 await data("spawn_agent", { task_name: "child", message: "work" });
-if (!(await data("wait_agent", { timeout_ms: 1_000 })).agents[0].status.completed) throw new Error("subagent did not complete");
+if ((await data("wait_agent", { timeout_ms: 1_000 })).timed_out) throw new Error("subagent did not complete");
 await data("send_message", { target: "child", message: "note" });
 await data("followup_task", { target: "child", message: "again" });
 await data("interrupt_agent", { target: "child" });
-if ((await data("list_agents", {})).agents.length !== 1) throw new Error("agent list failed");
+if ((await data("list_agents", {})).agents.length !== 2) throw new Error("agent list failed");
 if ((await data("list_mcp_resources", {})).resources.length !== 1) throw new Error("MCP resource list failed");
-if ((await data("list_mcp_resource_templates", {})).resource_templates.length !== 1) throw new Error("MCP template list failed");
+if ((await data("list_mcp_resource_templates", {})).resourceTemplates.length !== 1) throw new Error("MCP template list failed");
 
 let shell = await data("exec_command", { cmd: "printf first; sleep .01; printf second", yield_time_ms: 1 });
 if (!shell.session_id) throw new Error("exec_command did not create a session");
 shell = await data("write_stdin", { session_id: shell.session_id, yield_time_ms: 1_000 });
 if (shell.exit_code !== 0 || !shell.output.includes("second")) throw new Error("write_stdin failed");
-if ((await data("shell_command", { command: "printf legacy", workdir: "." })).output !== "legacy") throw new Error("shell_command failed");
-await data("apply_patch", "*** Begin Patch\n*** Add File: raw.txt\n+raw\n*** End Patch\n");
+const legacy = await callTool("shell_command", { command: "printf legacy", workdir: "." }, context);
+if ((legacy.data as any).output !== "legacy" || !legacy.content.startsWith("Exit code:")) throw new Error("shell_command failed");
+const patchResult = await data("apply_patch", "*** Begin Patch\n*** Add File: raw.txt\n+raw\n*** End Patch\n");
+if (patchResult.metadata?.exit_code !== 0 || !patchResult.output?.startsWith("Success.")) throw new Error("patch response format changed");
 if (await readFile(join(toolRoot, "raw.txt"), "utf8") !== "raw\n") throw new Error("raw apply_patch failed");
 await writeFile(join(toolRoot, "old.txt"), "old\n");
 let atomicRejected = false;
@@ -111,6 +114,16 @@ if (!Array.isArray(renderedImage.messages[0]?.content) || renderedImage.messages
   throw new Error("image tool result was flattened to text");
 }
 if (parseAction('{"name":"exec_command","arguments":{"cmd":"true"}}').kind !== "tool_call") throw new Error("JSON tool call was not recovered");
+
+const verifierState = await run({ id: "verifier-overrides-tool-failure", prompt: "complete despite one command failure", tools: toolSchemas,
+  context: { root: toolRoot, verifyTask: async () => ({ score: 1, passed: true, reason: "postcondition passed" }) }, statePath: join(toolRoot, "verifier-overrides-tool-failure.json"), model: {
+    complete: async (messages: any[]) => messages.some((message) => message.role === "tool")
+      ? { content: "done" }
+      : { tool_calls: [{ id: "fails", function: { name: "exec_command", arguments: JSON.stringify({ cmd: "false" }) } }] },
+  } });
+if (verifierState.status !== "done" || verifierState.events.find((event) => event.kind === "tool_result" && event.toolCallId === "fails")?.exitCode !== 1) {
+  throw new Error("independent verifier did not override a recoverable tool failure");
+}
 
 let childRan = false;
 const defaultAgentState = await run({ id: "default-agent", prompt: "parent", tools: toolSchemas, context: {

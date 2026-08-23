@@ -2,16 +2,18 @@ import type { ChatMessage, Event, MessageContent, Trajectory } from "./types.ts"
 
 const toolArguments = (value: unknown): string => typeof value === "string" ? value : JSON.stringify(value ?? {});
 function toolContent(event: Event): MessageContent {
-  if (!event.toolResult || typeof event.toolResult !== "object" || Array.isArray(event.toolResult)) {
-    return event.toolResult === undefined ? (event.content ?? "") : JSON.stringify(event.toolResult);
+  if (event.toolResult && typeof event.toolResult === "object" && !Array.isArray(event.toolResult)) {
+    const value = event.toolResult as Record<string, unknown>;
+    if (typeof value.image_url === "string") {
+      const { image_url: url, detail, ...text } = value;
+      return [
+        { type: "text", text: JSON.stringify(text) },
+        { type: "image_url", image_url: { url, ...(typeof detail === "string" ? { detail } : {}) } },
+      ];
+    }
   }
-  const value = event.toolResult as Record<string, unknown>;
-  if (typeof value.image_url !== "string") return JSON.stringify(value);
-  const { image_url: url, detail, ...text } = value;
-  return [
-    { type: "text", text: JSON.stringify(text) },
-    { type: "image_url", image_url: { url, ...(typeof detail === "string" ? { detail } : {}) } },
-  ];
+  if (event.content !== undefined) return event.content;
+  return typeof event.toolResult === "string" ? event.toolResult : JSON.stringify(event.toolResult ?? "");
 }
 
 export function renderEvents(events: Event[]): ChatMessage[] {

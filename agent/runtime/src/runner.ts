@@ -18,7 +18,7 @@ const renderArguments = (value: unknown): string => typeof value === "string" ? 
 
 async function taskVerification(events: Event[], final: string, context: ToolContext): Promise<Verification> {
   const protocol = verify(events, final);
-  if (protocol.harnessStatus === "protocol" || protocol.harnessStatus === "healthy") return protocol;
+  if (protocol.harnessStatus === "protocol") return protocol;
   if (!context.verifyTask) return protocol;
   try {
     const outcome = await context.verifyTask();
