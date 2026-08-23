@@ -211,7 +211,8 @@ class SFTTrainer:
                 collate_fn=self.collate_fn,
                 num_workers=8,
                 pin_memory=False,
-                drop_last=True,
+                # Evaluation must not disappear when a rank has a partial final batch.
+                drop_last=False,
                 pin_memory_device=device_name,
             )
         else:
