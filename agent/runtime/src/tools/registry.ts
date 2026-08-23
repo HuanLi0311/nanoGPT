@@ -386,7 +386,9 @@ function selectResources<T extends { server: string }>(items: T[], args: JsonObj
 async function listMcpResources(input: unknown, context: ToolContext): Promise<ToolResult> {
   const args = object(input ?? {}, "list_mcp_resources");
   return response({ resources: selectResources(context.mcpResources ?? [], args).map((resource) => ({
-    ...resource, ...(resource.mime_type ? { mimeType: resource.mime_type } : {}),
+    server: resource.server, uri: resource.uri, ...(resource.name ? { name: resource.name } : {}),
+    ...(resource.description ? { description: resource.description } : {}), ...(resource.mime_type ? { mimeType: resource.mime_type } : {}),
+    ...(resource.text ? { text: resource.text } : {}),
   })) });
 }
 

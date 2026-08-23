@@ -34,8 +34,8 @@
 | `spawn_agent` | 4 | `codex-rs core` multi-agent | 完整迁移。 |
 | `followup_task` | 4 | `codex-rs core` multi-agent | 完整迁移。 |
 | `interrupt_agent` | 2 | `codex-rs core` multi-agent | 完整迁移。 |
-| `list_mcp_resources` | 1 | `codex-rs core` MCP | 完整迁移；启用时必须连接实际 MCP 资源。 |
-| `list_mcp_resource_templates` | 1 | `codex-rs core` MCP | 完整迁移；启用时必须连接实际 MCP 资源。 |
+| `list_mcp_resources` | 1 | `codex-rs core` MCP | 对齐资源字段；未配置时返回空列表。 |
+| `list_mcp_resource_templates` | 1 | `codex-rs core` MCP | 对齐模板字段；未配置时返回空列表。 |
 | `get_goal` | 4 | `codex-rs ext/goal` | 完整迁移。 |
 | `create_goal` | 4 | `codex-rs ext/goal` | 完整迁移。 |
 | `update_goal` | 3 | `codex-rs ext/goal` | 完整迁移。 |
@@ -47,7 +47,7 @@
 
 ## `codex-rs` 参考范围
 
-`codex-rs` 作为 17 个工具的行为参考和测试 oracle，不作为运行时依赖。
+`codex-rs` 作为 19 个工具的行为参考和测试 oracle，不作为运行时依赖。
 
 主要参考位置：
 
