@@ -153,3 +153,10 @@ nanoGPT 中的 `wait` 应对指定 cell 等待或轮询，并返回该 cell 新�
 验证通过：SFT 格式测试、trajectory artifact 自检、Node harness 自检、shell/YAML 语法检查，以及 launcher 的拒绝路径。期间一次 verl --help 实际进入了初始化，已终止，未留下训练进程、checkpoint 或 Ray 输出。
 
 下一阶段是 runtime bridge，而不是加更多 YAML：需要自定义 Qwen 模板与 parser 保留 ID/raw 参数，并将 20 工具的共享 episode 状态和独立 verifier 接入 verl agent loop。完成这一层后再做知识图谱扩充，才能让新增轨迹的 reward 真正反映模型而非 harness 缺口。
+
+
+
+-----------------------------------------------------------------------
+
+
+
