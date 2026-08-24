@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from filter import inspect, iter_episodes
+import pyarrow.parquet as pq
+
+from filter import inspect, iter_episodes, write_parquet
 
 
 def item(events):
@@ -56,6 +58,13 @@ def main() -> None:
         episodes = list(iter_episodes(path))
         assert len(episodes) == 2
         assert inspect(episodes[0])[1] is None
+        output = Path(temporary) / "sft"
+        stats = write_parquet(Path(temporary), output)
+        rows = [row for name in ("codex_train.parquet", "codex_test.parquet")
+                for batch in pq.ParquetFile(output / name).iter_batches(batch_size=8)
+                for row in batch.to_pylist()]
+        assert stats["kept"] == len(rows) == 2
+        assert any("Warning: use apply_patch" in message["content"] for row in rows for message in row["messages"])
     print("filter checks passed")
 
 
