@@ -1,252 +1,186 @@
-## 知识图谱驱动的数据扩充
+# Agent 轨迹合成规范
 
-这份说明定义 agent 轨迹扩充、质量判定和训练数据收录的边界。图谱是
-离线的数据生成与审计工具，不是模型推理协议，也不能替代真实执行和
-独立 verifier。
+本文是轨迹合成的实现边界和验收标准。图谱只负责提出候选、组合模式和
+审计证据；真实 sandbox 执行与独立 verifier 才决定轨迹是否可用。
 
-### 核心结论
+## 1. 硬约束
 
-SFT 数据的质量不等于 JSON 或 tool call 格式正确。质量至少包含：
+- 格式正确不等于数据高质量。
+- 每个 tool call/result 必须可解析，并通过 `tool_call_id` 正确关联。
+- observation 必须来自真实或可审计的有状态执行，不能由模型臆造。
+- 必须记录 `state_before -> action -> state_after` 和状态变化。
+- 最终结果必须由独立 verifier 判定，不能使用模型或 agent 自报完成。
+- harness、工具适配器、parser、超时或 verifier 故障不能作为模型标签。
+- 普通正向 SFT 只收录最终 verifier 通过且 harness 健康的具体轨迹。
 
-- 协议可解析，调用和结果可以通过 `tool_call_id` 正确关联；
-- 工具结果来自真实或可审计的有状态执行，不能是模型臆造的 observation；
-- `state_before -> action -> state_after` 的状态变化一致；
-- 最终任务由独立 verifier 判定完成；
-- harness 健康，不能把 parser、工具适配器、超时或 verifier 故障当成模型标签。
+工具中途失败不自动淘汰：如果轨迹正确恢复并最终通过 verifier，可以作为成功
+SFT；最终失败的轨迹不能作为成功 gold，可进入诊断或 RL 数据。
 
-长轨迹、工具种类多和格式正确只能说明覆盖或协议质量较好，不能证明任务
-成功。普通正向 SFT 只收录最终 verifier 通过的轨迹。中间出现工具失败不
-自动淘汰：如果模型识别失败、选择可行恢复路径并最终通过 verifier，该轨迹
-仍然是成功轨迹；如果最终任务失败，则不把整条轨迹当作成功 gold。
+## 2. 两层图谱
 
-### 两类图谱，不要混用
+### 概念/任务图
 
-知识图谱扩充有两个互补层次：
-
-1. **概念/任务图**：借鉴 Kimi K3，连接领域、细粒度概念、材料、任务类型
-   和覆盖标签。它用于提出新的领域、任务、工具组合和约束，扩大任务来源，
-   但不保证任务可执行。
-2. **执行/状态图**：记录真实 episode 中的任务意图、初始状态、工具调用、
-   observation、状态变化、恢复路径和 verifier 结果。它用于检查前置条件、
-   组合可执行模式和追溯训练证据。
-
-概念图可以表示为：
+用于提出任务和覆盖目标，不表示真实执行事实：
 
 ```text
-<CS/AI, has_subconcept, GPU-kernel>
-<GPU-kernel, related_to, Triton>
-<Triton, supported_by, source-material>
-<source-material, synthesizes, task-family>
+domain -> subdomain -> concept/material -> task_family
 ```
 
-这类关系表达知识和任务来源，不表达工具调用后的真实环境状态。
-
-执行图的高层形式是：
+例如：
 
 ```text
-state_t --from--> transition_t --to--> state_t+1
-                           \--action--> tool_call_t
+<coding, has_subdomain, code_repair>
+<code_repair, has_concept, test_failure>
+<test_failure, synthesizes, repair_task_family>
 ```
 
-其中一次工具调用是一个事件节点，而不是把所有工具塞进一个三元组字段：
+### 执行/状态图
+
+每次工具调用是事件节点，基本结构为：
 
 ```text
-<call:c1, invokes, tool:read_file>
-<call:c1, has_argument, path:calc.py>
-<call:c1, reads, file:calc.py@v0>
-<call:c1, returns, result:r1>
-<call:c1, causes, observation:o1>
+state_t --from--> event_t --to--> state_t+1
+                         \--invokes--> tool
 ```
 
-状态由多个组件共同决定时，状态节点连接组件节点；不要复制一个巨大的
-嵌套状态作为每条边的 object：
+工具对多个实体的影响用多条边表示：
 
 ```text
-<state:s0, contains, file:calc.py@v0>
-<state:s0, contains, process:pytest@p0>
-<state:s0, contains, session:shell-1>
-<state:s0, contains, goal:repair-add>
+<event:c1, reads, file:a>
+<event:c1, modifies, file:b>
+<event:c1, produces, file:b@v1>
+<event:c1, returns, result:r1>
 ```
 
-至少区分以下状态层：
+状态至少拆成四类组件：
 
-- `environment_state`：文件、目录、进程、数据库、图像、session 等；
-- `agent_context_state`：已观察到的结果、消息、记忆和当前计划；
-- `harness_state`：pending call、`tool_call_id`、可用工具、turn budget 和协议状态；
-- `goal_verifier_state`：目标、完成断言和当前验证结果。
+- `environment_state`：文件、目录、进程、session、图像、数据库等；
+- `agent_context_state`：observation、消息、记忆和当前计划；
+- `harness_state`：工具集、pending call、call ID、协议和 turn budget；
+- `goal_verifier_state`：任务目标、断言、verifier 版本和当前结果。
 
-工具可以读取或修改多个实体，使用多条边表示：
+具体快照、参数、完整结果和 payload 保存在不可变 episode 证据中；图节点可以
+只保存 hash 和结构化事实，但抽象边必须能回指具体 episode/event/verifier。
+
+## 3. 抽象模式与组合
+
+不要直接拼接互不共享环境的 raw message、shell 输出、session ID 或 call ID。
+从成功执行中归纳可参数化动作模式：
 
 ```text
-<call:c2, reads, file:a>
-<call:c2, reads, file:b>
-<call:c2, modifies, file:c>
-<call:c2, produces, file:c@v1>
+<action:patch, requires, pattern:source_has_bug>
+<action:patch, produces, pattern:source_fixed>
 ```
 
-只读工具可能不改变环境状态，但会改变 agent 的 observation/context。并行
-工具调用使用 `parallel_group` 和 join 节点，不强行伪造成串行轨迹。原始
-参数、完整结果和 payload 保留为不可变证据；图中的抽象边必须能回指到
-具体 episode、event 和 verifier 证据。
+只有满足以下条件才允许组合：
 
-### 抽象状态转移与状态空间边界
+- 前一个动作的 effects 满足后一个动作的 preconditions；
+- 工具 schema、参数类型、权限和 workspace 兼容；
+- session 生命周期、状态版本和 verifier 兼容；
+- 新状态在真实执行前只能标记为 `predicted`，不能作为 gold 或 reward。
 
-如果三元组中的 `S` 只表示已经观测过的具体快照，那么拼接三元组只能
-重组已有 support，不能真正探索新的状态空间。因此执行图必须同时保存
-可参数化的动作模式：
+图谱组合本身不能扩大状态空间。真正的新颖性来自新 workspace/初始状态、动作
+参数、分支与恢复路径、新工具组合或新任务族。记录新颖性等级：
 
 ```text
-<action:patch-file, requires, pattern:source-has-bug>
-<action:patch-file, produces, pattern:source-fixed>
+known_replay < new_path < new_instance < new_state_pattern
+             < new_tool_combination < new_task_family
 ```
 
-`pattern` 是由多个状态谓词组成的抽象状态模式，例如：
+## 4. 工具边界与领域
+
+优先使用 `agent/runtime` 已有工具：
+
+- 环境动作：`exec_command`、`write_stdin`、`apply_patch`、`view_image`；
+- verifier：在工具执行后 out-of-band 调用，不作为模型自报结果；
+- `spawn_agent`、`send_message`、`wait_agent`、`update_plan` 等属于 harness/协作
+  图，不与 workspace 状态图混合；`shell_command` 是兼容别名；`exec`/`wait`
+  是编排工具，不重复计为环境动作。
+
+第一阶段覆盖以下子领域：
+
+1. 文件与 workspace；
+2. 代码检索与理解；
+3. 代码修复、测试与构建；
+4. 配置、数据和 CLI 流程；
+5. 进程、日志和 session；
+6. 图像及其他文件产物检查。
+
+当前程序化 runner 只实现 `exec_command` 和 `apply_patch`；增加其他工具前必须
+先实现真实 adapter、状态追踪和 verifier，不能只把工具名写入 manifest。
+
+## 5. 合成 pipeline
+
+1. **冻结契约**：固定 task schema、初始 workspace 生成器、工具 schema、harness、
+   timeout/turn budget、verifier 版本和随机种子。
+2. **收集种子**：使用有真实执行证据的 episode 或新建任务 manifest，记录目标、
+   初始文件、动作模式和独立完成断言。
+3. **归纳模式**：从成功 episode 提取 `state -> event -> state`，保留 concrete
+   event 作为证据，不用抽象图替代原始轨迹。
+4. **组合候选**：从概念图采样任务和约束，从执行图组合兼容动作模式，并参数化
+   workspace、文件、配置、工具组合和恢复路径。
+5. **真实执行**：每个候选在隔离 sandbox 中由 trace runner 逐步执行真实工具，
+   不接真实模型作为 teacher。
+6. **独立验证**：执行 verifier，记录 task outcome、状态变化、协议、harness 和
+   failure class。
+7. **环境门槛**：每个任务环境进行 100 次相互独立的程序化 rollout；只有至少
+   一次通过 verifier，即 `pass@100 > 0`，才进入可训练 RL 任务池。不能复制同一
+   条确定性轨迹冒充 100 次；固定轨迹只能记为 `replay_pass`。
+8. **轨迹过滤**：只有协议有效、call/result 完整、trace fidelity、harness 健康、
+   具体轨迹 verifier 通过的样本进入普通成功 SFT。
+9. **保存与反馈**：成功轨迹回写图谱；健康 harness 下的失败轨迹用于诊断/RL；
+   harness fault 或 unknown 进入回归集，不给模型错误正负标签。按状态模式、
+   工具组合、恢复方式和 verifier 覆盖率决定下一轮采样。
+
+## 6. 现有 Codex 数据的使用
+
+`data/post_train/data/rendered/sft/codex_train.parquet` 和
+`codex_test.parquet` 必须保留，不覆盖、不删除。
+
+它们可用于：
+
+- 挖掘真实 prompt、任务族、工具参数和工具组合；
+- 提供动作模式、轨迹长度和难度分布的先验；
+- 筛选出可重建 workspace/verifier 的任务并重新 sandbox 执行；
+- 作为已有 SFT 基线和协议冷启动数据。
+
+它们不能直接证明状态转移或任务成功：若缺少初始状态、状态快照和独立
+verifier，只能标记为 `unverified_behavior`，不能直接写入成功状态图或正向
+SFT。`tests_passed`、`exit_code_0`、`patch_success` 等信号只能用于筛选重放
+优先级，不能替代 verifier。
+
+新数据写入：
 
 ```text
-<pattern:p1, contains, file-exists>
-<pattern:p1, contains, test-fails>
-<pattern:p2, contains, source-fixed>
+model/language_model/data/post_train/data/raw/synthetic
+model/language_model/data/post_train/data/jsonl/synth       # 确有需要时
+model/language_model/data/post_train/data/rendered/sft       # 通过筛选的 Parquet
+model/language_model/scripts/synthesis                       # 合成代码
 ```
 
-只有当上一个动作的 effect 能满足下一个动作的 precondition，并且工具权限、
-workspace、版本、session 和 verifier 依赖兼容时，才允许组合动作模式。
-组合出的新状态在真实执行前只能标为 `predicted`，不能作为 gold trajectory、
-任务事实或 reward。
+现有 Codex 与 synthetic 数据按 assistant token 做配比实验，不按 episode 数量
+硬拼；先做小规模 ablation，不设固定“正确比例”。
 
-扩充的新颖性分级如下，不能把“新文本”误称为“新状态”：
+## 7. 每个 episode 的最低证据
 
-- `known_replay`：复现已有路径；
-- `new_path`：已知状态和动作的新顺序；
-- `new_instance`：同一动作模式的新参数、文件或 workspace；
-- `new_state_pattern`：未覆盖的抽象前置/后置状态；
-- `new_tool_combination`：新的工具依赖或并行组合；
-- `new_task_family`：新的概念、目标或 verifier 类型。
-
-真正的状态空间扩展必须使用至少一种外部生成或探索机制：
-
-- 新建或扰动初始 workspace，例如注入不同 bug、配置、权限、进程和历史；
-- 对抽象动作模式做参数化实例化；
-- 从状态快照分叉，实际执行不同工具、参数和恢复路径；
-- 让 scripted oracle、程序化轨迹生成器或探索策略执行新任务，而不只是重排旧消息；
-- 由概念图引入未覆盖的领域、任务约束和工具组合；
-- 按状态模式、工具组合、恢复方式和 verifier 覆盖率主动采样。
-
-有限轨迹不可能穷举真实可达状态空间。目标是扩大可验证的抽象状态覆盖，
-并用 held-out 初始状态、工具组合和任务族检查泛化，而不是声称图谱已经
-覆盖全部可达空间。
-
-### 标准扩充 pipeline
-
-数据扩充按“图谱提出候选，环境真实执行决定收录”进行：
-
-1. **冻结契约**：固定 task schema、初始 workspace 生成器、工具 schema、
-   harness 配置、超时/turn budget、verifier 版本和随机种子策略。原始 JSONL、
-   workspace artifact 和执行日志不可变保存。
-2. **收集种子**：只从有真实执行证据的成功 episode 中抽取最小执行子图，
-   包含意图、状态模式、工具依赖、恢复方式和完成断言。
-3. **归纳模式**：把具体 `state -> call -> state` 归纳为带 precondition/effect
-   的抽象动作；保留 concrete event graph 作为证据，不用抽象结果替代原始轨迹。
-4. **提出候选**：从概念图采样新领域/材料/任务族，从执行图采样兼容的动作
-   模式，并用状态生成器、参数化和环境扰动创建新的 workspace。禁止只拼接
-   不共享环境的 shell 输出、session ID、raw message 或子 agent 文本。
-5. **组合检查**：检查每个动作的输入/输出类型、前置/后置条件、工具权限、
-   session 生命周期、状态版本和 verifier 兼容性。生成的状态在此阶段仍是候选。
-6. **实例化执行**：为每个候选创建隔离环境、工具集、任务目标和独立 verifier。
-   使用概念图和执行图的兼容组合方法生成候选 `action sequence`，再由 trace runner
-   在 sandbox 中逐步执行真实工具；不使用真实模型作为 teacher，也不使用任何自报
-   完成判断。
-7. **环境可解性过滤**：在固定候选生成器版本、harness、预算、任务规范、verifier
-   和随机种子策略下进行固定的 100 次独立程序化 rollout。任务环境只有在至少一次
-   rollout 通过 verifier，即观测到 `pass@100 > 0` 时，才进入可训练 RL 任务池。
-   “独立”必须对应不同的候选序列、参数、分支或随机种子；不能把同一条确定性
-   轨迹复制 100 次冒充 `pass@100`。单条固定轨迹使用 `replay_pass` 记录即可。
-8. **轨迹质量过滤**：对候选轨迹重新执行或 replay，检查协议、call/result 关联、
-   raw action 是否被 parser 修复、状态变化、harness 健康和最终 verifier。只有
-   任务成功、关联完整且 harness 健康的轨迹进入普通成功 SFT。
-9. **分类保存**：通过样本回写执行图；健康 harness 下的失败样本进入困难度、
-   恢复或 RL 分析；harness fault/unknown 样本进入修复和回归集，不给模型错误
-   的正负标签。
-10. **覆盖反馈**：更新各任务族、抽象状态模式、工具组合、恢复方式、verifier
-    模式的覆盖率和成功率，下一轮优先探索未覆盖但程序化 oracle 可解的区域。
-
-`pass@100 > 0` 是任务环境的最低可解性门槛，不是“任务简单”、不是 100 次都
-成功，也不是单条 SFT 轨迹自动合格。正向 SFT 仍要求该具体轨迹最终通过
-verifier；如果程序化候选生成器只有极低成功率，应标为 `hard_solvable`，优先进入 RL
-或诊断集，而不是大量复制为 cold-start SFT。
-
-### Outcome 与训练边界
-
-每个 episode 至少记录：
-
-```json
-{
-  "task_id": "...",
-  "environment_id": "...",
-  "initial_state_hash": "...",
-  "candidate_generator_version": "...",
-  "execution_mode": "live_sandbox",
-  "seed": 0,
-  "harness_version": "...",
-  "tool_schema_version": "...",
-  "verifier_version": "...",
-  "protocol_status": "valid",
-  "call_result_linkage_complete": true,
-  "trace_fidelity": true,
-  "task_success": true,
-  "independent_verifier_passed": true,
-  "harness_status": "healthy",
-  "failure_class": null,
-  "pass_at_100": true,
-  "pass_count_100": 1,
-  "trajectory": "immutable_event_log"
-}
-```
-
-普通成功型 SFT 的收录条件为：
+至少保存：
 
 ```text
-task_success
-&& protocol_valid
-&& call_result_linkage_complete
-&& trace_fidelity
-&& harness_status == healthy
-&& independent_verifier_passed
+task_id, environment_id, initial_state_hash, seed
+harness_version, tool_schema_version, verifier_version
+actions, events, state_before, state_after, state_delta, tool_result
+protocol_status, call_result_linkage_complete, trace_fidelity
+task_success, independent_verifier_passed, harness_status, failure_class
 ```
 
-中间工具失败但最终恢复成功的轨迹可以收录，并单独标记
-`had_recoverable_tool_failure=true`。最终失败的完整轨迹不作为成功 gold；如果
-要训练“正确报告不可用工具”或“从错误中恢复”，必须建立单独的 failure-handling
-目标和 verifier，不能混入成功轨迹。
+验收时必须能回答：用了什么初始环境、调用了什么工具、状态如何变化、verifier
+为何通过，以及该抽象边能回溯到哪条具体证据。
 
-RL 任务环境必须有独立 verifier，且满足 `pass@100 > 0`。后续 student 在健康
-harness 上的失败可以作为 RL 的结果信号；harness 故障、verifier 不可用、消息
-丢失和无法归因的样本必须重试、replay 或 censored，不能给模型负奖励。
+## 8. 禁止事项
 
-### SFT 与 RL 的职责
-
-- QA/指令数据保持通用语言、知识和约束遵循能力；
-- 格式和 tool-call 微样本建立协议冷启动；
-- 成功 agent 轨迹教会模型观察—行动循环、状态跟踪、恢复、验证和终止；
-- RL 在已知可解的任务环境中优化长程规划、探索、工具选择、效率和结果；
-- 失败轨迹默认用于诊断、难度和恢复分析，不因格式正确就当作正向 SFT。
-
-Agent 轨迹同时服务 SFT 和 RL：SFT 提供 cold-start，RL 使用在线 rollout 和
-verifier 继续扩大行为分布。具体配比按可训练 assistant token 做小规模 ablation，
-不能由概念图大小或 episode 数量直接推断。
-
-### 明确禁止
-
-- 不把格式正确、长度很长或工具很多等同于任务成功；
-- 不把模型或程序的自报完成判断当 gold 标签；
-- 不把 `pass@100 > 0` 误解为每条 rollout 都成功；
-- 不在没有独立 verifier 的情况下把组合出的抽象状态当作事实或 reward；
-- 不跨 episode 拼接原始 assistant/tool 文本、shell 输出、session ID 或 call ID；
-- 不把 harness fault、工具适配器故障或 verifier 故障作为模型的负样本；
-- 不为了图谱向模型协议新增隐藏字段；图谱和 provenance 只在离线数据管线使用。
-
-### 参考
-
-- Kimi K2，§3.1.1：有状态 simulator、rubric 过滤和真实执行 sandbox；
-- Kimi K3，§4.2.2：概念知识图谱用于材料检索和任务合成；
-- DeepSeek-V3.2，§3.2.3：environment/tool/task/verifier 合成、难度递增和
-  `pass@100 > 0` 任务环境过滤。
+- 不把长、复杂、格式正确的失败轨迹当成功 SFT；
+- 不把模型自报完成、shell 输出或 heuristics 当独立 verifier；
+- 不把抽象组合出的 `predicted` 状态当事实、gold 或 reward；
+- 不跨 episode 拼接 raw observation、session/call ID 或工具结果；
+- 不把 harness/tool adapter/verifier 故障标成模型失败；
+- 不声称图谱覆盖全部可达状态空间，只报告已验证的状态模式和覆盖率。
