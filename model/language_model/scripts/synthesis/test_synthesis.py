@@ -55,6 +55,20 @@ def main() -> None:
         assert len(episodes) == 4  # one seed episode plus three candidates
         assert all(item["outcome"]["harness_status"] == "healthy" for item in episodes)
 
+        failed_task = {**task, "task_id": "synthesis_negative_verifier", "verifier": {"command": "false"}}
+        failed_tasks = temporary_root / "failed_tasks.jsonl"
+        failed_tasks.write_text(json.dumps(failed_task, ensure_ascii=False) + "\n", encoding="utf-8")
+        failed_report = run_pipeline(
+            failed_tasks,
+            data_root=temporary_root / "failed-data",
+            run_id="negative-check",
+            rollouts=1,
+            workspace_root=temporary_root / "failed-work",
+        )
+        assert failed_report["accepted_sft_episodes"] == 0
+        assert failed_report["accepted_rl_environments"] == 0
+        assert failed_report["diagnostic_episodes"] == 1
+
     print("synthesis self-check passed")
 
 
