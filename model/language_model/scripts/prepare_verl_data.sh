@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../../.." && pwd)
+python="$root/.venv/bin/python"
 source_dir=${1:-"$root/model/language_model/data/post_train/data/rendered/sft"}
 out=${2:-"$root/model/language_model/data/post_train/verl"}
 mkdir -p "$out"
 if [[ -n "${TASK_MANIFEST:-}" ]]; then
-    python3 "$root/model/language_model/scripts/prepare_verl_tasks.py" "$TASK_MANIFEST" "$out/tasks.jsonl"
-    python3 - "$out/tasks.jsonl" "$out" <<'PY'
+    "$python" "$root/model/language_model/scripts/prepare_verl_tasks.py" "$TASK_MANIFEST" "$out/tasks.jsonl"
+    "$python" - "$out/tasks.jsonl" "$out" <<'PY'
 import json, sys
 rows = [json.loads(x) for x in open(sys.argv[1], encoding="utf-8") if x.strip()]
 if len(rows) < 2:
@@ -20,5 +21,5 @@ print(f"prepared {len(rows)} verified task rows")
 PY
     exit 0
 fi
-python3 "$root/model/language_model/scripts/prepare_verl_data.py" "$source_dir/codex_train.parquet" "$out/train.parquet"
-python3 "$root/model/language_model/scripts/prepare_verl_data.py" "$source_dir/codex_test.parquet" "$out/val.parquet"
+"$python" "$root/model/language_model/scripts/prepare_verl_data.py" "$source_dir/codex_train.parquet" "$out/train.parquet"
+"$python" "$root/model/language_model/scripts/prepare_verl_data.py" "$source_dir/codex_test.parquet" "$out/val.parquet"

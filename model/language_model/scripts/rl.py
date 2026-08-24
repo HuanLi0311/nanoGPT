@@ -11,6 +11,7 @@ from typing import Any
 
 import torch
 import yaml
+import pyarrow.parquet as pq
 from safetensors.torch import load_file, save_file
 
 from ..model.model import Transformer
@@ -76,7 +77,8 @@ def main() -> None:
     for parameter in reference.parameters():
         parameter.requires_grad_(False)
     tokenizer = load_tokenizer(Path(data["tokenizer_dir"]), data["tokenizer_prefix"])
-    rows = [json.loads(line) for line in Path(data["path"]).read_text(encoding="utf-8").splitlines()]
+    data_path = Path(data["path"])
+    rows = pq.read_table(data_path).to_pylist() if data_path.suffix == ".parquet" else [json.loads(line) for line in data_path.read_text(encoding="utf-8").splitlines()]
     for index, row in enumerate(rows):
         ground_truth = row.get("answer", row.get("reward_model", {}).get("ground_truth", ""))
         if isinstance(ground_truth, dict) and ground_truth.get("kind") != "exact_text":

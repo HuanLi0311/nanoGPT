@@ -1,6 +1,6 @@
 
 data:
-  path: model/language_model/data/post_train/verl/train.jsonl
+  path: model/language_model/data/post_train/verl/train.parquet
   tokenizer_dir: model/language_model/data/encode/pretrain
   tokenizer_prefix: byte_bpe
   system_prompt: You are a careful coding agent. Return a concise final answer or a JSON tool call.

@@ -271,11 +271,14 @@ TASK_MANIFEST=agent/tasks/harness_smoke.jsonl \
   ./model/language_model/scripts/verl_grpo.sh
 ```
 
-SFT 使用与预训练 checkpoint 相同的 tokenizer；首次运行需从过滤后的 Codex JSONL 重编码：
+SFT 使用与预训练 checkpoint 相同的 tokenizer；先从原始 Codex 会话生成最终 Parquet：
 
 ```bash
+.venv/bin/python model/language_model/scripts/filter.py \
+  --input model/language_model/data/post_train/data/raw \
+  --output model/language_model/data/post_train/data/rendered/sft
 .venv/bin/python -m model.language_model.scripts.prepare_post_train_sft \
-  model/language_model/data/post_train/data/filtered \
+  model/language_model/data/post_train/data/rendered/sft \
   model/language_model/data/encode/sft \
   --tokenizer-dir model/language_model/data/encode/pretrain
 ./model/language_model/scripts/sft.sh
