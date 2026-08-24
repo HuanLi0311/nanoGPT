@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2800" height="1600" viewBox="0 0 2800 1600">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#53657D"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#3478C7"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#248A62"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#B65757"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#20324C" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      text { font-family: "Noto Sans CJK SC", "Noto Sans", "DejaVu Sans", sans-serif; fill: #172033; }
+      .title { font-size: 48px; font-weight: 700; }
+      .subtitle { font-size: 24px; fill: #53657D; }
+      .section { font-size: 26px; font-weight: 700; }
+      .card-title { font-size: 28px; font-weight: 700; }
+      .body { font-size: 22px; }
+      .small { font-size: 19px; fill: #53657D; }
+      .mono { font-family: "DejaVu Sans Mono", "Noto Sans CJK SC", monospace; font-size: 22px; }
+      .tiny-mono { font-family: "DejaVu Sans Mono", "Noto Sans CJK SC", monospace; font-size: 18px; }
+      .white { fill: white; }
+      .muted { fill: #53657D; }
+      .blue { fill: #3478C7; }
+      .green { fill: #248A62; }
+      .red { fill: #B65757; }
+      .orange { fill: #B36B23; }
+      .center { text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect width="2800" height="1600" fill="#F7F9FC"/>
+  <rect x="0" y="0" width="2800" height="120" fill="#172A46"/>
+  <text x="80" y="70" class="title white">知识图谱驱动的 Agent 轨迹扩充与验证</text>
+  <text x="2050" y="67" class="subtitle white">组合生成 → 实工具执行 → 独立验证</text>
+
+  <!-- Graph layer -->
+  <rect x="70" y="155" width="810" height="455" rx="24" fill="#EAF3FF" stroke="#B7D3F5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="105" y="205" class="section blue">A. 图谱表示：两种图不要混为一谈</text>
+  <line x1="105" y1="228" x2="845" y2="228" stroke="#B7D3F5" stroke-width="2"/>
+  <text x="105" y="267" class="body">语义 / 知识三元组（概念覆盖）</text>
+  <rect x="105" y="286" width="155" height="58" rx="14" fill="#FFFFFF" stroke="#78A9DF" stroke-width="2"/>
+  <text x="182" y="322" class="body center">对象 / 概念</text>
+  <rect x="348" y="286" width="155" height="58" rx="14" fill="#FFFFFF" stroke="#78A9DF" stroke-width="2"/>
+  <text x="425" y="322" class="body center">关系</text>
+  <rect x="591" y="286" width="155" height="58" rx="14" fill="#FFFFFF" stroke="#78A9DF" stroke-width="2"/>
+  <text x="668" y="322" class="body center">属性 / 目标</text>
+  <path d="M260 315 H338" stroke="#3478C7" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <path d="M503 315 H581" stroke="#3478C7" stroke-width="3" marker-end="url(#arrow-blue)"/>
+  <text x="105" y="389" class="body">执行事件三元组（轨迹可达性）</text>
+  <rect x="105" y="410" width="640" height="74" rx="14" fill="#FFFFFF" stroke="#78A9DF" stroke-width="2"/>
+  <text x="425" y="458" class="mono center">⟨ Sₜ,  aₜ,  Sₜ₊₁ ⟩</text>
+  <text x="105" y="530" class="small">Sₜ = 环境 + agent context + harness + goal/verifier</text>
+  <text x="105" y="562" class="small">aₜ = 一个原子工具调用；多工具 = 多个事件串联</text>
+
+  <rect x="920" y="155" width="1810" height="455" rx="24" fill="#F2EEFF" stroke="#CFC2F5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="955" y="205" class="section" fill="#7358B5">B. 从已有轨迹构图，再做兼容组合</text>
+  <line x1="955" y1="228" x2="2695" y2="228" stroke="#CFC2F5" stroke-width="2"/>
+  <text x="955" y="270" class="body">已有 seed trace（携带状态转移、工具调用、结果与 provenance）</text>
+  <rect x="955" y="292" width="355" height="142" rx="16" fill="#FFFFFF" stroke="#A996E0" stroke-width="2"/>
+  <text x="985" y="327" class="card-title" fill="#7358B5">事件库</text>
+  <text x="985" y="365" class="tiny-mono">e₁: ⟨S₀, search, S₁⟩</text>
+  <text x="985" y="397" class="tiny-mono">e₂: ⟨S₁, read,   S₂⟩</text>
+  <text x="985" y="429" class="tiny-mono">e₃: ⟨S₂, write,  S₃⟩</text>
+  <path d="M1325 363 H1430" stroke="#7358B5" stroke-width="4" marker-end="url(#arrow)"/>
+  <rect x="1445" y="292" width="425" height="142" rx="16" fill="#FFFFFF" stroke="#A996E0" stroke-width="2"/>
+  <text x="1475" y="327" class="card-title" fill="#7358B5">兼容性 join</text>
+  <text x="1475" y="365" class="body">precondition(eᵢ) ⊆ state</text>
+  <text x="1475" y="400" class="body">effect(eᵢ) → next state</text>
+  <text x="1475" y="429" class="small">保留 provenance，不凭空宣称可达</text>
+  <path d="M1885 363 H1990" stroke="#7358B5" stroke-width="4" marker-end="url(#arrow)"/>
+  <rect x="2005" y="292" width="660" height="142" rx="16" fill="#FFFFFF" stroke="#A996E0" stroke-width="2"/>
+  <text x="2035" y="327" class="card-title" fill="#7358B5">候选 action sequence</text>
+  <text x="2035" y="365" class="mono">S₀ ─search─→ S₁ ─read─→ S₂ ─write─→ S₃</text>
+  <text x="2035" y="401" class="body">新颖性：新对象 / 新分支 / 新状态组合 / 新任务</text>
+  <text x="2035" y="429" class="small">不是只把同一状态空间里的片段随机排列</text>
+  <text x="955" y="500" class="body">扩展边界</text>
+  <text x="955" y="536" class="small">图谱组合只能覆盖已建模的局部空间；新状态、失败分支和工具语义需要继续采集并回灌。</text>
+  <text x="955" y="568" class="small">组合后的“可达性”最终由 sandbox 中的真实工具执行 + 独立 verifier 判定。</text>
+
+  <!-- Main validation pipeline -->
+  <text x="75" y="675" class="section">C. 候选轨迹验证流水线</text>
+  <path d="M560 870 H630" stroke="#53657D" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M1230 870 H1290" stroke="#53657D" stroke-width="5" marker-end="url(#arrow)"/>
+  <path d="M1900 870 H1950" stroke="#53657D" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <rect x="70" y="715" width="490" height="330" rx="24" fill="#FFF7E8" stroke="#F0CB88" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="120" cy="770" r="25" fill="#B36B23"/>
+  <text x="120" y="779" class="body white center">1</text>
+  <text x="165" y="779" class="card-title orange">初始化候选</text>
+  <text x="105" y="837" class="body">固定 task spec 与目标 G</text>
+  <text x="105" y="877" class="body">加载 fixture / 初始状态 S₀</text>
+  <text x="105" y="917" class="body">绑定工具集与预算</text>
+  <rect x="105" y="950" width="420" height="58" rx="12" fill="#FFFFFF" stroke="#E4B967" stroke-width="2"/>
+  <text x="315" y="987" class="mono center">candidate = (S₀, G, tools, a₁:T)</text>
+
+  <rect x="650" y="715" width="580" height="330" rx="24" fill="#EAF3FF" stroke="#B7D3F5" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="700" cy="770" r="25" fill="#3478C7"/>
+  <text x="700" y="779" class="body white center">2</text>
+  <text x="745" y="779" class="card-title blue">Sandbox trace runner</text>
+  <text x="685" y="837" class="body">逐步执行真实工具调用 aₜ</text>
+  <text x="685" y="877" class="body">记录 raw result / status / latency</text>
+  <text x="685" y="917" class="body">更新并保存 Sₜ → Sₜ₊₁</text>
+  <rect x="685" y="950" width="510" height="58" rx="12" fill="#FFFFFF" stroke="#78A9DF" stroke-width="2"/>
+  <text x="940" y="987" class="body center">无真实 teacher model：避免模型层失败</text>
+
+  <rect x="1310" y="715" width="590" height="330" rx="24" fill="#EEF9F3" stroke="#B8E2CF" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="1360" cy="770" r="25" fill="#248A62"/>
+  <text x="1360" y="779" class="body white center">3</text>
+  <text x="1405" y="779" class="card-title green">独立 verifier</text>
+  <text x="1345" y="837" class="body">检查终态 S_T 是否满足 goal</text>
+  <text x="1345" y="877" class="body">检查 protocol / call linkage</text>
+  <text x="1345" y="917" class="body">检查 trace fidelity / harness 健康</text>
+  <rect x="1345" y="950" width="520" height="58" rx="12" fill="#FFFFFF" stroke="#78C49D" stroke-width="2"/>
+  <text x="1605" y="987" class="body center">pass / fail + failure taxonomy</text>
+
+  <rect x="1970" y="715" width="760" height="330" rx="24" fill="#F5F0FF" stroke="#CFC2F5" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="2020" cy="770" r="25" fill="#7358B5"/>
+  <text x="2020" y="779" class="body white center">4</text>
+  <text x="2065" y="779" class="card-title" fill="#7358B5">固定预算门控</text>
+  <text x="2005" y="837" class="body">每个 task environment 生成 100 个独立候选</text>
+  <rect x="2005" y="860" width="300" height="82" rx="16" fill="#FFFFFF" stroke="#A996E0" stroke-width="2"/>
+  <text x="2155" y="895" class="mono center">pass@100 &gt; 0</text>
+  <text x="2155" y="924" class="small center">至少一个通过</text>
+  <path d="M2325 901 H2390" stroke="#7358B5" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="2405" y="860" width="280" height="82" rx="16" fill="#EEF9F3" stroke="#78C49D" stroke-width="2"/>
+  <text x="2545" y="895" class="body green center">保留环境</text>
+  <text x="2545" y="924" class="small center">进入 RL pool</text>
+  <text x="2005" y="986" class="small">固定 generator / harness / verifier / seeds，保证判定可复现。</text>
+
+  <!-- Outputs -->
+  <path d="M2145 1050 V1190 H500 V1240" stroke="#248A62" stroke-width="4" fill="none" marker-end="url(#arrow-green)"/>
+  <path d="M2420 1050 V1190 H1300 V1240" stroke="#248A62" stroke-width="4" fill="none" marker-end="url(#arrow-green)"/>
+  <path d="M2590 1050 V1190 H2220 V1240" stroke="#B65757" stroke-width="4" fill="none" marker-end="url(#arrow-red)"/>
+
+  <rect x="70" y="1240" width="850" height="260" rx="24" fill="#EEF9F3" stroke="#B8E2CF" stroke-width="2" filter="url(#shadow)"/>
+  <text x="105" y="1295" class="card-title green">SFT：只收正向、可核验轨迹</text>
+  <text x="105" y="1345" class="body">task_success + protocol_valid + call linkage complete</text>
+  <text x="105" y="1383" class="body">trace fidelity + harness healthy + independent verifier pass</text>
+  <text x="105" y="1434" class="small">轨迹长、工具多、格式正确只是必要条件，不等于任务成功。</text>
+  <text x="105" y="1468" class="small">失败轨迹默认进入诊断集，不作为 SFT 正例。</text>
+
+  <rect x="980" y="1240" width="850" height="260" rx="24" fill="#EAF3FF" stroke="#B7D3F5" stroke-width="2" filter="url(#shadow)"/>
+  <text x="1015" y="1295" class="card-title blue">RL：环境级筛选结果</text>
+  <text x="1015" y="1345" class="body">仅保留 pass@100 &gt; 0 的任务环境</text>
+  <text x="1015" y="1383" class="body">训练时由 agent 自己探索工具调用序列</text>
+  <text x="1015" y="1434" class="small">图谱组合负责扩大候选与覆盖；真实执行负责验证可达性。</text>
+  <text x="1015" y="1468" class="small">固定 100 个独立程序化 rollout，不把同一失败轨迹重复计数。</text>
+
+  <rect x="1880" y="1240" width="850" height="260" rx="24" fill="#FFF1F1" stroke="#E3B8B8" stroke-width="2" filter="url(#shadow)"/>
+  <text x="1915" y="1295" class="card-title red">失败样本：诊断与图谱反馈</text>
+  <text x="1915" y="1345" class="body">工具能力不足 / fixture 不一致 / harness 故障</text>
+  <text x="1915" y="1383" class="body">终态未满足目标 / 协议或调用链断裂</text>
+  <text x="1915" y="1434" class="small">修复工具、状态建模或 verifier 后重新生成。</text>
+  <text x="1915" y="1468" class="small">不要把“语法正确但不可完成”的轨迹当作成功示范。</text>
+
+  <!-- Feedback loop -->
+  <path d="M2300 1240 C2300 1160 2700 1160 2700 600" stroke="#B65757" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrow-red)"/>
+  <text x="2530" y="1140" class="small red center">失败分类 / 覆盖反馈</text>
+  <path d="M1700 1240 C1700 1170 1050 1170 1050 610" stroke="#3478C7" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrow-blue)"/>
+  <text x="1350" y="1160" class="small blue center">新增状态、分支、工具语义回灌图谱</text>
+
+  <text x="70" y="1552" class="small">核心边界：知识图谱组合扩大“候选多样性”，不能单独证明“轨迹可达”；可达性由 sandbox 实跑与独立 verifier 共同决定。</text>
+</svg>
