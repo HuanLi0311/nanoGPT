@@ -127,7 +127,7 @@ workspace、版本、session 和 verifier 依赖兼容时，才允许组合动�
 - 新建或扰动初始 workspace，例如注入不同 bug、配置、权限、进程和历史；
 - 对抽象动作模式做参数化实例化；
 - 从状态快照分叉，实际执行不同工具、参数和恢复路径；
-- 让 teacher、scripted oracle 或探索策略执行新任务，而不只是重排旧消息；
+- 让 scripted oracle、程序化轨迹生成器或探索策略执行新任务，而不只是重排旧消息；
 - 由概念图引入未覆盖的领域、任务约束和工具组合；
 - 按状态模式、工具组合、恢复方式和 verifier 覆盖率主动采样。
 
@@ -152,10 +152,13 @@ workspace、版本、session 和 verifier 依赖兼容时，才允许组合动�
 5. **组合检查**：检查每个动作的输入/输出类型、前置/后置条件、工具权限、
    session 生命周期、状态版本和 verifier 兼容性。生成的状态在此阶段仍是候选。
 6. **实例化执行**：为每个候选创建隔离环境、工具集、任务目标和独立 verifier。
-   teacher/oracle 负责探索可行路径并生成候选 rollout；它的文字判断不是成功标签。
-7. **环境可解性过滤**：在固定 calibration model、harness、预算、prompt 和
-   verifier 下进行固定的 100 次独立 rollout。任务环境只有在至少一次独立 rollout
-   通过 verifier，即观测到 `pass@100 > 0` 时，才进入可训练 RL 任务池。
+   程序化轨迹生成器产生候选 action sequence，trace runner 在 sandbox 中逐步执行；
+   不使用真实模型作为 teacher，也不使用任何自报完成判断。
+7. **环境可解性过滤**：在固定候选生成器版本、harness、预算、任务规范、verifier
+   和随机种子策略下进行固定的 100 次独立程序化 rollout。任务环境只有在至少一次
+   rollout 通过 verifier，即观测到 `pass@100 > 0` 时，才进入可训练 RL 任务池。
+   “独立”必须对应不同的候选序列、参数、分支或随机种子；不能把同一条确定性
+   轨迹复制 100 次冒充 `pass@100`。单条固定轨迹使用 `replay_pass` 记录即可。
 8. **轨迹质量过滤**：对候选轨迹重新执行或 replay，检查协议、call/result 关联、
    raw action 是否被 parser 修复、状态变化、harness 健康和最终 verifier。只有
    任务成功、关联完整且 harness 健康的轨迹进入普通成功 SFT。
@@ -163,12 +166,11 @@ workspace、版本、session 和 verifier 依赖兼容时，才允许组合动�
    恢复或 RL 分析；harness fault/unknown 样本进入修复和回归集，不给模型错误
    的正负标签。
 10. **覆盖反馈**：更新各任务族、抽象状态模式、工具组合、恢复方式、verifier
-    模式的覆盖率和成功率，下一轮优先探索未覆盖或 teacher 可解但 student 尚弱
-    的区域。
+    模式的覆盖率和成功率，下一轮优先探索未覆盖但程序化 oracle 可解的区域。
 
 `pass@100 > 0` 是任务环境的最低可解性门槛，不是“任务简单”、不是 100 次都
 成功，也不是单条 SFT 轨迹自动合格。正向 SFT 仍要求该具体轨迹最终通过
-verifier；如果 teacher 只有极低成功率，应标为 `hard_solvable`，优先进入 RL
+verifier；如果程序化候选生成器只有极低成功率，应标为 `hard_solvable`，优先进入 RL
 或诊断集，而不是大量复制为 cold-start SFT。
 
 ### Outcome 与训练边界
@@ -180,7 +182,8 @@ verifier；如果 teacher 只有极低成功率，应标为 `hard_solvable`，�
   "task_id": "...",
   "environment_id": "...",
   "initial_state_hash": "...",
-  "rollout_model": "...",
+  "candidate_generator_version": "...",
+  "execution_mode": "live_sandbox",
   "seed": 0,
   "harness_version": "...",
   "tool_schema_version": "...",
@@ -214,7 +217,7 @@ task_success
 要训练“正确报告不可用工具”或“从错误中恢复”，必须建立单独的 failure-handling
 目标和 verifier，不能混入成功轨迹。
 
-RL 任务环境必须有独立 verifier，且满足 `pass@100 > 0`。student 在健康
+RL 任务环境必须有独立 verifier，且满足 `pass@100 > 0`。后续 student 在健康
 harness 上的失败可以作为 RL 的结果信号；harness 故障、verifier 不可用、消息
 丢失和无法归因的样本必须重试、replay 或 censored，不能给模型负奖励。
 
@@ -233,7 +236,7 @@ verifier 继续扩大行为分布。具体配比按可训练 assistant token 做
 ### 明确禁止
 
 - 不把格式正确、长度很长或工具很多等同于任务成功；
-- 不把 teacher 的自然语言判断当 gold 标签；
+- 不把模型或程序的自报完成判断当 gold 标签；
 - 不把 `pass@100 > 0` 误解为每条 rollout 都成功；
 - 不在没有独立 verifier 的情况下把组合出的抽象状态当作事实或 reward；
 - 不跨 episode 拼接原始 assistant/tool 文本、shell 输出、session ID 或 call ID；
