@@ -189,6 +189,7 @@ def compose(
         required = list(patterns)
 
     start_facts = set(task.get("initial_facts", ["workspace:ready"]))
+    start_facts.update(f"file:{path}:exists" for path in task.get("files", {}))
     target = set(task.get("target_facts", []))
     order = list(patterns)
 

@@ -127,7 +127,7 @@ def tasks() -> list[dict]:
             "test \"$(cat output-*.txt)\" = $'ALPHA\\nBETA' && test \"$(cat transform-*.ok)\" = ok",
             [
                 command("uppercase", "tr '[:lower:]' '[:upper:]' < input.txt > output-{candidate_index}.txt", pre=["file:input.txt:exists"], effects=["file:output-{candidate_index}:exists"]),
-                command("check_transform", "printf ok > transform-{candidate_index}.ok && test \"$(cat output-{candidate_index}.txt)\" = $'ALPHA\\nBETA'", pre=["file:output-{candidate_index}:exists"], effects=["file:transform-{candidate_index}:exists"]),
+                command("check_transform", "printf ok > transform-{candidate_index}.ok && printf 'ALPHA\\nBETA\\n' | cmp -s - output-{candidate_index}.txt", pre=["file:output-{candidate_index}:exists"], effects=["file:transform-{candidate_index}:exists"]),
             ],
         ),
         task(
@@ -184,7 +184,7 @@ def tasks() -> list[dict]:
             "unit_test_repair",
             ["bug", "unit_test", "regression"],
             {"calc.py": "def add(a, b):\n    return a - b\n"},
-            "test \"$(cat unit-{candidate_index}.ok)\" = pass && grep -q 'return a + b' calc.py",
+            "test \"$(cat unit-*.ok)\" = pass && grep -q 'return a + b' calc.py",
             [
                 update_file("calc.py", "    return a - b", "    return a + b", action_id="fix_add", pre=["workspace:ready"], effects=["pattern:source_fixed"]),
                 add_file("test_calc.py", "import unittest\nfrom calc import add\n\nclass TestAdd(unittest.TestCase):\n    def test_add(self):\n        self.assertEqual(add(2, 3), 5)\n", action_id="add_test", pre=["pattern:source_fixed"], effects=["file:test_calc.py:exists", "pattern:test_present"]),
@@ -246,7 +246,7 @@ def tasks() -> list[dict]:
             "deterministic_pipeline",
             ["sort", "pipeline", "determinism"],
             {"numbers.txt": "3\n1\n2\n"},
-            "test \"$(cat pipeline-*.ok)\" = sorted && test \"$(tr '\\n' ' ' < sorted-*.txt)\" = '1 2 3 '",
+            "test \"$(cat pipeline-*.ok)\" = sorted && test \"$(tr '\\n' ' ' < \"$(find . -maxdepth 1 -name 'sorted-*.txt' -print -quit)\")\" = '1 2 3 '",
             [
                 command("sort_numbers", "sort -n numbers.txt > sorted-{candidate_index}.txt", pre=["file:numbers.txt:exists"], effects=["file:sorted-{candidate_index}:exists", "pattern:data_sorted"]),
                 command("check_sorted", "test \"$(tr '\\n' ' ' < sorted-{candidate_index}.txt)\" = '1 2 3 ' && printf sorted > pipeline-{candidate_index}.ok", pre=["pattern:data_sorted"], effects=["file:pipeline-{candidate_index}:exists"]),
@@ -295,7 +295,7 @@ def tasks() -> list[dict]:
             "structured_output",
             ["svg", "artifact", "manifest"],
             {},
-            "grep -q '<svg' artifact-{candidate_index}.svg && grep -q 'width=\"10\"' artifact-{candidate_index}.svg && test \"$(cat artifact-*.ok)\" = valid",
+            "grep -q '<svg' artifact-*.svg && grep -q 'width=\"10\"' artifact-*.svg && test \"$(cat artifact-*.ok)\" = valid",
             [
                 add_file("artifact-{candidate_index}.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><rect width=\"10\" height=\"10\"/></svg>", action_id="create_svg", effects=["file:artifact-{candidate_index}.svg:exists"]),
                 command("validate_svg", "grep -q '<svg' artifact-{candidate_index}.svg && grep -q 'width=\"10\"' artifact-{candidate_index}.svg && printf valid > artifact-{candidate_index}.ok", pre=["file:artifact-{candidate_index}.svg:exists"], effects=["file:artifact-{candidate_index}.ok:exists", "pattern:artifact_valid"]),
