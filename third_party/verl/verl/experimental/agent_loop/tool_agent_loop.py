@@ -288,6 +288,9 @@ class ToolAgentLoop(AgentLoopBase):
         assistant_content, agent_data.tool_calls = await self.tool_parser.extract_tool_calls(
             agent_data.response_ids, tools
         )
+        for index, tool_call in enumerate(agent_data.tool_calls):
+            if not tool_call.tool_call_id or not tool_call.tool_call_id.strip():
+                tool_call.tool_call_id = f"call_{agent_data.assistant_turns}_{index}"
         agent_data.messages.append(self._build_assistant_message(assistant_content, agent_data))
 
         if agent_data.tool_calls:

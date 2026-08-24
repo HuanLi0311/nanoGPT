@@ -42,7 +42,7 @@ class FunctionCall(BaseModel):
     """The name of the function to call."""
 
     tool_call_id: Optional[str] = None
-    """The model-emitted tool call identifier, if available."""
+    """Tool call identifier, model-emitted when available or runtime-generated otherwise."""
 
 
 class ToolParser(ABC):

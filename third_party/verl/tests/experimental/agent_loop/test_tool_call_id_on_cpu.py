@@ -56,6 +56,74 @@ def _make_tool_schema(name: str, required: list[str] | None = None) -> OpenAIFun
 
 
 class TestToolCallIdOnCpu(unittest.IsolatedAsyncioTestCase):
+    async def test_generating_state_assigns_missing_tool_call_ids(self) -> None:
+        parsed_calls = [
+            [
+                FunctionCall(name="get_weather", arguments='{"city": "Seattle"}'),
+                FunctionCall(name="search", arguments='{"query": "forecast"}', tool_call_id="model-call"),
+            ],
+            [FunctionCall(name="get_weather", arguments='{"city": "Boston"}')],
+        ]
+
+        async def extract_tool_calls(response_ids, tools):
+            del response_ids, tools
+            return "", parsed_calls.pop(0)
+
+        async def generate(**kwargs):
+            del kwargs
+            return SimpleNamespace(
+                num_preempted=None,
+                extra_fields={},
+                token_ids=[41],
+                log_probs=[],
+                routed_experts=None,
+            )
+
+        async def ct_merge_assistant_token(
+            prompt_ids, response_ids, response_mask, response_logprobs, assistant_logprobs=None
+        ):
+            del response_logprobs, assistant_logprobs
+            return SimpleNamespace(token_ids=list(prompt_ids) + list(response_ids)), list(response_mask), None
+
+        loop = SimpleNamespace(
+            tool_parser=SimpleNamespace(stop_token_ids=[], extract_tool_calls=extract_tool_calls),
+            server_manager=SimpleNamespace(generate=generate),
+            response_length=128,
+            max_assistant_turns=0,
+            max_user_turns=0,
+            max_parallel_calls=2,
+            tools={},
+            ct_merge_assistant_token=ct_merge_assistant_token,
+        )
+        loop._build_assistant_message = lambda content, data: ToolAgentLoop._build_assistant_message(loop, content, data)
+        agent_data = SimpleNamespace(
+            request_id="episode",
+            prompt_ids=[1],
+            image_data=None,
+            video_data=None,
+            audio_data=None,
+            mm_processor_kwargs={},
+            metrics={},
+            extra_fields={},
+            assistant_turns=0,
+            response_ids=[],
+            response_mask=[],
+            response_logprobs=[],
+            user_turns=0,
+            messages=[{"role": "user", "content": "weather?"}],
+        )
+
+        state = await ToolAgentLoop._handle_generating_state(loop, agent_data, {})
+
+        assert state == AgentState.PROCESSING_TOOLS
+        assert [call.tool_call_id for call in agent_data.tool_calls] == ["call_1_0", "model-call"]
+        assert agent_data.messages[-1]["tool_calls"][0]["id"] == "call_1_0"
+
+        state = await ToolAgentLoop._handle_generating_state(loop, agent_data, {})
+
+        assert state == AgentState.PROCESSING_TOOLS
+        assert agent_data.tool_calls[0].tool_call_id == "call_2_0"
+
     async def test_kimi_tool_parser_preserves_model_emitted_tool_call_id(self) -> None:
         raw_tool_call_id = "call-get_weather-0"
         response_text = (
