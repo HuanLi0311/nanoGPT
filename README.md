@@ -127,12 +127,12 @@ token IDs
 可复现的小型完整实验使用北岭观测站数据，三个 YAML 都从同一 tokenizer 路径读取：
 
 ```bash
-.venv/bin/python -m language_model.scripts.make_observatory_data
+python -m language_model.scripts.make_observatory_data
 ./model/language_model/scripts/prepare_data.sh pretrain model/language_model/config/observatory_pretrain.yaml
-.venv/bin/python -m language_model.scripts.pretrain model/language_model/config/observatory_pretrain.yaml
+python -m language_model.scripts.pretrain model/language_model/config/observatory_pretrain.yaml
 ./model/language_model/scripts/prepare_data.sh sft model/language_model/config/observatory_sft.yaml
-.venv/bin/python -m language_model.scripts.sft model/language_model/config/observatory_sft.yaml
-.venv/bin/python -m language_model.scripts.rl model/language_model/config/observatory_rl.yaml
+python -m language_model.scripts.sft model/language_model/config/observatory_sft.yaml
+python -m language_model.scripts.rl model/language_model/config/observatory_rl.yaml
 ```
 
 ### 4. 推理与可复现性
@@ -186,25 +186,18 @@ model/vision_model/data/imagenette_100/
 
 ## 安装
 
-项目使用 Python 3.10+ 的类型语法，建议在独立虚拟环境中安装。PyTorch 需要选择与你的 CPU/CUDA 环境匹配的 wheel；其余依赖由 `requirements.txt` 固定范围。
+项目统一使用名为 `nanoagent` 的 Conda 环境。环境在登录机创建，计算节点只激活并使用共享的 `~/.conda/envs/nanoagent`。
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-Windows PowerShell 的激活命令为：
-
-```powershell
-.venv\Scripts\Activate.ps1
+./scripts/setup_nanoagent_env.sh
+source /usr/local/miniconda3/etc/profile.d/conda.sh
+conda activate nanoagent
 ```
 
 安装后，可直接生成并编码这条小型语言模型链路：
 
 ```bash
-.venv/bin/python -m language_model.scripts.make_observatory_data
+python -m language_model.scripts.make_observatory_data
 ```
 
 ## 当前执行边界
@@ -274,10 +267,10 @@ TASK_MANIFEST=agent/tasks/harness_smoke.jsonl \
 SFT 使用与预训练 checkpoint 相同的 tokenizer；先从原始 Codex 会话生成最终 Parquet：
 
 ```bash
-.venv/bin/python model/language_model/scripts/filter.py \
+python model/language_model/scripts/filter.py \
   --input model/language_model/data/post_train/data/raw \
   --output model/language_model/data/post_train/data/rendered/sft
-.venv/bin/python -m model.language_model.scripts.prepare_post_train_sft \
+python -m model.language_model.scripts.prepare_post_train_sft \
   model/language_model/data/post_train/data/rendered/sft \
   model/language_model/data/encode/sft \
   --tokenizer-dir model/language_model/data/encode/pretrain

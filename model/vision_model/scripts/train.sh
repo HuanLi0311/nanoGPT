@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/../../.."
-.venv/bin/python -m model.vision_model.scripts.train "$@"
+root=$(cd "$(dirname "$0")/../../.." && pwd)
+cd "$root"
+python=$("$root/scripts/nanoagent_python.sh")
+"$python" -m model.vision_model.scripts.train "$@"

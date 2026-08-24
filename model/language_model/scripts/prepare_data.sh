@@ -3,9 +3,11 @@ set -euo pipefail
 
 stages=${1:?Usage: prepare_data.sh STAGE[,STAGE] CONFIG}
 config=${2:?Usage: prepare_data.sh STAGE[,STAGE] CONFIG}
-cd "$(dirname "$0")/../../.."
+root=$(cd "$(dirname "$0")/../../.." && pwd)
+python=$("$root/scripts/nanoagent_python.sh")
+cd "$root"
 
-.venv/bin/python - "$stages" "$config" <<'PY'
+"$python" - "$stages" "$config" <<'PY'
 import sys
 from pathlib import Path
 

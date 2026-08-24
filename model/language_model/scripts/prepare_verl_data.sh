@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../../.." && pwd)
-python="$root/.venv/bin/python"
+python=$("$root/scripts/nanoagent_python.sh")
 source_dir=${1:-"$root/model/language_model/data/post_train/data/rendered/sft"}
 out=${2:-"$root/model/language_model/data/post_train/verl"}
 mkdir -p "$out"

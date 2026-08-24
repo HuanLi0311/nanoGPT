@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../../.." && pwd)
-python="$root/.venv/bin/python"
+python=$("$root/scripts/nanoagent_python.sh")
 verl="$root/third_party/verl"
 data="$root/model/language_model/data/post_train/data/rendered/sft"
 model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Base"}
@@ -29,6 +29,7 @@ hydra_list() {
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 unset PYTHONPYCACHEPREFIX
 export PYTHONDONTWRITEBYTECODE=1
+"$python" "$root/model/language_model/scripts/check_sft_environment.py" --data "$data" --model "$model"
 cd "$verl"
 "$python" -c 'import verl.trainer.sft_trainer'
 

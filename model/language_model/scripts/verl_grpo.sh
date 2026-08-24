@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../../.." && pwd)
-python=${PYTHON_BIN:-"$root/.venv/bin/python"}
+python=$("$root/scripts/nanoagent_python.sh")
 verl="$root/third_party/verl"
 data="$root/model/language_model/data/post_train/verl"
 # Student default matches sft.sh's Qwen3 base and output path. DeepSeek is the
