@@ -1,12 +1,13 @@
 # NanoAgent runtime dependencies. Install this together with
 # third_party/verl/requirements.txt through scripts/setup_nanoagent_env.sh.
 # air-node-03 has an NVIDIA 555 driver (CUDA 12.5); the CUDA 12.1 wheels below
-# are driver-compatible and avoid the CUDA 13-only veRL uv environment.
+# are driver-compatible, satisfy Transformers 5's PyTorch >=2.4 runtime floor,
+# and avoid the CUDA 13-only veRL uv environment.
 --extra-index-url https://download.pytorch.org/whl/cu121
 
-torch==2.3.1+cu121
-torchvision==0.18.1+cu121
-torchaudio==2.3.1+cu121
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+torchaudio==2.5.1+cu121
 torchdata==0.8.0
 
 numpy>=2.0.0
