@@ -14,11 +14,16 @@ import torch
 MODULES = (
     "accelerate",
     "datasets",
+    "matplotlib",
+    "numpy",
     "peft",
+    "PIL",
+    "pyarrow",
     "ray",
     "safetensors",
     "tokenizers",
     "transformers",
+    "torchvision",
     "yaml",
     "verl.trainer.sft_trainer",
 )
@@ -34,8 +39,10 @@ def check(data: Path, model: Path, allow_no_cuda: bool) -> None:
         raise SystemExit("CUDA is unavailable; launch SFT from air-node-03 after activating nanoagent")
     for name in ("codex_train.parquet", "codex_test.parquet"):
         path = data / name
+        if not path.is_file():
+            raise SystemExit(f"missing SFT Parquet: {path}")
         table = pq.ParquetFile(path)
-        if not path.is_file() or table.metadata.num_rows == 0 or "messages" not in table.schema_arrow.names:
+        if table.metadata.num_rows == 0 or "messages" not in table.schema_arrow.names:
             raise SystemExit(f"invalid SFT Parquet: {path}")
     for name in ("config.json", "tokenizer_config.json"):
         if not (model / name).is_file():
