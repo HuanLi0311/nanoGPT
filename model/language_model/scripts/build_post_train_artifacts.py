@@ -23,8 +23,9 @@ def payload_for(event: dict) -> dict:
 
 
 def raw_episodes(source: Path):
-    """Use the same user-message boundary as the existing Codex filter."""
+    """Use the same closed-call user-message boundary as the Codex filter."""
     current: list[dict] | None = None
+    pending: set[str] = set()
     index = 0
     with source.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
@@ -32,14 +33,24 @@ def raw_episodes(source: Path):
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            message = event_message(payload_for(event))
-            if message and message.get("role") == "user":
-                if current:
-                    yield index, current
-                    index += 1
-                current = [event]
-            elif current is not None:
-                current.append(event)
+            payload = payload_for(event)
+            message = event_message(payload)
+            if message and message.get("role") == "user" and current and not pending:
+                yield index, current
+                index += 1
+                current, pending = None, set()
+            if current is None:
+                if not message or message.get("role") != "user":
+                    continue
+                current = []
+            current.append(event)
+            if message:
+                for call in message.get("tool_calls", []):
+                    call_id = call.get("id") or call.get("call_id")
+                    if call_id:
+                        pending.add(call_id)
+                if message.get("role") == "tool":
+                    pending.discard(message.get("tool_call_id") or payload.get("tool_call_id") or payload.get("call_id"))
     if current:
         yield index, current
 
@@ -133,20 +144,29 @@ def self_check() -> None:
         raw.mkdir(); filtered.mkdir()
         events = [
             {"timestamp": "t0", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "first"}]}},
-            {"timestamp": "t1", "type": "event_msg", "payload": {"type": "exec_command_end", "call_id": "c1", "exit_code": 0, "output": "ok"}},
-            {"timestamp": "t2", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "second"}]}},
-            {"timestamp": "t3", "type": "event_msg", "payload": {"type": "exec_command_end", "call_id": "c2", "exit_code": 1, "output": "bad"}},
-            {"timestamp": "t4", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "unknown"}]}},
+            {"timestamp": "t1", "type": "response_item", "payload": {"type": "function_call", "call_id": "c1", "name": "exec_command", "arguments": "{}"}},
+            {"timestamp": "t2", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Warning: use apply_patch"}]}},
+            {"timestamp": "t3", "type": "response_item", "payload": {"type": "function_call_output", "call_id": "c1", "exit_code": 0, "output": "ok"}},
+            {"timestamp": "t4", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "done"}]}},
+            {"timestamp": "t5", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "second"}]}},
+            {"timestamp": "t6", "type": "response_item", "payload": {"type": "function_call", "call_id": "c2", "name": "exec_command", "arguments": "{}"}},
+            {"timestamp": "t7", "type": "response_item", "payload": {"type": "function_call_output", "call_id": "c2", "exit_code": 1, "output": "bad"}},
+            {"timestamp": "t8", "type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "failed"}]}},
+            {"timestamp": "t9", "type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "unknown"}]}},
         ]
         (raw / "sample.jsonl").write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
         row = {"messages": [{"role": "user", "content": "task"}, {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "exec_command", "arguments": {"cmd": "pwd"}}}]}]}
         (filtered / "sample.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
         counts = build_trajectory_artifacts(raw, root / "artifacts")
         templates = build_templates(filtered, root / "template")
-        assert counts["success"] == counts["failure"] == templates == 1
-        assert counts["skipped_no_structured_exit_code"] == 1
+        assert counts == {"episodes": 3, "success": 1, "failure": 1, "skipped_no_structured_exit_code": 1}
+        assert templates == 1
         assert (root / "artifacts/success/sample-episode-0000.json").is_file()
-        assert not (root / "artifacts/failure/sample-episode-0002.json").exists()
+        assert (root / "artifacts/failure/sample-episode-0001.json").is_file()
+        success = json.loads((root / "artifacts/success/sample-episode-0000.json").read_text(encoding="utf-8"))
+        assert success["events"][0]["payload"]["content"][0]["text"] == "first"
+        assert success["events"][2]["payload"]["content"][0]["text"] == "Warning: use apply_patch"
+        assert success["events"][3]["payload"]["call_id"] == "c1"
         assert "{\"tool_calls\":[{\"id\":null,\"type\":\"function\",\"function\":{\"name\":\"exec_command\",\"arguments\":{\"cmd\":\"pwd\"}}}]}" in (root / "template/sample.txt").read_text(encoding="utf-8")
 
 
