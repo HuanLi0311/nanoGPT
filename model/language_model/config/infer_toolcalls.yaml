@@ -1,0 +1,12 @@
+inference:
+  max_new_tokens: 512
+  temperature: 1.0
+  top_k: 1
+  seed: 7
+
+data:
+  tokenizer_dir: model/language_model/data/encode/pretrain
+  tokenizer_prefix: byte_bpe
+
+checkpoint:
+  path: model/language_model/checkpoints/transformer_sft_toolcalls_1000_5gpu.safetensors

@@ -1,0 +1,31 @@
+data:
+  raw_dir: model/language_model/data/raw/pretrain/fineweb_sample
+  encoded_dir: model/language_model/data/encode/pretrain
+  tokenizer_dir: model/language_model/data/encode/pretrain
+  tokenizer_prefix: byte_bpe
+  vocabulary_size: 32768
+  tokenizer_train_documents: 100000
+  validation_files: ["014_00000.parquet"]
+  eos_token: "<|eos|>"
+  shard_tokens: 100000000
+
+model:
+  max_sequence_length: 1200
+  hidden_size: 768
+  heads: 8
+  blocks: 8
+  dropout: 0.1
+
+training:
+  batch_size: 4
+  steps: 115000
+  learning_rate: 0.0003
+  maximum_gradient_norm: 1.0
+  log_every: 50
+  save_every: 1000
+  validation_batches: 8
+  seed: 7
+
+checkpoint:
+  path: model/language_model/checkpoints/transformer.safetensors
+  best_path: model/language_model/checkpoints/best.safetensors
