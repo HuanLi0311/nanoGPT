@@ -1,4 +1,4 @@
-"""Encode filtered Codex JSONL with the tokenizer used by the base checkpoint."""
+"""Encode filtered Codex Parquet with the tokenizer used by the base checkpoint."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pyarrow.parquet as pq
 
 from ..model.tokenizer import load_tokenizer
 from .tool_message import is_supervised_message, message_content
@@ -45,33 +46,33 @@ def encode(source: Path, output: Path, tokenizer_dir: Path, prefix: str, shard_t
             buffers[split][1].extend(labels)
             flush(split)
 
-    for path in sorted(source.rglob("*.jsonl")):
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    paths = [source] if source.suffix == ".parquet" else [source / "codex_train.parquet", source / "codex_test.parquet"]
+    for path in paths:
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        for batch in pq.ParquetFile(path).iter_batches(columns=["messages", "split"], batch_size=batch_size):
+            values = batch.to_pydict()
+            for messages, parquet_split in zip(values["messages"], values["split"], strict=True):
+                if limit and seen >= limit:
+                    break
+                text, ranges = "", []
+                for message in messages:
+                    role, content = message.get("role"), message_content(message)
+                    text += f"<|im_start|>{role}\n"
+                    start = len(text)
+                    text += f"{content}<|im_end|>\n"
+                    if is_supervised_message(message, tool_calls_only):
+                        ranges.append((start, len(text)))
+                split = "validation" if parquet_split == "test" else "train"
+                pending.append((text, ranges, split))
+                seen += 1
+                if len(pending) >= batch_size:
+                    process(pending)
+                    pending.clear()
+                    if seen % (batch_size * 10) == 0:
+                        print(json.dumps({"examples": seen, "tokens": counts, "shards": shards}), flush=True)
             if limit and seen >= limit:
                 break
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            messages = row.get("messages", [])
-            if not messages:
-                continue
-            text, ranges = "", []
-            for message in messages:
-                role, content = message.get("role"), message_content(message)
-                text += f"<|im_start|>{role}\n"
-                start = len(text)
-                text += f"{content}<|im_end|>\n"
-                if is_supervised_message(message, tool_calls_only):
-                    ranges.append((start, len(text)))
-            split = "validation" if seen % 20 == 0 else "train"
-            pending.append((text, ranges, split))
-            seen += 1
-            if len(pending) >= batch_size:
-                process(pending)
-                pending.clear()
-                if seen % (batch_size * 10) == 0:
-                    print(json.dumps({"examples": seen, "tokens": counts, "shards": shards}), flush=True)
         if limit and seen >= limit:
             break
     process(pending)
