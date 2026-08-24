@@ -54,12 +54,27 @@ def build_graph(tasks: Iterable[dict[str, Any]], episodes: Iterable[dict[str, An
     semantic_edges: list[dict[str, str]] = []
     action_patterns: list[dict[str, Any]] = []
     for task in tasks:
+        domain = str(task.get("domain", "unknown"))
+        subdomain = str(task.get("subdomain", task.get("task_family", "unknown")))
         family = str(task.get("task_family", "unknown"))
+        semantic_edges.append({"subject": domain, "relation": "has_subdomain", "object": subdomain})
+        semantic_edges.append({"subject": subdomain, "relation": "has_task_family", "object": family})
         semantic_edges.append({"subject": family, "relation": "synthesizes", "object": task["task_id"]})
         for concept in task.get("concepts", []):
-            semantic_edges.append({"subject": family, "relation": "has_concept", "object": str(concept)})
+            semantic_edges.append({"subject": subdomain, "relation": "has_concept", "object": str(concept)})
             semantic_edges.append({"subject": str(concept), "relation": "instantiates", "object": task["task_id"]})
-        action_patterns.extend(_pattern(pattern, task["task_id"]) for pattern in task["action_patterns"])
+        for material in task.get("materials", []):
+            semantic_edges.append({"subject": task["task_id"], "relation": "uses_material", "object": str(material)})
+        normalized_patterns = [_pattern(pattern, task["task_id"]) for pattern in task["action_patterns"]]
+        action_patterns.extend(normalized_patterns)
+        for pattern in normalized_patterns:
+            pattern_id = str(pattern["id"])
+            semantic_edges.append({"subject": task["task_id"], "relation": "has_action_pattern", "object": pattern_id})
+            semantic_edges.append({"subject": pattern_id, "relation": "uses_tool", "object": str(pattern["tool"])})
+            for precondition in pattern.get("preconditions", []):
+                semantic_edges.append({"subject": pattern_id, "relation": "requires", "object": str(precondition)})
+            for effect in pattern.get("effects", []):
+                semantic_edges.append({"subject": pattern_id, "relation": "produces", "object": str(effect)})
 
     state_nodes: dict[str, dict[str, Any]] = {}
     transition_edges: list[dict[str, Any]] = []
@@ -129,6 +144,7 @@ def build_graph(tasks: Iterable[dict[str, Any]], episodes: Iterable[dict[str, An
 
     return {
         "graph_version": "execution-graph-v1",
+        "semantic_graph_version": "concept-task-v1",
         "semantic_edges": semantic_edges,
         "state_nodes": sorted(state_nodes.values(), key=lambda item: item["id"]),
         "event_nodes": event_nodes,
@@ -189,9 +205,10 @@ def compose(
             if pattern_id in used:
                 continue
             pattern = patterns[pattern_id]
-            preconditions = set(pattern.get("preconditions", []))
+            preconditions = set(_format(pattern.get("preconditions", []), candidate_index))
             if not preconditions.issubset(facts):
                 continue
+            effects = _format(pattern.get("effects", []), candidate_index)
             action = {
                 "id": pattern_id,
                 "tool": pattern["tool"],
@@ -199,15 +216,15 @@ def compose(
                     pattern.get("arguments", pattern.get("arguments_template", {})),
                     candidate_index,
                 ),
-                "preconditions": _format(pattern.get("preconditions", []), candidate_index),
-                "effects": _format(pattern.get("effects", []), candidate_index),
+                "preconditions": sorted(preconditions),
+                "effects": effects,
                 "provenance": {
                     "pattern_id": pattern_id,
                     "task_id": task["task_id"],
                     "graph_version": graph.get("graph_version"),
                 },
             }
-            next_facts = facts | set(action["effects"])
+            next_facts = facts | set(effects)
             result = search(next_facts, (*used, pattern_id), [*actions, action])
             if result is not None:
                 return result
