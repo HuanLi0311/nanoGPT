@@ -5,9 +5,9 @@
 # and avoid the CUDA 13-only veRL uv environment.
 --extra-index-url https://download.pytorch.org/whl/cu121
 
-torch==2.5.1+cu121
-torchvision==0.20.1+cu121
-torchaudio==2.5.1+cu121
+torch==2.4.1+cu121
+torchvision==0.19.1+cu121
+torchaudio==2.4.1+cu121
 torchdata==0.8.0
 
 numpy>=2.0.0
