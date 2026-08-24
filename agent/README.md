@@ -1,1 +1,7 @@
-原始数据保存在/data/post_train/data/raw/synthetic 经筛选后可通过的存在 data/post_train/data/rendered/sft 写为parquet 如果必须要jsonl格式 可以放在data/post_train/data/jsonl/ 若非必须则忽略。已有的原始轨迹数据在/data/rendered/sft/codex_*.parquet。过程中不要删除数据。文件写在scripts/synthesis  计算节点ssh air-node-03 环境/home/JJ_Group/lih2511/.conda/envs/nanoagent
+1. 原始数据保存在/data/post_train/data/raw/synthetic 
+2. 经筛选后可通过的轨迹存在 data/post_train/data/rendered/sft 写为parquet 
+3. 过程中如果必须要jsonl格式 可以放在data/post_train/data/jsonl/ 若非必须则忽略。
+4. 已有的原始轨迹数据在/data/rendered/sft/codex_*.parquet。过程中不要删除数据。
+5. 相关文件写在scripts/synthesis  
+6. 计算节点ssh air-node-03 环境/home/JJ_Group/lih2511/.conda/envs/nanoagent 若有需补齐的环境 请追加在requirements.txt
+7. sft走verl风格 请无视/model中相关实现
