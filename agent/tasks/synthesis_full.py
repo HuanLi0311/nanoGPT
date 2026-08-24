@@ -124,7 +124,7 @@ def tasks() -> list[dict]:
             "artifact_transform",
             ["copy", "text_transform", "artifact"],
             {"input.txt": "alpha\nbeta\n"},
-            "test \"$(cat output-*.txt)\" = $'ALPHA\\nBETA' && test \"$(cat transform-*.ok)\" = ok",
+            "printf 'ALPHA\\nBETA\\n' | cmp -s - \"$(find . -maxdepth 1 -name 'output-*.txt' -print -quit)\" && test \"$(cat transform-*.ok)\" = ok",
             [
                 command("uppercase", "tr '[:lower:]' '[:upper:]' < input.txt > output-{candidate_index}.txt", pre=["file:input.txt:exists"], effects=["file:output-{candidate_index}:exists"]),
                 command("check_transform", "printf ok > transform-{candidate_index}.ok && printf 'ALPHA\\nBETA\\n' | cmp -s - output-{candidate_index}.txt", pre=["file:output-{candidate_index}:exists"], effects=["file:transform-{candidate_index}:exists"]),
