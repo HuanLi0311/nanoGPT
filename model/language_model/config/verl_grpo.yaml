@@ -3,8 +3,8 @@
 algorithm:
   adv_estimator: grpo
 data:
-  train_files: [model/language_model/data/post_train/verl/train.jsonl]
-  val_files: [model/language_model/data/post_train/verl/val.jsonl]
+  train_files: [model/language_model/data/post_train/verl/train.parquet]
+  val_files: [model/language_model/data/post_train/verl/val.parquet]
   return_raw_chat: true
   need_tools_kwargs: true
   tool_config_path: model/language_model/config/verl_tools.yaml

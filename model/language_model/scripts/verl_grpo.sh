@@ -16,8 +16,8 @@ if [[ -n "${TASK_MANIFEST:-}" ]]; then
   # keeps the smoke run non-empty; larger studies should set TRAIN_BATCH_SIZE.
   train_batch_size=${TRAIN_BATCH_SIZE:-1}
 else
-  data_train="$data/train.jsonl"
-  data_val="$data/val.jsonl"
+  data_train="$data/train.parquet"
+  data_val="$data/val.parquet"
   train_batch_size=${TRAIN_BATCH_SIZE:-4}
 fi
 
@@ -69,6 +69,7 @@ if [[ "${REQUIRE_SCORED_DATA:-1}" != "0" ]]; then
 import json
 import sys
 from pathlib import Path
+import pyarrow.parquet as pq
 
 
 def valid_contract(row):
@@ -90,7 +91,7 @@ for filename in sys.argv[1:]:
     path = Path(filename)
     if not path.is_file():
         raise SystemExit(f"missing verl data file: {path}")
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = pq.read_table(path).to_pylist() if path.suffix == ".parquet" else [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     invalid = [i for i, row in enumerate(rows) if not valid_contract(row)]
     if invalid:
         raise SystemExit(
