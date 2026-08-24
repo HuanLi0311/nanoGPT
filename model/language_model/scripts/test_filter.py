@@ -1,6 +1,10 @@
 """Small regression checks for Codex trajectory filtering."""
 
-from filter import inspect
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from filter import inspect, iter_episodes
 
 
 def item(events):
@@ -30,6 +34,28 @@ def main() -> None:
         ({"role": "assistant", "content": "done"}, {"type": "message"}),
     ])
     assert inspect(orphan)[1] == "orphan_tool_results"
+
+    duplicate = item([
+        ({"role": "user", "content": "do it"}, {"type": "message"}),
+        ({"role": "assistant", "content": "", "tool_calls": [{"id": "c1"}, {"id": "c1"}]}, {"type": "message"}),
+    ])
+    assert inspect(duplicate)[1] == "duplicate_tool_call_id"
+
+    with TemporaryDirectory() as temporary:
+        path = Path(temporary) / "cross_turn.jsonl"
+        events = [
+            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "task"}]}},
+            {"type": "response_item", "payload": {"type": "function_call", "call_id": "c1", "name": "exec_command", "arguments": "{}"}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Warning: use apply_patch"}]}},
+            {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c1", "output": "ok"}},
+            {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "done"}]}},
+            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "next"}]}},
+            {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "next done"}]}},
+        ]
+        path.write_text("".join(json.dumps(event) + "\n" for event in events), encoding="utf-8")
+        episodes = list(iter_episodes(path))
+        assert len(episodes) == 2
+        assert inspect(episodes[0])[1] is None
     print("filter checks passed")
 
 

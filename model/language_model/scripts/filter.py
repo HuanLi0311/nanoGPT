@@ -77,7 +77,7 @@ def load(path: Path) -> tuple[dict, list[tuple[dict, dict]]]:
 
 def iter_episodes(path: Path):
     """Yield one task at a time so large sessions never accumulate in memory."""
-    meta, current, malformed = {}, [], 0
+    meta, current, pending, malformed = {}, [], set(), 0
     for line in path.open(encoding="utf-8"):
         try:
             event = json.loads(line)
@@ -93,23 +93,35 @@ def iter_episodes(path: Path):
             meta = {k: payload.get(k) for k in ("id", "timestamp", "cwd", "model_provider", "cli_version")}
         message = event_message(payload)
         if message:
-            if message["role"] == "user" and current:
+            if message["role"] == "user" and current and not pending:
                 yield {"meta": {**meta, "malformed_json": malformed} if malformed else meta,
                        "events": current, "source": path.name, "index": 0}
-                current = []
+                current, pending = [], set()
             current.append((message, payload))
+            for call in message.get("tool_calls", []):
+                call_id = call.get("id") or call.get("call_id")
+                if call_id:
+                    pending.add(call_id)
+            if message["role"] == "tool":
+                pending.discard(message.get("tool_call_id") or payload.get("tool_call_id") or payload.get("call_id"))
     if current:
         yield {"meta": {**meta, "malformed_json": malformed} if malformed else meta,
                "events": current, "source": path.name, "index": 0}
 
 
 def make_episodes(meta: dict, events: list[tuple[dict, dict]], source: str) -> list[dict]:
-    episodes, current = [], []
+    episodes, current, pending = [], [], set()
     for message, payload in events:
-        if message["role"] == "user" and current:
+        if message["role"] == "user" and current and not pending:
             episodes.append(current)
-            current = []
+            current, pending = [], set()
         current.append((message, payload))
+        for call in message.get("tool_calls", []):
+            call_id = call.get("id") or call.get("call_id")
+            if call_id:
+                pending.add(call_id)
+        if message["role"] == "tool":
+            pending.discard(message.get("tool_call_id") or payload.get("tool_call_id") or payload.get("call_id"))
     if current:
         episodes.append(current)
     return [{"meta": meta, "events": episode, "source": source, "index": i} for i, episode in enumerate(episodes)]
@@ -130,6 +142,9 @@ def inspect(item: dict) -> tuple[dict | None, str | None, str]:
     tool_calls = 0
     pending = set()
     orphan_results = 0
+    duplicate_ids = set()
+    missing_ids = 0
+    call_ids, result_ids = set(), set()
     signals = set()
     for message, payload in events:
         kind = payload.get("type")
@@ -140,13 +155,24 @@ def inspect(item: dict) -> tuple[dict | None, str | None, str]:
         for call in message.get("tool_calls", []):
             tool_calls += 1
             call_id = call.get("id") or call.get("call_id")
-            if call_id:
+            if not call_id:
+                missing_ids += 1
+            elif call_id in call_ids:
+                duplicate_ids.add(call_id)
+            else:
+                call_ids.add(call_id)
                 pending.add(call_id)
         if message.get("role") == "tool" or kind in {"function_call_output", "custom_tool_call_output", "tool_result"}:
             call_id = message.get("tool_call_id") or payload.get("tool_call_id") or payload.get("call_id")
-            if call_id and call_id in pending:
+            if not call_id:
+                missing_ids += 1
+            elif call_id in result_ids:
+                duplicate_ids.add(call_id)
+            elif call_id in pending:
+                result_ids.add(call_id)
                 pending.discard(call_id)
             else:
+                result_ids.add(call_id)
                 orphan_results += 1
         output = text_content(payload.get("output"))
         raw = json.dumps(payload, ensure_ascii=False)
@@ -161,6 +187,10 @@ def inspect(item: dict) -> tuple[dict | None, str | None, str]:
         return None, "too_many_tools", user
     if flags:
         return None, "invalid_event", user
+    if missing_ids:
+        return None, "missing_tool_call_id", user
+    if duplicate_ids:
+        return None, "duplicate_tool_call_id", user
     if pending:
         return None, "unresolved_tool_calls", user
     if orphan_results:
