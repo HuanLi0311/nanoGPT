@@ -15,6 +15,8 @@ pyarrow>=19.0.0
 PyYAML>=6.0.0
 safetensors>=0.4.0
 tokenizers>=0.20.0
-transformers>=5.5.3,!=5.6.0,<5.11
+# Newer 5.x releases import FP8 dtypes unavailable in the CUDA 12.1 PyTorch
+# stack at module import time; 5.5.3 supports Qwen SFT without that requirement.
+transformers==5.5.3
 Pillow>=10.0.0
 matplotlib>=3.8.0
