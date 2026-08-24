@@ -133,29 +133,6 @@ nanoGPT 中的 `wait` 应对指定 cell 等待或轮询，并返回该 cell 新�
 
 达到这些条件后，再扩充数据或做 RL，才能把失败更可靠地归因到模型、任务或 harness，而不是当前协议缺口。
 
-
-
-----------------------------------------------------------------
-
-
-独立审查时发现问题：
-
-已完成的前置修复：
-
-- SFT 文本投影保留 assistant call ID 与 tool result ID，并让三个数据入口复用同一序列化规则：model/language_model/scripts/tool_message.py:1。
-
-- runtime verifier 现在验证调用和结果按 tool_call_id 一一对应，重复或错配 ID 会作为协议故障而非模型失败：agent/runtime/src/reward.ts:4。
-
-- GRPO 默认拒绝旧三工具 YAML，避免把未对齐的 harness 当作 RL 环境；ALLOW_LEGACY_VERL_TOOLS=1 仅允许隔离 smoke：model/language_model/scripts/verl_grpo.sh:1。
-
-- SFT 与 GRPO 默认 student 已统一为本地 Qwen3-8B 的 SFT 产物：model/language_model/config/verl_grpo.yaml:1。
-
-验证通过：SFT 格式测试、trajectory artifact 自检、Node harness 自检、shell/YAML 语法检查，以及 launcher 的拒绝路径。期间一次 verl --help 实际进入了初始化，已终止，未留下训练进程、checkpoint 或 Ray 输出。
-
-下一阶段是 runtime bridge，而不是加更多 YAML：需要自定义 Qwen 模板与 parser 保留 ID/raw 参数，并将 20 工具的共享 episode 状态和独立 verifier 接入 verl agent loop。完成这一层后再做知识图谱扩充，才能让新增轨迹的 reward 真正反映模型而非 harness 缺口。
-
-
-
 -----------------------------------------------------------------------
 
 ## 知识图谱驱动的数据扩充
