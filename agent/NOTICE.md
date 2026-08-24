@@ -152,8 +152,9 @@ workspace、版本、session 和 verifier 依赖兼容时，才允许组合动�
 5. **组合检查**：检查每个动作的输入/输出类型、前置/后置条件、工具权限、
    session 生命周期、状态版本和 verifier 兼容性。生成的状态在此阶段仍是候选。
 6. **实例化执行**：为每个候选创建隔离环境、工具集、任务目标和独立 verifier。
-   程序化轨迹生成器产生候选 action sequence，trace runner 在 sandbox 中逐步执行；
-   不使用真实模型作为 teacher，也不使用任何自报完成判断。
+   使用概念图和执行图的兼容组合方法生成候选 `action sequence`，再由 trace runner
+   在 sandbox 中逐步执行真实工具；不使用真实模型作为 teacher，也不使用任何自报
+   完成判断。
 7. **环境可解性过滤**：在固定候选生成器版本、harness、预算、任务规范、verifier
    和随机种子策略下进行固定的 100 次独立程序化 rollout。任务环境只有在至少一次
    rollout 通过 verifier，即观测到 `pass@100 > 0` 时，才进入可训练 RL 任务池。
