@@ -50,6 +50,7 @@ def main() -> None:
         saved = json.loads(Path(report["outputs"]["graph"]).read_text(encoding="utf-8"))
         assert saved["graph_version"] == "execution-graph-v1"
         assert any(edge["relation"] == "invokes" for edge in saved["transition_edges"])
+        assert len(saved["event_nodes"]) == 11  # seed: 2 events + 3 candidates: 3 each
         episodes = [json.loads(line) for line in Path(report["outputs"]["raw_episodes"]).read_text().splitlines()]
         assert len(episodes) == 4  # one seed episode plus three candidates
         assert all(item["outcome"]["harness_status"] == "healthy" for item in episodes)

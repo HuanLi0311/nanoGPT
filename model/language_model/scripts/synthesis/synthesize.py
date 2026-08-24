@@ -254,6 +254,9 @@ def run_pipeline(
         if report["pass_at_100"]:
             accepted_rl.append(_rl_task(task, report, run_id))
 
+    # Candidate executions are evidence too.  Persist the final graph with all
+    # live transitions, not only the seed episodes used to build the composer.
+    graph = build_graph(tasks, all_episodes)
     raw_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(raw_path, all_episodes)
     write_jsonl(jsonl_dir / "seed_candidates.jsonl", seed_candidates)
