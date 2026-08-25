@@ -127,6 +127,10 @@ export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 # the compatible default for this colocated Qwen3 launcher; callers can still
 # override it for a different backend.
 export VLLM_WORKER_MULTIPROC_METHOD="${VLLM_WORKER_MULTIPROC_METHOD:-spawn}"
+# vLLM 0.8.x's V1 engine otherwise creates a second core process inside the
+# Ray server actor.  TP=1 does not need it; disabling it avoids a silent actor
+# exit while preserving the same AsyncLLM interface.
+export VLLM_ENABLE_V1_MULTIPROCESSING="${VLLM_ENABLE_V1_MULTIPROCESSING:-0}"
 cd "$verl"
 args=(
   "algorithm.adv_estimator=grpo"

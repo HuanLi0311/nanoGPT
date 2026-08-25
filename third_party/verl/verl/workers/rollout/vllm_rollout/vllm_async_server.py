@@ -1165,8 +1165,9 @@ class vLLMReplica(RolloutReplica):
             # the vLLM worker start method visible to the actor subprocess;
             # fork can terminate silently when vLLM is created from a Ray
             # actor after CUDA/NCCL initialization.
-            if os.environ.get("VLLM_WORKER_MULTIPROC_METHOD"):
-                env_vars["VLLM_WORKER_MULTIPROC_METHOD"] = os.environ["VLLM_WORKER_MULTIPROC_METHOD"]
+            for key in ("VLLM_WORKER_MULTIPROC_METHOD", "VLLM_ENABLE_V1_MULTIPROCESSING"):
+                if os.environ.get(key):
+                    env_vars[key] = os.environ[key]
 
             server = self.server_class.options(
                 scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
