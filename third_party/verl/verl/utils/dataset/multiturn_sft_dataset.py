@@ -114,6 +114,7 @@ class MultiTurnSFTDataset(Dataset):
         self.seed = config.get("seed")
         self.max_samples = max_samples
         self.ignore_input_ids_mismatch = config.get("ignore_input_ids_mismatch", False)
+        self.validate_input_ids = config.get("validate_input_ids", True)
         assert self.truncation in ["error", "left", "right"]
 
         if not isinstance(parquet_files, list | ListConfig):
@@ -322,7 +323,8 @@ class MultiTurnSFTDataset(Dataset):
         )
 
         print_assembled_message(self.tokenizer, messages, input_ids, loss_mask, attention_mask, tools)
-        self.sanity_check(input_ids, messages, tools, enable_thinking)
+        if self.validate_input_ids:
+            self.sanity_check(input_ids, messages, tools, enable_thinking)
 
         # Since the tokenizer may return user-customized results, we need to filter out inconsistent tensor shapes
         keys_to_remove = []

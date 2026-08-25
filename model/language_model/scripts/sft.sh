@@ -12,6 +12,7 @@ master_addr=${MASTER_ADDR:-127.0.0.1}
 master_port=${MASTER_PORT:-29501}
 attn_implementation=${ATTN_IMPLEMENTATION:-sdpa}
 truncation=${TRUNCATION:-left}
+validate_input_ids=${VALIDATE_INPUT_IDS:-false}
 
 train_shards=("$data"/train_sft-*.parquet "$data"/codex_train.parquet)
 val_shards=("$data"/test_sft-*.parquet "$data"/codex_test.parquet)
@@ -44,6 +45,7 @@ exec "$python" -m torch.distributed.run --master_addr="$master_addr" --master_po
   data.max_token_len_per_gpu="${MAX_TOKEN_LEN_PER_GPU:-6144}" \
   data.max_length="${MAX_LENGTH:-6144}" \
   data.truncation="$truncation" \
+  data.validate_input_ids="$validate_input_ids" \
   data.ignore_input_ids_mismatch=True \
   optim.lr="${LEARNING_RATE:-2e-6}" \
   optim.weight_decay="${WEIGHT_DECAY:-0.1}" \
