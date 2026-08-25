@@ -83,7 +83,8 @@ def run(tasks_path: Path, data_root: Path, run_id: str, start: int, stop: int | 
         "all_pass_at_100": all(item["pass_at_100"] for item in results),
         "tasks": results,
     }
-    output = data_root / "raw/synthetic" / f"{run_id}.summary.json"
+    part = "all" if start == 0 and stop is None else f"{start:03d}-{(stop if stop is not None else len(tasks)):03d}"
+    output = data_root / "raw/synthetic" / f"{run_id}.part-{part}.summary.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(stable_json(summary) + "\n", encoding="utf-8")
     print(json.dumps({
