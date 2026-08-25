@@ -33,8 +33,12 @@ def _spec(value: Any) -> dict[str, Any]:
 
 
 def _result(score: float, eligible: bool, reason: str, source: str, status: str) -> dict[str, Any]:
+    score = max(0.0, min(1.0, score))
     return {
-        "score": max(0.0, min(1.0, score)),
+        "score": score,
+        # DAPO's group filter reads this from reward_extra_info. Keep it equal
+        # to the unpenalized verifier score; the reward manager owns penalties.
+        "seq_final_reward": score,
         "eligible": eligible,
         "reason": reason,
         "reward_source": source,
@@ -73,7 +77,8 @@ def compute_reward(data_source: Any, solution_str: Any, ground_truth: Any, extra
 
 
 if __name__ == "__main__":
-    assert compute_reward("task", "done", "", {"task_outcome": {"task_success": 1}})["score"] == 1.0
+    result = compute_reward("task", "done", "", {"task_outcome": {"task_success": 1}})
+    assert result["score"] == result["seq_final_reward"] == 1.0
     assert compute_reward("task", "done", "", {"task_outcome": {"harness_status": "fault"}})["eligible"] is False
     assert compute_reward("task", "OK", "OK")["score"] == 1.0
     print("reward adapter self-check passed")
