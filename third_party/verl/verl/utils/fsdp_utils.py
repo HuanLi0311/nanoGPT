@@ -35,7 +35,6 @@ try:
 except ImportError:
     from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp._runtime_utils import _lazy_init
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy, transformer_auto_wrap_policy
 from transformers.trainer_pt_utils import get_module_class_from_name
 
@@ -177,22 +176,9 @@ def offload_fsdp_model_to_cpu(model: FSDP, empty_cache: bool = True):
         return
 
     assert isinstance(model, FSDP)
-    # lazy init FSDP model
-    _lazy_init(model, model)
-    assert model._is_root, "Only support root model offloading to CPU"
-    for handle in model._all_handles:
-        if handle._offload_params:
-            continue
-        flat_param = handle.flat_param
-        assert (
-            flat_param.data.data_ptr() == flat_param._local_shard.data_ptr()
-            and id(flat_param.data) != id(flat_param._local_shard)
-            and flat_param.data.size() == flat_param._local_shard.size()
-        )
-        handle.flat_param_to(torch.device("cpu"), non_blocking=True)
-        # the following still keeps id(._local_shard) != id(.data)
-        flat_param._local_shard = flat_param.data
-        assert id(flat_param._local_shard) != id(flat_param.data)
+    # ponytail: FSDP's native _apply moves every nested flat parameter and keeps
+    # PyTorch 2.6's runtime state consistent; the old root-handle loop did not.
+    model.to(torch.device("cpu"), non_blocking=True)
     if empty_cache:
         # ponytail: non_blocking D2H copies must finish before vLLM allocates
         # its cache, otherwise the allocator still sees the FSDP shards.
@@ -226,17 +212,9 @@ def load_fsdp_model_to_gpu(model: FSDP):
         return
 
     assert isinstance(model, FSDP)
-    # lazy init FSDP model
-    _lazy_init(model, model)
-    assert model._is_root, "Only support root model loading to GPU"
     device_id = get_device_id()
-    for handle in model._all_handles:
-        if handle._offload_params:
-            continue
-        flat_param = handle.flat_param
-        handle.flat_param_to(torch.device(f"{get_device_name()}:{device_id}"), non_blocking=True)
-        # the following still keeps id(._local_shard) != id(.data)
-        flat_param._local_shard = flat_param.data
+    model.to(torch.device(f"{get_device_name()}:{device_id}"), non_blocking=True)
+    get_torch_device().synchronize()
 
 
 @torch.no_grad()
