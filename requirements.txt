@@ -14,9 +14,9 @@ pyarrow>=19.0.0
 PyYAML>=6.0.0
 safetensors>=0.4.0
 tokenizers>=0.20.0
-# Transformers 5.10 imports FP8 dtypes unavailable in the CUDA 12.1 PyTorch
-# stack at module import time; 5.5.3 supports Qwen SFT without that requirement.
-transformers==5.5.3
+# Qwen3's tokenizer and vLLM 0.8.5 share the 4.51 ABI; newer Transformers
+# removed a tokenizer property vLLM uses during engine initialization.
+transformers==4.51.3
 Pillow>=10.0.0
 matplotlib>=3.8.0
 flash-attn==2.7.4.post1 --no-deps
