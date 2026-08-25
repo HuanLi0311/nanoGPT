@@ -46,6 +46,9 @@ data:
   # Set to True to ignore input_ids mismatch and use the concatenated input_ids as the final input_ids.
   ignore_input_ids_mismatch: False
 
+  # Validate per-turn concatenated input_ids against the full-conversation template.
+  validate_input_ids: True
+
 # Checkpoint configuration
 checkpoint:
   _target_: verl.trainer.config.CheckpointConfig

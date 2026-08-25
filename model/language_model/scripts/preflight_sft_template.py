@@ -46,7 +46,9 @@ def remove_subsequence(values: list[int], pattern: list[int]) -> tuple[list[int]
     return kept, removed
 
 
-def per_turn_ids(dataset: MultiTurnSFTDataset, index: int) -> tuple[list[list[int]], list]:
+def per_turn_ids(
+    dataset: MultiTurnSFTDataset, index: int
+) -> tuple[list[list[int]], list, list[dict] | None, bool | None]:
     row = dataset.dataframe.iloc[index].to_dict()
     messages = dataset._build_messages(row)
     tools = dataset.tools[index] if dataset.tools is not None else None
@@ -70,7 +72,7 @@ def per_turn_ids(dataset: MultiTurnSFTDataset, index: int) -> tuple[list[list[in
         if not (len(input_ids) == len(loss_mask) == len(attention_mask)):
             raise AssertionError(f"mask/input length mismatch at row {index}")
         pieces.append(input_ids.tolist())
-    return pieces, messages
+    return pieces, messages, tools, enable_thinking
 
 
 def remove_consecutive_tool_boundaries(
@@ -116,16 +118,20 @@ def check_file(path: Path, tokenizer, samples_per_file: int | None, think_patter
     counts: Counter = Counter()
     unexpected = []
     for index in indices:
-        pieces, messages = per_turn_ids(dataset, index)
+        pieces, messages, tools, enable_thinking = per_turn_ids(dataset, index)
         concat_ids = [token for piece in pieces for token in piece]
+        full_kwargs = {}
+        if enable_thinking is not None:
+            full_kwargs["enable_thinking"] = enable_thinking
         full = apply_chat_template(
             tokenizer,
             messages=messages,
-            tools=None,
+            tools=tools,
             add_generation_prompt=False,
             tokenize=True,
             return_dict=True,
             return_tensors="pt",
+            **full_kwargs,
         )
         full_ids = full["input_ids"].squeeze(0).tolist()
         if concat_ids == full_ids:
