@@ -13,7 +13,7 @@ numpy>=2.0.0,<2.3
 pyarrow>=19.0.0
 PyYAML>=6.0.0
 safetensors>=0.4.0
-tokenizers>=0.20.0
+tokenizers==0.21.1
 # Qwen3's tokenizer and vLLM 0.8.5 share the 4.51 ABI; newer Transformers
 # removed a tokenizer property vLLM uses during engine initialization.
 transformers==4.51.3
