@@ -201,10 +201,13 @@ def run_pipeline(
     diagnostics: list[dict[str, Any]] = []
 
     for task in tasks:
+        task_rollouts = int(task.get("rollouts", rollouts))
+        if task_rollouts < 1:
+            raise ValueError(f"{task['task_id']}: rollouts must be positive")
         reports_for_task: list[dict[str, Any]] = []
         seen_fingerprints: set[str] = set()
         candidate_patterns = list(task.get("candidate_patterns", task.get("seed_patterns", [])))
-        for index in range(rollouts):
+        for index in range(task_rollouts):
             candidate = compose(
                 task,
                 graph,
@@ -239,12 +242,19 @@ def run_pipeline(
                 diagnostics.append(episode)
 
         passed = sum(bool(outcome["independent_verifier_passed"]) for outcome in reports_for_task)
+        gate_rollouts = min(100, len(reports_for_task))
+        pass_count_100 = sum(
+            bool(outcome["independent_verifier_passed"])
+            for outcome in reports_for_task[:gate_rollouts]
+        )
         report = {
             "task_id": task["task_id"],
             "environment_id": f"{task['task_id']}:{fingerprint(task['files'])[:12]}",
-            "rollouts": rollouts,
-            "pass_count_100": passed,
-            "pass_at_100": bool(rollouts == 100 and passed > 0),
+            "rollouts": task_rollouts,
+            "gate_rollouts": gate_rollouts,
+            "pass_count_100": pass_count_100,
+            "passed_rollouts": passed,
+            "pass_at_100": bool(task_rollouts >= 100 and pass_count_100 > 0),
             "generator_version": "graph-synthesis-v1",
             "harness_version": task.get("harness_version", "workspace-tool-v1"),
             "verifier_version": task.get("verifier_version", "manifest-v1"),
