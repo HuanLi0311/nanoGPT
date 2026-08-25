@@ -1161,6 +1161,12 @@ class vLLMReplica(RolloutReplica):
                 **{var: "1" for var in get_platform().ray_noset_envvars()},
                 **get_platform().rollout_env_vars(),
             }
+            # Ray replaces the actor environment with this runtime_env. Keep
+            # the vLLM worker start method visible to the actor subprocess;
+            # fork can terminate silently when vLLM is created from a Ray
+            # actor after CUDA/NCCL initialization.
+            if os.environ.get("VLLM_WORKER_MULTIPROC_METHOD"):
+                env_vars["VLLM_WORKER_MULTIPROC_METHOD"] = os.environ["VLLM_WORKER_MULTIPROC_METHOD"]
 
             server = self.server_class.options(
                 scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
