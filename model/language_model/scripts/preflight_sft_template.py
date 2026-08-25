@@ -46,7 +46,7 @@ def remove_subsequence(values: list[int], pattern: list[int]) -> tuple[list[int]
     return kept, removed
 
 
-def per_turn_ids(dataset: MultiTurnSFTDataset, index: int) -> tuple[list[int], list]:
+def per_turn_ids(dataset: MultiTurnSFTDataset, index: int) -> tuple[list[list[int]], list]:
     row = dataset.dataframe.iloc[index].to_dict()
     messages = dataset._build_messages(row)
     tools = dataset.tools[index] if dataset.tools is not None else None
@@ -69,8 +69,35 @@ def per_turn_ids(dataset: MultiTurnSFTDataset, index: int) -> tuple[list[int], l
         )
         if not (len(input_ids) == len(loss_mask) == len(attention_mask)):
             raise AssertionError(f"mask/input length mismatch at row {index}")
-        pieces.append(input_ids)
-    return torch.cat(pieces).tolist(), messages
+        pieces.append(input_ids.tolist())
+    return pieces, messages
+
+
+def remove_consecutive_tool_boundaries(
+    pieces: list[list[int]], messages: list[dict], tokenizer
+) -> tuple[list[int], int]:
+    """Remove delimiters added when consecutive tool turns are templated alone.
+
+    Qwen3's full-conversation template groups adjacent ``tool`` messages inside
+    one ``<|im_start|>user`` block. MultiTurnSFTDataset templates each turn
+    separately, so it adds ``<|im_end|>\n<|im_start|>user`` between them.
+    Keep this normalization tied to an actual tool-to-tool boundary.
+    """
+    im_end_newline = tokenizer.encode("<|im_end|>\n", add_special_tokens=False)
+    user_start = tokenizer.encode("<|im_start|>user", add_special_tokens=False)
+    normalized = [list(piece) for piece in pieces]
+    removed = 0
+    for index in range(len(normalized) - 1):
+        if messages[index].get("role") != "tool" or messages[index + 1].get("role") != "tool":
+            continue
+        if normalized[index][-len(im_end_newline) :] != im_end_newline:
+            raise AssertionError(f"unexpected end delimiter at tool boundary {index}")
+        if normalized[index + 1][: len(user_start)] != user_start:
+            raise AssertionError(f"unexpected user delimiter at tool boundary {index + 1}")
+        normalized[index] = normalized[index][: -len(im_end_newline)]
+        normalized[index + 1] = normalized[index + 1][len(user_start) :]
+        removed += 1
+    return [token for piece in normalized for token in piece], removed
 
 
 def check_file(path: Path, tokenizer, samples_per_file: int | None, think_pattern: list[int]) -> dict:
@@ -89,7 +116,8 @@ def check_file(path: Path, tokenizer, samples_per_file: int | None, think_patter
     counts: Counter = Counter()
     unexpected = []
     for index in indices:
-        concat_ids, messages = per_turn_ids(dataset, index)
+        pieces, messages = per_turn_ids(dataset, index)
+        concat_ids = [token for piece in pieces for token in piece]
         full = apply_chat_template(
             tokenizer,
             messages=messages,
@@ -103,10 +131,15 @@ def check_file(path: Path, tokenizer, samples_per_file: int | None, think_patter
         if concat_ids == full_ids:
             counts["exact"] += 1
             continue
-        normalized, removed = remove_subsequence(full_ids, think_pattern)
-        if removed and normalized == concat_ids:
-            counts["expected_empty_think"] += 1
-            counts[f"expected_empty_think_blocks_{removed}"] += 1
+        normalized_concat, tool_boundaries = remove_consecutive_tool_boundaries(pieces, messages, tokenizer)
+        normalized_full, think_blocks = remove_subsequence(full_ids, think_pattern)
+        if (tool_boundaries or think_blocks) and normalized_concat == normalized_full:
+            counts["expected_known_template_difference"] += 1
+            if think_blocks:
+                counts["expected_empty_think"] += 1
+                counts[f"expected_empty_think_blocks_{think_blocks}"] += 1
+            if tool_boundaries:
+                counts["expected_consecutive_tool_boundaries"] += 1
             continue
         counts["unexpected_mismatch"] += 1
         if len(unexpected) < 3:
