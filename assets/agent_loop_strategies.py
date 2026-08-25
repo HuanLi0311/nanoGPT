@@ -143,11 +143,11 @@ def rollout_loop(ax, accent: str, label: str):
     ax.add_patch(patch)
     ax.text(
         0.50,
-        0.125,
+        0.13,
         textwrap.fill(label, 75),
         ha="center",
         va="center",
-        fontsize=5.4,
+        fontsize=5.2,
         color=accent,
         weight="bold",
         linespacing=1.1,
@@ -155,11 +155,11 @@ def rollout_loop(ax, accent: str, label: str):
     )
     ax.text(
         0.50,
-        0.065,
+        0.045,
         "rollout boundary: output at t → input at t + 1",
         ha="center",
         va="center",
-        fontsize=5.0,
+        fontsize=4.6,
         color=MUTED,
         zorder=6,
     )
@@ -172,7 +172,7 @@ def stage(ax, x, title, detail, kind, width=0.18):
     box(
         ax,
         x,
-        0.45,
+        0.41,
         width,
         0.24,
         facecolor=FILL[kind],
@@ -181,7 +181,7 @@ def stage(ax, x, title, detail, kind, width=0.18):
     )
     ax.text(
         x + width / 2,
-        0.615,
+        0.57,
         title_text,
         ha="center",
         va="center",
@@ -193,7 +193,7 @@ def stage(ax, x, title, detail, kind, width=0.18):
     )
     ax.text(
         x + width / 2,
-        0.505,
+        0.465,
         textwrap.fill(detail, 24),
         ha="center",
         va="center",
@@ -260,17 +260,6 @@ def draw_lane(ax, spec):
         color=INK,
     )
 
-    ax.text(
-        0.04,
-        0.675,
-        "INNER PIPE  /  one rollout interaction",
-        ha="left",
-        va="center",
-        fontsize=5.7,
-        color=accent,
-        weight="bold",
-    )
-
     # A separate pipe for each implementation.
     stage(ax, 0.035, "INPUT / PENDING", spec["input"], "input", width=0.16)
     stage(ax, 0.245, "GENERATING", spec["generate"], "generate", width=0.18)
@@ -278,9 +267,9 @@ def draw_lane(ax, spec):
     stage(ax, 0.715, "OUTPUT / TERMINATED", spec["output"], "output", width=0.21)
 
     # Forward pipe arrows.
-    arrow(ax, (0.195, 0.57), (0.235, 0.57), color=accent)
-    arrow(ax, (0.425, 0.57), (0.465, 0.57), color=accent)
-    arrow(ax, (0.655, 0.57), (0.705, 0.57), color=accent)
+    arrow(ax, (0.195, 0.52), (0.235, 0.52), color=accent)
+    arrow(ax, (0.425, 0.52), (0.465, 0.52), color=accent)
+    arrow(ax, (0.655, 0.52), (0.705, 0.52), color=accent)
 
     rollout_loop(ax, accent, spec["loop"])
 
@@ -350,22 +339,12 @@ def main():
     fig.text(
         0.04,
         0.925,
-        "Each implementation has its own inner interaction pipe and outer runtime. The large return arrow is the rollout boundary from output at round t to input at round t + 1.",
+            "Each lane separates its inner interaction pipe from its outer runtime; the return arrow is the rollout boundary from t to t + 1.",
         ha="left",
         va="top",
         fontsize=6.4,
         color=MUTED,
     )
-    fig.text(
-        0.965,
-        0.925,
-        "schematic · vector master",
-        ha="right",
-        va="top",
-        fontsize=5.5,
-        color=MUTED,
-    )
-
     ys = [0.64, 0.385, 0.13]
     for y, spec in zip(ys, specs):
         ax = fig.add_axes([0.04, y, 0.92, 0.225])
@@ -374,7 +353,7 @@ def main():
     fig.text(
         0.04,
         0.055,
-        "nanoGPT placement: runner.ts currently spans the pipe plus session state/persistence and task verification. A cleaner target is inner AgentLoop → outer SessionRunner → harness verifier; Verl reward/task verification remains external unless explicitly returned as an observation.",
+        "nanoGPT: runner.ts currently spans the pipe, session persistence, and verification. Target split: AgentLoop → SessionRunner → harness verifier.",
         ha="left",
         va="center",
         fontsize=5.3,

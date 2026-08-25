@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-08-25T20:25:01.069938</dc:date>
+    <dc:date>2026-08-25T20:26:30.424718</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -40,7 +40,7 @@ Q 22.287118 54.824882 22.287118 56.074961
 L 22.287118 140.365984 
 Q 22.287118 141.616063 28.858961 141.616063 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #f8fafc; stroke: #0072b2; stroke-width: 1.15; stroke-linejoin: miter"/>
+" clip-path="url(#p58c0477892)" style="fill: #f8fafc; stroke: #0072b2; stroke-width: 1.15; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 38.247307 67.057795 
@@ -53,7 +53,7 @@ Q 31.675465 57.503622 31.675465 58.753701
 L 31.675465 65.807717 
 Q 31.675465 67.057795 38.247307 67.057795 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #0072b2"/>
+" clip-path="url(#p58c0477892)" style="fill: #0072b2"/>
    </g>
    <g id="patch_4">
     <path d="M 38.247307 80.451496 
@@ -66,59 +66,59 @@ Q 31.675465 70.897323 31.675465 72.147402
 L 31.675465 79.201417 
 Q 31.675465 80.451496 38.247307 80.451496 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #ffffff; stroke: #c9d2da; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#p58c0477892)" style="fill: #ffffff; stroke: #c9d2da; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
-    <path d="M 40.594394 103.220787 
-L 108.190488 103.220787 
-Q 114.762331 103.220787 114.762331 101.970709 
-L 114.762331 81.969449 
-Q 114.762331 80.71937 108.190488 80.71937 
-L 40.594394 80.71937 
-Q 34.022551 80.71937 34.022551 81.969449 
-L 34.022551 101.970709 
-Q 34.022551 103.220787 40.594394 103.220787 
+    <path d="M 40.594394 106.792441 
+L 108.190488 106.792441 
+Q 114.762331 106.792441 114.762331 105.542362 
+L 114.762331 85.541102 
+Q 114.762331 84.291024 108.190488 84.291024 
+L 40.594394 84.291024 
+Q 34.022551 84.291024 34.022551 85.541102 
+L 34.022551 105.542362 
+Q 34.022551 106.792441 40.594394 106.792441 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #eaf2f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p58c0477892)" style="fill: #eaf2f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_6">
-    <path d="M 139.172031 103.220787 
-L 216.156472 103.220787 
-Q 222.728315 103.220787 222.728315 101.970709 
-L 222.728315 81.969449 
-Q 222.728315 80.71937 216.156472 80.71937 
-L 139.172031 80.71937 
-Q 132.600189 80.71937 132.600189 81.969449 
-L 132.600189 101.970709 
-Q 132.600189 103.220787 139.172031 103.220787 
+    <path d="M 139.172031 106.792441 
+L 216.156472 106.792441 
+Q 222.728315 106.792441 222.728315 105.542362 
+L 222.728315 85.541102 
+Q 222.728315 84.291024 216.156472 84.291024 
+L 139.172031 84.291024 
+Q 132.600189 84.291024 132.600189 85.541102 
+L 132.600189 105.542362 
+Q 132.600189 106.792441 139.172031 106.792441 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #e5f1f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p58c0477892)" style="fill: #e5f1f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_7">
-    <path d="M 247.138016 103.220787 
-L 324.122457 103.220787 
-Q 330.694299 103.220787 330.694299 101.970709 
-L 330.694299 81.969449 
-Q 330.694299 80.71937 324.122457 80.71937 
-L 247.138016 80.71937 
-Q 240.566173 80.71937 240.566173 81.969449 
-L 240.566173 101.970709 
-Q 240.566173 103.220787 247.138016 103.220787 
+    <path d="M 247.138016 106.792441 
+L 324.122457 106.792441 
+Q 330.694299 106.792441 330.694299 105.542362 
+L 330.694299 85.541102 
+Q 330.694299 84.291024 324.122457 84.291024 
+L 247.138016 84.291024 
+Q 240.566173 84.291024 240.566173 85.541102 
+L 240.566173 105.542362 
+Q 240.566173 106.792441 247.138016 106.792441 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #fbece5; stroke: #d55e00; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p58c0477892)" style="fill: #fbece5; stroke: #d55e00; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_8">
-    <path d="M 359.798173 103.220787 
-L 450.865134 103.220787 
-Q 457.436976 103.220787 457.436976 101.970709 
-L 457.436976 81.969449 
-Q 457.436976 80.71937 450.865134 80.71937 
-L 359.798173 80.71937 
-Q 353.226331 80.71937 353.226331 81.969449 
-L 353.226331 101.970709 
-Q 353.226331 103.220787 359.798173 103.220787 
+    <path d="M 359.798173 106.792441 
+L 450.865134 106.792441 
+Q 457.436976 106.792441 457.436976 105.542362 
+L 457.436976 85.541102 
+Q 457.436976 84.291024 450.865134 84.291024 
+L 359.798173 84.291024 
+Q 353.226331 84.291024 353.226331 85.541102 
+L 353.226331 105.542362 
+Q 353.226331 106.792441 359.798173 106.792441 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #e8f4ef; stroke: #009e73; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p58c0477892)" style="fill: #e8f4ef; stroke: #009e73; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <text style="fill: #ffffff; font: 700 7.8px 'DejaVu Sans'; text-anchor: middle" x="82.607244" y="64.402552" transform="rotate(-0, 82.607244, 64.402552)">Verl ToolAgentLoop</text>
@@ -133,88 +133,85 @@ z
     <text style="fill: #1f2933; font: 5.35px 'DejaVu Sans'; text-anchor: start" x="104.904567" y="75.766659" transform="rotate(-0, 104.904567, 75.766659)">AgentLoopManager / Worker: rollout scheduling, batching, tokenizer/server wiring; trainer-facing AgentLoopOutput.</text>
    </g>
    <g id="text_5">
-    <text style="fill: #0072b2; font: 700 5.7px 'DejaVu Sans'; text-anchor: start" x="39.186142" y="84.167332" transform="rotate(-0, 39.186142, 84.167332)">INNER PIPE  /  one rollout interaction</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="74.392441" y="93.625704" transform="rotate(-0, 74.392441, 93.625704)">INPUT / PENDING</text>
    </g>
    <g id="text_6">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="74.392441" y="89.607594" transform="rotate(-0, 74.392441, 89.607594)">INPUT / PENDING</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(51.15616 100.033872)">prompt_ids + tool</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(62.880535 105.527217)">schemas</text>
    </g>
    <g id="text_7">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(51.15616 96.462218)">prompt_ids + tool</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(62.880535 101.955563)">schemas</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="177.664252" y="93.625704" transform="rotate(-0, 177.664252, 93.625704)">GENERATING</text>
    </g>
    <g id="text_8">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="177.664252" y="89.607594" transform="rotate(-0, 177.664252, 89.607594)">GENERATING</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(150.572252 100.106184)">server generate ids /</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(166.443627 105.454904)">logprobs</text>
    </g>
    <g id="text_9">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(150.572252 96.534531)">server generate ids /</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(166.443627 101.883251)">logprobs</text>
+    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(265.124041 90.741346)">PROCESSING</text>
+    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(274.971682 96.344499)">TOOLS</text>
    </g>
    <g id="text_10">
-    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(265.124041 86.723236)">PROCESSING</text>
-    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(274.971682 92.326389)">TOOLS</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(260.662517 100.106184)">Function / BaseTool</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(256.85433 105.454904)">parallel calls → tokens</text>
    </g>
    <g id="text_11">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(260.662517 96.534531)">Function / BaseTool</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(256.85433 101.883251)">parallel calls → tokens</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="405.331654" y="93.625704" transform="rotate(-0, 405.331654, 93.625704)">OUTPUT / TERMINATED</text>
    </g>
    <g id="text_12">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="405.331654" y="89.607594" transform="rotate(-0, 405.331654, 89.607594)">OUTPUT / TERMINATED</text>
-   </g>
-   <g id="text_13">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(378.531747 96.534531)">ids + mask metrics /</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(383.113029 101.883251)">reward boundary</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(378.531747 100.106184)">ids + mask metrics /</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(383.113029 105.454904)">reward boundary</text>
    </g>
    <g id="patch_9">
     <path d="M 454.620472 93.309449 
 C 466.355906 109.828346 377.166614 124.561417 269.20063 124.561417 
 C 161.234646 124.561417 55.615748 112.507087 55.615748 96.940032 
-" clip-path="url(#p8ddaf6181b)" style="fill: none; stroke: #0072b2; stroke-width: 1.65; stroke-linecap: round"/>
+" clip-path="url(#p58c0477892)" style="fill: none; stroke: #0072b2; stroke-width: 1.65; stroke-linecap: round"/>
     <path d="M 53.015748 102.140032 
 L 55.615748 96.940032 
 L 58.215748 102.140032 
 L 53.015748 102.140032 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.65; stroke-linecap: round"/>
+" clip-path="url(#p58c0477892)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.65; stroke-linecap: round"/>
    </g>
    <g id="patch_10">
-    <path d="M 113.949102 91.970079 
-Q 121.334566 91.970079 127.490192 91.970079 
-" clip-path="url(#p8ddaf6181b)" style="fill: none; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 123.090192 89.770079 
-L 127.490192 91.970079 
-L 123.090192 94.170079 
-L 123.090192 89.770079 
+    <path d="M 113.949102 96.434646 
+Q 121.334566 96.434646 127.490192 96.434646 
+" clip-path="url(#p58c0477892)" style="fill: none; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 123.090192 94.234646 
+L 127.490192 96.434646 
+L 123.090192 98.634646 
+L 123.090192 94.234646 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#p58c0477892)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
    <g id="patch_11">
-    <path d="M 221.915086 91.970079 
-Q 229.30055 91.970079 235.456176 91.970079 
-" clip-path="url(#p8ddaf6181b)" style="fill: none; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 231.056176 89.770079 
-L 235.456176 91.970079 
-L 231.056176 94.170079 
-L 231.056176 89.770079 
+    <path d="M 221.915086 96.434646 
+Q 229.30055 96.434646 235.456176 96.434646 
+" clip-path="url(#p58c0477892)" style="fill: none; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 231.056176 94.234646 
+L 235.456176 96.434646 
+L 231.056176 98.634646 
+L 231.056176 94.234646 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#p58c0477892)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
    <g id="patch_12">
-    <path d="M 329.880497 91.970079 
-Q 339.614811 91.970079 348.119287 91.970079 
-" clip-path="url(#p8ddaf6181b)" style="fill: none; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 343.719287 89.770079 
-L 348.119287 91.970079 
-L 343.719287 94.170079 
-L 343.719287 89.770079 
+    <path d="M 329.880497 96.434646 
+Q 339.614811 96.434646 348.119287 96.434646 
+" clip-path="url(#p58c0477892)" style="fill: none; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 343.719287 94.234646 
+L 348.119287 96.434646 
+L 343.719287 98.634646 
+L 343.719287 94.234646 
 z
-" clip-path="url(#p8ddaf6181b)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#p58c0477892)" style="fill: #0072b2; stroke: #0072b2; stroke-width: 1.1; stroke-linecap: round"/>
+   </g>
+   <g id="text_13">
+    <text style="fill: #0072b2; font: 700 5.2px 'DejaVu Sans'" transform="translate(147.745829 129.938646)">tool-response tokens + partial rollout become the next generation input;</text>
+    <text style="fill: #0072b2; font: 700 5.2px 'DejaVu Sans'" transform="translate(208.710141 135.407015)">final output goes to the trainer.</text>
    </g>
    <g id="text_14">
-    <text style="fill: #0072b2; font: 700 5.4px 'DejaVu Sans'" transform="translate(143.616126 130.334348)">tool-response tokens + partial rollout become the next generation input;</text>
-    <text style="fill: #0072b2; font: 700 5.4px 'DejaVu Sans'" transform="translate(206.92522 136.013038)">final output goes to the trainer.</text>
-   </g>
-   <g id="text_15">
-    <text style="fill: #5b6770; font: 5px 'DejaVu Sans'; text-anchor: middle" x="255.11811" y="138.441892" transform="rotate(-0, 255.11811, 138.441892)">rollout boundary: output at t → input at t + 1</text>
+    <text style="fill: #5b6770; font: 4.6px 'DejaVu Sans'; text-anchor: middle" x="255.11811" y="140.117344" transform="rotate(-0, 255.11811, 140.117344)">rollout boundary: output at t → input at t + 1</text>
    </g>
   </g>
   <g id="axes_2">
@@ -229,7 +226,7 @@ Q 22.287118 156.021732 22.287118 157.271811
 L 22.287118 241.562835 
 Q 22.287118 242.812913 28.858961 242.812913 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #f8fafc; stroke: #d55e00; stroke-width: 1.15; stroke-linejoin: miter"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #f8fafc; stroke: #d55e00; stroke-width: 1.15; stroke-linejoin: miter"/>
    </g>
    <g id="patch_14">
     <path d="M 38.247307 168.254646 
@@ -242,7 +239,7 @@ Q 31.675465 158.700472 31.675465 159.950551
 L 31.675465 167.004567 
 Q 31.675465 168.254646 38.247307 168.254646 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #d55e00"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #d55e00"/>
    </g>
    <g id="patch_15">
     <path d="M 38.247307 181.648346 
@@ -255,156 +252,153 @@ Q 31.675465 172.094173 31.675465 173.344252
 L 31.675465 180.398268 
 Q 31.675465 181.648346 38.247307 181.648346 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #ffffff; stroke: #c9d2da; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #ffffff; stroke: #c9d2da; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="patch_16">
-    <path d="M 40.594394 204.417638 
-L 108.190488 204.417638 
-Q 114.762331 204.417638 114.762331 203.167559 
-L 114.762331 183.166299 
-Q 114.762331 181.91622 108.190488 181.91622 
-L 40.594394 181.91622 
-Q 34.022551 181.91622 34.022551 183.166299 
-L 34.022551 203.167559 
-Q 34.022551 204.417638 40.594394 204.417638 
+    <path d="M 40.594394 207.989291 
+L 108.190488 207.989291 
+Q 114.762331 207.989291 114.762331 206.739213 
+L 114.762331 186.737953 
+Q 114.762331 185.487874 108.190488 185.487874 
+L 40.594394 185.487874 
+Q 34.022551 185.487874 34.022551 186.737953 
+L 34.022551 206.739213 
+Q 34.022551 207.989291 40.594394 207.989291 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #eaf2f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #eaf2f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_17">
-    <path d="M 139.172031 204.417638 
-L 216.156472 204.417638 
-Q 222.728315 204.417638 222.728315 203.167559 
-L 222.728315 183.166299 
-Q 222.728315 181.91622 216.156472 181.91622 
-L 139.172031 181.91622 
-Q 132.600189 181.91622 132.600189 183.166299 
-L 132.600189 203.167559 
-Q 132.600189 204.417638 139.172031 204.417638 
+    <path d="M 139.172031 207.989291 
+L 216.156472 207.989291 
+Q 222.728315 207.989291 222.728315 206.739213 
+L 222.728315 186.737953 
+Q 222.728315 185.487874 216.156472 185.487874 
+L 139.172031 185.487874 
+Q 132.600189 185.487874 132.600189 186.737953 
+L 132.600189 206.739213 
+Q 132.600189 207.989291 139.172031 207.989291 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #e5f1f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #e5f1f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_18">
-    <path d="M 247.138016 204.417638 
-L 324.122457 204.417638 
-Q 330.694299 204.417638 330.694299 203.167559 
-L 330.694299 183.166299 
-Q 330.694299 181.91622 324.122457 181.91622 
-L 247.138016 181.91622 
-Q 240.566173 181.91622 240.566173 183.166299 
-L 240.566173 203.167559 
-Q 240.566173 204.417638 247.138016 204.417638 
+    <path d="M 247.138016 207.989291 
+L 324.122457 207.989291 
+Q 330.694299 207.989291 330.694299 206.739213 
+L 330.694299 186.737953 
+Q 330.694299 185.487874 324.122457 185.487874 
+L 247.138016 185.487874 
+Q 240.566173 185.487874 240.566173 186.737953 
+L 240.566173 206.739213 
+Q 240.566173 207.989291 247.138016 207.989291 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #fbece5; stroke: #d55e00; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #fbece5; stroke: #d55e00; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_19">
-    <path d="M 359.798173 204.417638 
-L 450.865134 204.417638 
-Q 457.436976 204.417638 457.436976 203.167559 
-L 457.436976 183.166299 
-Q 457.436976 181.91622 450.865134 181.91622 
-L 359.798173 181.91622 
-Q 353.226331 181.91622 353.226331 183.166299 
-L 353.226331 203.167559 
-Q 353.226331 204.417638 359.798173 204.417638 
+    <path d="M 359.798173 207.989291 
+L 450.865134 207.989291 
+Q 457.436976 207.989291 457.436976 206.739213 
+L 457.436976 186.737953 
+Q 457.436976 185.487874 450.865134 185.487874 
+L 359.798173 185.487874 
+Q 353.226331 185.487874 353.226331 186.737953 
+L 353.226331 206.739213 
+Q 353.226331 207.989291 359.798173 207.989291 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #e8f4ef; stroke: #009e73; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #e8f4ef; stroke: #009e73; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
-   <g id="text_16">
+   <g id="text_15">
     <text style="fill: #ffffff; font: 700 7.8px 'DejaVu Sans'; text-anchor: middle" x="82.607244" y="165.629872" transform="rotate(-0, 82.607244, 165.629872)">Codex</text>
    </g>
-   <g id="text_17">
+   <g id="text_16">
     <text style="fill: #d55e00; font: 700 5.8px 'DejaVu Sans'; text-anchor: end" x="473.397165" y="165.122642" transform="rotate(-0, 473.397165, 165.122642)">STREAMING SESSION LOOP</text>
    </g>
-   <g id="text_18">
+   <g id="text_17">
     <text style="fill: #d55e00; font: 700 5.7px 'DejaVu Sans'; text-anchor: start" x="43.880315" y="177.060088" transform="rotate(-0, 43.880315, 177.060088)">OUTER RUNTIME</text>
    </g>
-   <g id="text_19">
+   <g id="text_18">
     <text style="fill: #1f2933; font: 5.35px 'DejaVu Sans'" transform="translate(104.904567 173.968095)">RegularTask + SessionTask / Session: cancellation, persistence, compaction, queued input, hooks, subagents and turn</text>
     <text style="fill: #1f2933; font: 5.35px 'DejaVu Sans'" transform="translate(104.904567 179.958925)">scheduling.</text>
    </g>
+   <g id="text_19">
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="74.392441" y="194.822554" transform="rotate(-0, 74.392441, 194.822554)">INPUT / PENDING</text>
+   </g>
    <g id="text_20">
-    <text style="fill: #d55e00; font: 700 5.7px 'DejaVu Sans'; text-anchor: start" x="39.186142" y="185.364182" transform="rotate(-0, 39.186142, 185.364182)">INNER PIPE  /  one rollout interaction</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(44.884878 201.303035)">history + pending turn</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(64.592472 206.651755)">context</text>
    </g>
    <g id="text_21">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="74.392441" y="190.804444" transform="rotate(-0, 74.392441, 190.804444)">INPUT / PENDING</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="177.664252" y="194.822554" transform="rotate(-0, 177.664252, 194.822554)">GENERATING</text>
    </g>
    <g id="text_22">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(44.884878 197.731381)">history + pending turn</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(64.592472 203.080101)">context</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(144.036096 201.303035)">stream response Function</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(160.707783 206.651755)">/ Custom call</text>
    </g>
    <g id="text_23">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="177.664252" y="190.804444" transform="rotate(-0, 177.664252, 190.804444)">GENERATING</text>
+    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(265.124041 191.938196)">PROCESSING</text>
+    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(274.971682 197.54135)">TOOLS</text>
    </g>
    <g id="text_24">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(144.036096 197.731381)">stream response Function</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(160.707783 203.080101)">/ Custom call</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(254.27383 201.303035)">parallel runtime append</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(275.700267 206.651755)">outputs</text>
    </g>
    <g id="text_25">
-    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(265.124041 187.920086)">PROCESSING</text>
-    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(274.971682 193.523239)">TOOLS</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="405.331654" y="194.822554" transform="rotate(-0, 405.331654, 194.822554)">OUTPUT / TERMINATED</text>
    </g>
    <g id="text_26">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(254.27383 197.731381)">parallel runtime append</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(275.700267 203.080101)">outputs</text>
-   </g>
-   <g id="text_27">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="405.331654" y="190.804444" transform="rotate(-0, 405.331654, 190.804444)">OUTPUT / TERMINATED</text>
-   </g>
-   <g id="text_28">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(380.166091 197.731381)">events + transcript</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(393.42731 203.080101)">follow-up</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(380.166091 201.303035)">events + transcript</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(393.42731 206.651755)">follow-up</text>
    </g>
    <g id="patch_20">
     <path d="M 454.620472 194.506299 
 C 466.355906 211.025197 377.166614 225.758268 269.20063 225.758268 
 C 161.234646 225.758268 55.615748 213.703937 55.615748 198.136882 
-" clip-path="url(#p1d6b478118)" style="fill: none; stroke: #d55e00; stroke-width: 1.65; stroke-linecap: round"/>
+" clip-path="url(#p6bc99e5944)" style="fill: none; stroke: #d55e00; stroke-width: 1.65; stroke-linecap: round"/>
     <path d="M 53.015748 203.336882 
 L 55.615748 198.136882 
 L 58.215748 203.336882 
 L 53.015748 203.336882 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.65; stroke-linecap: round"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.65; stroke-linecap: round"/>
    </g>
    <g id="patch_21">
-    <path d="M 113.949102 193.166929 
-Q 121.334566 193.166929 127.490192 193.166929 
-" clip-path="url(#p1d6b478118)" style="fill: none; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 123.090192 190.966929 
-L 127.490192 193.166929 
-L 123.090192 195.366929 
-L 123.090192 190.966929 
+    <path d="M 113.949102 197.631496 
+Q 121.334566 197.631496 127.490192 197.631496 
+" clip-path="url(#p6bc99e5944)" style="fill: none; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 123.090192 195.431496 
+L 127.490192 197.631496 
+L 123.090192 199.831496 
+L 123.090192 195.431496 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
    <g id="patch_22">
-    <path d="M 221.915086 193.166929 
-Q 229.30055 193.166929 235.456176 193.166929 
-" clip-path="url(#p1d6b478118)" style="fill: none; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 231.056176 190.966929 
-L 235.456176 193.166929 
-L 231.056176 195.366929 
-L 231.056176 190.966929 
+    <path d="M 221.915086 197.631496 
+Q 229.30055 197.631496 235.456176 197.631496 
+" clip-path="url(#p6bc99e5944)" style="fill: none; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 231.056176 195.431496 
+L 235.456176 197.631496 
+L 231.056176 199.831496 
+L 231.056176 195.431496 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
    <g id="patch_23">
-    <path d="M 329.880497 193.166929 
-Q 339.614811 193.166929 348.119287 193.166929 
-" clip-path="url(#p1d6b478118)" style="fill: none; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 343.719287 190.966929 
-L 348.119287 193.166929 
-L 343.719287 195.366929 
-L 343.719287 190.966929 
+    <path d="M 329.880497 197.631496 
+Q 339.614811 197.631496 348.119287 197.631496 
+" clip-path="url(#p6bc99e5944)" style="fill: none; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 343.719287 195.431496 
+L 348.119287 197.631496 
+L 343.719287 199.831496 
+L 343.719287 195.431496 
 z
-" clip-path="url(#p1d6b478118)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#p6bc99e5944)" style="fill: #d55e00; stroke: #d55e00; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
-   <g id="text_29">
-    <text style="fill: #d55e00; font: 700 5.4px 'DejaVu Sans'" transform="translate(150.409579 231.498292)">turn result, transcript updates or queued follow-up become the next</text>
-    <text style="fill: #d55e00; font: 700 5.4px 'DejaVu Sans'" transform="translate(184.682282 237.134795)">run_turn context; task verification is external.</text>
+   <g id="text_27">
+    <text style="fill: #d55e00; font: 700 5.2px 'DejaVu Sans'" transform="translate(154.287673 231.103809)">turn result, transcript updates or queued follow-up become the next</text>
+    <text style="fill: #d55e00; font: 700 5.2px 'DejaVu Sans'" transform="translate(187.291016 236.531552)">run_turn context; task verification is external.</text>
    </g>
-   <g id="text_30">
-    <text style="fill: #5b6770; font: 5px 'DejaVu Sans'; text-anchor: middle" x="255.11811" y="239.638743" transform="rotate(-0, 255.11811, 239.638743)">rollout boundary: output at t → input at t + 1</text>
+   <g id="text_28">
+    <text style="fill: #5b6770; font: 4.6px 'DejaVu Sans'; text-anchor: middle" x="255.11811" y="241.314194" transform="rotate(-0, 255.11811, 241.314194)">rollout boundary: output at t → input at t + 1</text>
    </g>
   </g>
   <g id="axes_3">
@@ -419,7 +413,7 @@ Q 22.287118 257.218583 22.287118 258.468661
 L 22.287118 342.759685 
 Q 22.287118 344.009764 28.858961 344.009764 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #f8fafc; stroke: #009e73; stroke-width: 1.15; stroke-linejoin: miter"/>
+" clip-path="url(#pf7d282272b)" style="fill: #f8fafc; stroke: #009e73; stroke-width: 1.15; stroke-linejoin: miter"/>
    </g>
    <g id="patch_25">
     <path d="M 38.247307 269.451496 
@@ -432,7 +426,7 @@ Q 31.675465 259.897323 31.675465 261.147402
 L 31.675465 268.201417 
 Q 31.675465 269.451496 38.247307 269.451496 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #009e73"/>
+" clip-path="url(#pf7d282272b)" style="fill: #009e73"/>
    </g>
    <g id="patch_26">
     <path d="M 38.247307 282.845197 
@@ -445,174 +439,168 @@ Q 31.675465 273.291024 31.675465 274.541102
 L 31.675465 281.595118 
 Q 31.675465 282.845197 38.247307 282.845197 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #ffffff; stroke: #c9d2da; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#pf7d282272b)" style="fill: #ffffff; stroke: #c9d2da; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="patch_27">
-    <path d="M 40.594394 305.614488 
-L 108.190488 305.614488 
-Q 114.762331 305.614488 114.762331 304.364409 
-L 114.762331 284.36315 
-Q 114.762331 283.113071 108.190488 283.113071 
-L 40.594394 283.113071 
-Q 34.022551 283.113071 34.022551 284.36315 
-L 34.022551 304.364409 
-Q 34.022551 305.614488 40.594394 305.614488 
+    <path d="M 40.594394 309.186142 
+L 108.190488 309.186142 
+Q 114.762331 309.186142 114.762331 307.936063 
+L 114.762331 287.934803 
+Q 114.762331 286.684724 108.190488 286.684724 
+L 40.594394 286.684724 
+Q 34.022551 286.684724 34.022551 287.934803 
+L 34.022551 307.936063 
+Q 34.022551 309.186142 40.594394 309.186142 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #eaf2f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#pf7d282272b)" style="fill: #eaf2f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_28">
-    <path d="M 139.172031 305.614488 
-L 216.156472 305.614488 
-Q 222.728315 305.614488 222.728315 304.364409 
-L 222.728315 284.36315 
-Q 222.728315 283.113071 216.156472 283.113071 
-L 139.172031 283.113071 
-Q 132.600189 283.113071 132.600189 284.36315 
-L 132.600189 304.364409 
-Q 132.600189 305.614488 139.172031 305.614488 
+    <path d="M 139.172031 309.186142 
+L 216.156472 309.186142 
+Q 222.728315 309.186142 222.728315 307.936063 
+L 222.728315 287.934803 
+Q 222.728315 286.684724 216.156472 286.684724 
+L 139.172031 286.684724 
+Q 132.600189 286.684724 132.600189 287.934803 
+L 132.600189 307.936063 
+Q 132.600189 309.186142 139.172031 309.186142 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #e5f1f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#pf7d282272b)" style="fill: #e5f1f8; stroke: #0072b2; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_29">
-    <path d="M 247.138016 305.614488 
-L 324.122457 305.614488 
-Q 330.694299 305.614488 330.694299 304.364409 
-L 330.694299 284.36315 
-Q 330.694299 283.113071 324.122457 283.113071 
-L 247.138016 283.113071 
-Q 240.566173 283.113071 240.566173 284.36315 
-L 240.566173 304.364409 
-Q 240.566173 305.614488 247.138016 305.614488 
+    <path d="M 247.138016 309.186142 
+L 324.122457 309.186142 
+Q 330.694299 309.186142 330.694299 307.936063 
+L 330.694299 287.934803 
+Q 330.694299 286.684724 324.122457 286.684724 
+L 247.138016 286.684724 
+Q 240.566173 286.684724 240.566173 287.934803 
+L 240.566173 307.936063 
+Q 240.566173 309.186142 247.138016 309.186142 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #fbece5; stroke: #d55e00; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#pf7d282272b)" style="fill: #fbece5; stroke: #d55e00; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
    <g id="patch_30">
-    <path d="M 359.798173 305.614488 
-L 450.865134 305.614488 
-Q 457.436976 305.614488 457.436976 304.364409 
-L 457.436976 284.36315 
-Q 457.436976 283.113071 450.865134 283.113071 
-L 359.798173 283.113071 
-Q 353.226331 283.113071 353.226331 284.36315 
-L 353.226331 304.364409 
-Q 353.226331 305.614488 359.798173 305.614488 
+    <path d="M 359.798173 309.186142 
+L 450.865134 309.186142 
+Q 457.436976 309.186142 457.436976 307.936063 
+L 457.436976 287.934803 
+Q 457.436976 286.684724 450.865134 286.684724 
+L 359.798173 286.684724 
+Q 353.226331 286.684724 353.226331 287.934803 
+L 353.226331 307.936063 
+Q 353.226331 309.186142 359.798173 309.186142 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #e8f4ef; stroke: #009e73; stroke-width: 1.1; stroke-linejoin: miter"/>
+" clip-path="url(#pf7d282272b)" style="fill: #e8f4ef; stroke: #009e73; stroke-width: 1.1; stroke-linejoin: miter"/>
    </g>
-   <g id="text_31">
+   <g id="text_29">
     <text style="fill: #ffffff; font: 700 7.8px 'DejaVu Sans'; text-anchor: middle" x="82.607244" y="266.826722" transform="rotate(-0, 82.607244, 266.826722)">Prime</text>
    </g>
-   <g id="text_32">
+   <g id="text_30">
     <text style="fill: #009e73; font: 700 5.8px 'DejaVu Sans'; text-anchor: end" x="473.397165" y="266.319493" transform="rotate(-0, 473.397165, 266.319493)">SESSION + CONTINUATION LOOP</text>
    </g>
-   <g id="text_33">
+   <g id="text_31">
     <text style="fill: #009e73; font: 700 5.7px 'DejaVu Sans'; text-anchor: start" x="43.880315" y="278.256938" transform="rotate(-0, 43.880315, 278.256938)">OUTER RUNTIME</text>
    </g>
-   <g id="text_34">
+   <g id="text_32">
     <text style="fill: #1f2933; font: 5.35px 'DejaVu Sans'" transform="translate(104.904567 275.164945)">AgentSession + autonomous/headless: persistence, tool hooks/events, compaction, goals, child lifecycles and quality-gated</text>
     <text style="fill: #1f2933; font: 5.35px 'DejaVu Sans'" transform="translate(104.904567 281.155775)">continuation.</text>
    </g>
+   <g id="text_33">
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="74.392441" y="296.019405" transform="rotate(-0, 74.392441, 296.019405)">INPUT / PENDING</text>
+   </g>
+   <g id="text_34">
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(44.070347 302.499885)">session state prompt +</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(64.427941 307.848605)">registry</text>
+   </g>
    <g id="text_35">
-    <text style="fill: #009e73; font: 700 5.7px 'DejaVu Sans'; text-anchor: start" x="39.186142" y="286.561033" transform="rotate(-0, 39.186142, 286.561033)">INNER PIPE  /  one rollout interaction</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="177.664252" y="296.019405" transform="rotate(-0, 177.664252, 296.019405)">GENERATING</text>
    </g>
    <g id="text_36">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="74.392441" y="292.001294" transform="rotate(-0, 74.392441, 292.001294)">INPUT / PENDING</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(155.430596 302.499885)">underlying agent</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(156.202877 307.848605)">response + calls</text>
    </g>
    <g id="text_37">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(44.070347 298.928232)">session state prompt +</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(64.427941 304.276952)">registry</text>
+    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(265.124041 293.135047)">PROCESSING</text>
+    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(274.971682 298.7382)">TOOLS</text>
    </g>
    <g id="text_38">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="177.664252" y="292.001294" transform="rotate(-0, 177.664252, 292.001294)">GENERATING</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(257.444611 302.427573)">registry + hooks emit</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(272.052955 307.776293)">tool_result</text>
    </g>
    <g id="text_39">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(155.430596 298.928232)">underlying agent</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(156.202877 304.276952)">response + calls</text>
+    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="405.331654" y="296.019405" transform="rotate(-0, 405.331654, 296.019405)">OUTPUT / TERMINATED</text>
    </g>
    <g id="text_40">
-    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(265.124041 289.116936)">PROCESSING</text>
-    <text style="fill: #1f2933; font: 700 5.7px 'DejaVu Sans'" transform="translate(274.971682 294.72009)">TOOLS</text>
-   </g>
-   <g id="text_41">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(257.444611 298.855919)">registry + hooks emit</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(272.052955 304.204639)">tool_result</text>
-   </g>
-   <g id="text_42">
-    <text style="fill: #1f2933; font: 700 6px 'DejaVu Sans'; text-anchor: middle" x="405.331654" y="292.001294" transform="rotate(-0, 405.331654, 292.001294)">OUTPUT / TERMINATED</text>
-   </g>
-   <g id="text_43">
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(373.476779 298.928232)">events + transcript gate</text>
-    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(397.977716 304.276952)">result</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(373.476779 302.499885)">events + transcript gate</text>
+    <text style="fill: #1f2933; font: 5.2px 'DejaVu Sans'" transform="translate(397.977716 307.848605)">result</text>
    </g>
    <g id="patch_31">
     <path d="M 454.620472 295.70315 
 C 466.355906 312.222047 377.166614 326.955118 269.20063 326.955118 
 C 161.234646 326.955118 55.615748 314.900787 55.615748 299.333732 
-" clip-path="url(#p35177a6a77)" style="fill: none; stroke: #009e73; stroke-width: 1.65; stroke-linecap: round"/>
+" clip-path="url(#pf7d282272b)" style="fill: none; stroke: #009e73; stroke-width: 1.65; stroke-linecap: round"/>
     <path d="M 53.015748 304.533732 
 L 55.615748 299.333732 
 L 58.215748 304.533732 
 L 53.015748 304.533732 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.65; stroke-linecap: round"/>
+" clip-path="url(#pf7d282272b)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.65; stroke-linecap: round"/>
    </g>
    <g id="patch_32">
-    <path d="M 113.949102 294.36378 
-Q 121.334566 294.36378 127.490192 294.36378 
-" clip-path="url(#p35177a6a77)" style="fill: none; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 123.090192 292.16378 
-L 127.490192 294.36378 
-L 123.090192 296.56378 
-L 123.090192 292.16378 
+    <path d="M 113.949102 298.828346 
+Q 121.334566 298.828346 127.490192 298.828346 
+" clip-path="url(#pf7d282272b)" style="fill: none; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 123.090192 296.628346 
+L 127.490192 298.828346 
+L 123.090192 301.028346 
+L 123.090192 296.628346 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#pf7d282272b)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
    <g id="patch_33">
-    <path d="M 221.915086 294.36378 
-Q 229.30055 294.36378 235.456176 294.36378 
-" clip-path="url(#p35177a6a77)" style="fill: none; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 231.056176 292.16378 
-L 235.456176 294.36378 
-L 231.056176 296.56378 
-L 231.056176 292.16378 
+    <path d="M 221.915086 298.828346 
+Q 229.30055 298.828346 235.456176 298.828346 
+" clip-path="url(#pf7d282272b)" style="fill: none; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 231.056176 296.628346 
+L 235.456176 298.828346 
+L 231.056176 301.028346 
+L 231.056176 296.628346 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#pf7d282272b)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
    <g id="patch_34">
-    <path d="M 329.880497 294.36378 
-Q 339.614811 294.36378 348.119287 294.36378 
-" clip-path="url(#p35177a6a77)" style="fill: none; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
-    <path d="M 343.719287 292.16378 
-L 348.119287 294.36378 
-L 343.719287 296.56378 
-L 343.719287 292.16378 
+    <path d="M 329.880497 298.828346 
+Q 339.614811 298.828346 348.119287 298.828346 
+" clip-path="url(#pf7d282272b)" style="fill: none; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
+    <path d="M 343.719287 296.628346 
+L 348.119287 298.828346 
+L 343.719287 301.028346 
+L 343.719287 296.628346 
 z
-" clip-path="url(#p35177a6a77)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
+" clip-path="url(#pf7d282272b)" style="fill: #009e73; stroke: #009e73; stroke-width: 1.1; stroke-linecap: round"/>
    </g>
-   <g id="text_44">
-    <text style="fill: #009e73; font: 700 5.4px 'DejaVu Sans'" transform="translate(157.71097 332.728049)">tool events and the continuation gate become the next prompt;</text>
-    <text style="fill: #009e73; font: 700 5.4px 'DejaVu Sans'" transform="translate(183.793813 338.406739)">autonomous/headless may inject a repair turn.</text>
+   <g id="text_41">
+    <text style="fill: #009e73; font: 700 5.2px 'DejaVu Sans'" transform="translate(161.318641 332.332347)">tool events and the continuation gate become the next prompt;</text>
+    <text style="fill: #009e73; font: 700 5.2px 'DejaVu Sans'" transform="translate(186.435454 337.800715)">autonomous/headless may inject a repair turn.</text>
    </g>
-   <g id="text_45">
-    <text style="fill: #5b6770; font: 5px 'DejaVu Sans'; text-anchor: middle" x="255.11811" y="340.835593" transform="rotate(-0, 255.11811, 340.835593)">rollout boundary: output at t → input at t + 1</text>
+   <g id="text_42">
+    <text style="fill: #5b6770; font: 4.6px 'DejaVu Sans'; text-anchor: middle" x="255.11811" y="342.511045" transform="rotate(-0, 255.11811, 342.511045)">rollout boundary: output at t → input at t + 1</text>
    </g>
   </g>
-  <g id="text_46">
+  <g id="text_43">
    <text style="fill: #1f2933; font: 700 11.5px 'DejaVu Sans'; text-anchor: start" x="20.409449" y="22.627967" transform="rotate(-0, 20.409449, 22.627967)">Three Agent loop strategies as rollout pipes</text>
   </g>
-  <g id="text_47">
-   <text style="fill: #5b6770; font: 6.4px 'DejaVu Sans'; text-anchor: start" x="20.409449" y="34.62678" transform="rotate(-0, 20.409449, 34.62678)">Each implementation has its own inner interaction pipe and outer runtime. The large return arrow is the rollout boundary from output at round t to input at round t + 1.</text>
+  <g id="text_44">
+   <text style="fill: #5b6770; font: 6.4px 'DejaVu Sans'; text-anchor: start" x="20.409449" y="34.62678" transform="rotate(-0, 20.409449, 34.62678)">Each lane separates its inner interaction pipe from its outer runtime; the return arrow is the rollout boundary from t to t + 1.</text>
   </g>
-  <g id="text_48">
-   <text style="fill: #5b6770; font: 5.5px 'DejaVu Sans'; text-anchor: end" x="492.377953" y="33.94292" transform="rotate(-0, 492.377953, 33.94292)">schematic · vector master</text>
-  </g>
-  <g id="text_49">
+  <g id="text_45">
    <g id="patch_35">
     <path d="M 20.409449 379.708325 
-L 757.825777 379.708325 
-Q 759.945777 379.708325 759.945777 377.588325 
-L 759.945777 372.458919 
-Q 759.945777 370.338919 757.825777 370.338919 
+L 398.787214 379.708325 
+Q 400.907214 379.708325 400.907214 377.588325 
+L 400.907214 372.458919 
+Q 400.907214 370.338919 398.787214 370.338919 
 L 20.409449 370.338919 
 Q 18.289449 370.338919 18.289449 372.458919 
 L 18.289449 377.588325 
@@ -620,20 +608,20 @@ Q 18.289449 379.708325 20.409449 379.708325
 z
 " style="fill: #f3f0f7; stroke: #cc79a7; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
-   <text style="fill: #1f2933; font: 5.3px 'DejaVu Sans'; text-anchor: start" x="20.409449" y="376.486091" transform="rotate(-0, 20.409449, 376.486091)">nanoGPT placement: runner.ts currently spans the pipe plus session state/persistence and task verification. A cleaner target is inner AgentLoop → outer SessionRunner → harness verifier; Verl reward/task verification remains external unless explicitly returned as an observation.</text>
+   <text style="fill: #1f2933; font: 5.3px 'DejaVu Sans'; text-anchor: start" x="20.409449" y="376.486091" transform="rotate(-0, 20.409449, 376.486091)">nanoGPT: runner.ts currently spans the pipe, session persistence, and verification. Target split: AgentLoop → SessionRunner → harness verifier.</text>
   </g>
-  <g id="text_50">
+  <g id="text_46">
    <text style="fill: #5b6770; font: 5px 'DejaVu Sans'; text-anchor: start" x="20.409449" y="391.086774" transform="rotate(-0, 20.409449, 391.086774)">Color is redundant with explicit state labels; arrows encode control flow, not performance or reward magnitude.</text>
   </g>
  </g>
  <defs>
-  <clipPath id="p8ddaf6181b">
+  <clipPath id="p58c0477892">
    <rect x="20.409449" y="53.574803" width="469.417323" height="89.291339"/>
   </clipPath>
-  <clipPath id="p1d6b478118">
+  <clipPath id="p6bc99e5944">
    <rect x="20.409449" y="154.771654" width="469.417323" height="89.291339"/>
   </clipPath>
-  <clipPath id="p35177a6a77">
+  <clipPath id="pf7d282272b">
    <rect x="20.409449" y="255.968504" width="469.417323" height="89.291339"/>
   </clipPath>
  </defs>
