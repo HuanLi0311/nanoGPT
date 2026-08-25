@@ -1,20 +1,13 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { ChatMessage, Event, ToolSpec } from "../../shared/src/types.ts";
-import { parseAction, eventFromAction } from "./parser.ts";
+import type { Event, ToolSpec } from "../../shared/src/types.ts";
+import { runCoreLoop, type Model } from "./core-loop.ts";
 import { callTool, type ToolContext } from "./tools/registry.ts";
 import { verify, type Verification } from "./reward.ts";
-import { renderEvents } from "../../shared/src/renderer.ts";
 
-export type Model = { complete(messages: ChatMessage[], tools: ToolSpec[]): Promise<{ content?: string; tool_calls?: { id?: string; function: { name: string; arguments: string } }[] }> };
+export type { Model } from "./core-loop.ts";
 export type RunState = { id: string; status: "running" | "done" | "failed"; attempt: number; events: Event[]; final?: string; verification?: Verification };
 type Options = { id: string; prompt: string; model: Model; tools: ToolSpec[]; context: ToolContext; statePath: string; maxTurns?: number; retries?: number };
-const parseArguments = (value: string): unknown => {
-  try { return JSON.parse(value || "{}"); }
-  catch { return value; }
-};
-
-const renderArguments = (value: unknown): string => typeof value === "string" ? value : JSON.stringify(value ?? {});
 
 async function taskVerification(events: Event[], final: string, context: ToolContext): Promise<Verification> {
   const protocol = verify(events, final);
@@ -103,52 +96,49 @@ export async function run(options: Options): Promise<RunState> {
     await save(options.statePath, state);
   }
   if (state.status === "done") return state;
-  const maxTurns = options.maxTurns ?? 20, retries = options.retries ?? 2;
-  for (let turn = state.events.filter((x) => x.role === "assistant").length; turn < maxTurns; turn++) {
-    const messages = renderEvents(state.events);
-    let response;
-    for (let attempt = 0; ; attempt++) {
-      try { response = await options.model.complete(messages, options.tools); break; }
-      catch (error) { state.attempt++; if (attempt >= retries) { state.status = "failed"; await save(options.statePath, state); throw error; } await new Promise((r) => setTimeout(r, 250 * 2 ** attempt)); }
-    }
-    const calls = response.tool_calls?.length
-      ? response.tool_calls
-      : (() => {
-          const action = parseAction(response.content ?? "");
-          return action.kind === "tool_call"
-            ? [{ function: { name: action.tool, arguments: renderArguments(action.arguments) } }]
-            : [];
-        })();
-    if (calls.length) {
-      for (const call of calls) {
-        const event = eventFromAction({ kind: "tool_call", tool: call.function.name, arguments: parseArguments(call.function.arguments) });
-        event.toolCallId = typeof call.id === "string" && call.id.trim()
-          ? call.id
-          : `call_${turn}_${state.events.filter((item) => item.kind === "tool_call").length}`;
-        state.events.push(event);
-      }
-      for (const event of state.events.slice(-calls.length)) {
-        try {
-          const result = await callTool(event.tool!, event.arguments, options.context);
-          state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: result.content, toolResult: result.data, exitCode: result.exitCode });
+  const maxTurns = options.maxTurns ?? 20;
+  const retries = options.retries ?? 2;
+  state.status = "running";
+  const model: Model = {
+    complete: async (messages, tools) => {
+      for (let attempt = 0; ; attempt++) {
+        try { return await options.model.complete(messages, tools); }
+        catch (error) {
+          state.attempt++;
+          if (attempt >= retries) {
+            state.status = "failed";
+            await save(options.statePath, state);
+            throw error;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
         }
-        catch (error) { state.events.push({ role: "tool", kind: "tool_result", toolCallId: event.toolCallId, content: String(error), exitCode: 1 }); }
       }
-    } else {
-      const action = parseAction(response.content ?? ""); state.events.push(eventFromAction(action));
-      if (action.kind === "message") {
-        state.final = action.content;
-        state.verification = await taskVerification(state.events, action.content, options.context);
-        state.status = state.verification.passed ? "done" : "failed";
-        await save(options.statePath, state);
-        return state;
-      }
+    },
+  };
+  const result = await runCoreLoop({
+    events: state.events,
+    model,
+    tools: options.tools,
+    context: options.context,
+    maxTurns,
+    executeTool: async (call, context) => callTool(call.name, call.arguments, context),
+    onCheckpoint: async (events) => {
+      state.events = events;
+      await save(options.statePath, state);
+    },
+  });
+  state.events = result.events;
+  if (result.final !== undefined) {
+    state.final = result.final;
+    state.verification = await taskVerification(state.events, result.final, options.context);
+    state.status = state.verification.passed ? "done" : "failed";
+  } else {
+    state.status = "failed";
+    state.verification = await taskVerification(state.events, "", options.context);
+    if (result.terminationReason === "turn_limit" && state.verification.reason === "empty final answer") {
+      state.verification = { score: 0, passed: false, reason: "turn limit exceeded", harnessStatus: "protocol" };
     }
-    await save(options.statePath, state);
   }
-  state.status = "failed";
-  state.verification = await taskVerification(state.events, "", options.context);
-  if (state.verification.reason === "empty final answer") state.verification = { score: 0, passed: false, reason: "turn limit exceeded", harnessStatus: "protocol" };
   await save(options.statePath, state);
   return state;
 }

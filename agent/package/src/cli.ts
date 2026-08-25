@@ -2,7 +2,7 @@ import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { extract } from "../../data/src/codex-jsonl.ts";
 import { deepseek } from "../../runtime/src/deepseek.ts";
-import { run } from "../../runtime/src/runner.ts";
+import { run } from "../../runtime/src/loop.ts";
 import { toolSchemas } from "../../runtime/src/tools/registry.ts";
 
 async function files(root: string): Promise<string[]> {

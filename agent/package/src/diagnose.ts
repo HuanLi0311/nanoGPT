@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { deepseek } from "../../runtime/src/deepseek.ts";
-import { run, type Model, type RunState } from "../../runtime/src/runner.ts";
+import { run, type Model, type RunState } from "../../runtime/src/loop.ts";
 import { execCommand } from "../../runtime/src/tools/exec-command.ts";
 import { toolSchemas } from "../../runtime/src/tools/registry.ts";
 import type { ChatMessage, ToolSpec } from "../../shared/src/types.ts";
