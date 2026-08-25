@@ -1,4 +1,4 @@
-"""Preflight SFT chat-template concatenation, allowing Qwen3's empty think block."""
+"""Preflight SFT chat-template concatenation with explicit known-difference rules."""
 
 from __future__ import annotations
 
@@ -175,7 +175,7 @@ def main() -> None:
     think_pattern = tokenizer.encode("<think>\n\n</think>\n\n", add_special_tokens=False)
     limit = None if args.full else args.samples_per_file
     report = {
-        "policy": "allow_only_qwen3_empty_think_insertion_v1",
+        "policy": "allow_qwen3_empty_think_and_consecutive_tool_boundaries_v2",
         "data": str(args.data),
         "model": str(args.model),
         "samples_per_file": limit,
