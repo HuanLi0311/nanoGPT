@@ -30,7 +30,6 @@ from omegaconf import DictConfig, ListConfig
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer, ProcessorMixin
 
-from verl.models.transformers.qwen2_vl import get_rope_index
 from verl.utils import hf_tokenizer
 from verl.utils.dataset.dataset_utils import DatasetPadMode
 from verl.utils.dataset.vision_utils import process_image, process_video
@@ -346,6 +345,9 @@ class MultiTurnSFTDataset(Dataset):
 
         # 2. handle position_ids for Qwen-VL series models
         if self.processor is not None and "Qwen2VLImageProcessor" in self.processor.image_processor.__class__.__name__:
+            # Keep text-only SFT independent of the optional flash-attn Qwen-VL path.
+            from verl.models.transformers.qwen2_vl import get_rope_index
+
             image_grid_thw = multi_modal_inputs.get("image_grid_thw", None)
             video_grid_thw = multi_modal_inputs.get("video_grid_thw", None)
             second_per_grid_ts = multi_modal_inputs.get("second_per_grid_ts", None)
