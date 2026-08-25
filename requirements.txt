@@ -17,6 +17,7 @@ tokenizers==0.21.1
 # Qwen3's tokenizer and vLLM 0.8.5 share the 4.51 ABI; newer Transformers
 # removed a tokenizer property vLLM uses during engine initialization.
 transformers==4.51.3
+huggingface-hub==0.30.2
 Pillow>=10.0.0
 matplotlib>=3.8.0
 flash-attn==2.7.4.post1 --no-deps
