@@ -1,12 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Event, ToolSpec } from "../../shared/src/types.ts";
-import { runCoreLoop, type Model } from "./core-loop.ts";
+import { runCoreLoop, type Model, type TerminationReason } from "./core-loop.ts";
 import { callTool, type ToolContext } from "./tools/registry.ts";
 import { verify, type Verification } from "./reward.ts";
 
 export type { Model } from "./core-loop.ts";
-export type RunState = { id: string; status: "running" | "done" | "failed"; attempt: number; events: Event[]; final?: string; verification?: Verification };
+export type RunState = { id: string; status: "running" | "done" | "failed"; attempt: number; events: Event[]; final?: string; verification?: Verification; terminationReason?: TerminationReason };
 type Options = { id: string; prompt: string; model: Model; tools: ToolSpec[]; context: ToolContext; statePath: string; maxTurns?: number; retries?: number };
 
 async function taskVerification(events: Event[], final: string, context: ToolContext): Promise<Verification> {
@@ -128,6 +128,7 @@ export async function run(options: Options): Promise<RunState> {
     },
   });
   state.events = result.events;
+  state.terminationReason = result.terminationReason;
   if (result.final !== undefined) {
     state.final = result.final;
     state.verification = await taskVerification(state.events, result.final, options.context);
