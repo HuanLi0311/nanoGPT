@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+if __name__ == "__main__" and __package__ is None:
+    # Keep the package's types.py from shadowing the stdlib module named
+    # types during direct self-check execution.
+    import os
+    import sys
+
+    script_dir = os.path.abspath(os.path.dirname(__file__))
+    sys.path[:] = [item for item in sys.path if os.path.abspath(item or os.curdir) != script_dir]
+    sys.path.insert(0, os.getcwd())
+
 import subprocess
 from typing import Any
 
