@@ -9,7 +9,8 @@ from pathlib import PurePosixPath
 from typing import Any, Iterator
 
 
-TOOL_NAMES = ("exec_command", "apply_patch", "verify_task")
+# Verification is an environment/harness transition, not a policy action.
+TOOL_NAMES = ("exec_command", "apply_patch")
 
 
 def _valid_verifier(value: Any) -> bool:

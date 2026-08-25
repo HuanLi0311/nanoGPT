@@ -27,6 +27,23 @@ class RetryOnIneligibleRewardManager(NaiveRewardManager):
             if original is not None:
                 data.non_tensor_batch["extra_info"] = original
         extra = result.get("reward_extra_info", {}) if isinstance(result, dict) else {}
+        reward_kwargs = self.config.get("reward", {}).get("reward_kwargs", {})
+        overlong = reward_kwargs.get("overlong_buffer_cfg", {})
+        if overlong.get("enable", False):
+            response_ids = data[-1].batch["responses"]
+            attention = data[-1].batch["attention_mask"]
+            response_length = response_ids.shape[-1]
+            valid_length = int(attention[-response_length:].sum())
+            buffer_len = int(overlong.get("len", 0))
+            max_response = int(reward_kwargs.get("max_resp_len", 0))
+            if buffer_len <= 0 or max_response < buffer_len:
+                raise RuntimeError("invalid DAPO overlong buffer configuration")
+            exceed = valid_length - (max_response - buffer_len)
+            penalty = min(-exceed / buffer_len * float(overlong.get("penalty_factor", 1.0)), 0.0)
+            result["reward_score"] += penalty
+            if overlong.get("log", False):
+                extra["overlong_reward"] = penalty
+                extra["overlong"] = penalty < 0
         if extra.get("eligible") is False and os.environ.get("VERL_RETRY_CENSORED", "1") != "0":
             reason = extra.get("reason", "censored reward")
             raise RuntimeError(f"retryable reward sample: {reason}")

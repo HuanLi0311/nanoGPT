@@ -6,8 +6,16 @@ verl="$root/third_party/verl"
 data="$root/model/language_model/data/post_train/verl"
 # Student default matches sft.sh's Qwen3 base and output path. DeepSeek is the
 # external teacher/calibration model, not the policy in this launcher.
-model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B-Base-sft-verl"}
+model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B"}
+algorithm=${ALGORITHM:-grpo}
 gpus=${NGPUS_PER_NODE:-}
+
+if [[ -z "${TASK_MANIFEST:-}" ]]; then
+  # The checked-in parquet is historical Codex replay without a verifier. RL
+  # defaults to the small executable manifest so an accidental launch cannot
+  # train on censored rows.
+  TASK_MANIFEST="$root/agent/tasks/harness_smoke.jsonl"
+fi
 
 if [[ -n "${TASK_MANIFEST:-}" ]]; then
   data_train="$data/tasks_train.jsonl"
@@ -39,27 +47,23 @@ tool_config="$root/model/language_model/config/verl_tools.yaml"
 [[ -x "$python" ]] || { echo "missing Python environment: $python" >&2; exit 1; }
 
 if [[ "${ALLOW_LEGACY_VERL_TOOLS:-0}" != "1" ]]; then
-  "$python" - "$tool_config" "$root/agent/runtime/src/tools/registry.ts" <<'PY'
+  "$python" - "$tool_config" <<'PY'
 import re
 import sys
 from pathlib import Path
 
 configured = set(re.findall(r"^\s+name:\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", Path(sys.argv[1]).read_text(encoding="utf-8"), re.MULTILINE))
-source = Path(sys.argv[2]).read_text(encoding="utf-8")
-block = re.search(r"const TOOL_NAMES = \[(.*?)\] as const;", source, re.DOTALL)
-expected = set(re.findall(r'"([a-z_]+)"', block.group(1) if block else ""))
+expected = {"exec_command", "apply_patch"}
 missing = sorted(expected - configured)
 exposed_verifier = "verify_task" in configured
 if missing or exposed_verifier:
     details = []
     if missing:
-        details.append(f"missing Codex tools: {', '.join(missing)}")
+        details.append(f"missing environment tools: {', '.join(missing)}")
     if exposed_verifier:
         details.append("verify_task is exposed as a model tool")
     raise SystemExit(
-        "refusing RL with a legacy Verl tool profile (" + "; ".join(details) + "). "
-        "Implement the NanoAgent-to-Verl runtime bridge first. "
-        "Set ALLOW_LEGACY_VERL_TOOLS=1 only for the isolated legacy workspace smoke test."
+        "refusing RL with an invalid NanoAgent tool profile (" + "; ".join(details) + ")."
     )
 PY
 fi

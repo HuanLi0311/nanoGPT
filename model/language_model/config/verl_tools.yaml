@@ -41,18 +41,3 @@ tools:
               type: string
               description: A standard unified diff.
           required: [patch]
-  - class_name: model.language_model.scripts.verl_workspace_tool.WorkspaceTool
-    config:
-      type: native
-      operation: verify_task
-      max_timeout: 60
-      max_output: 12000
-    tool_schema:
-      type: function
-      function:
-        name: verify_task
-        description: Run the independent task verifier and report whether the task passed.
-        parameters:
-          type: object
-          properties: {}
-          required: []

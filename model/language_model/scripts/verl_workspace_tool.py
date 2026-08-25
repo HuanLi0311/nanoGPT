@@ -21,6 +21,18 @@ from typing import Any, Optional
 from verl.tools.base_tool import BaseTool
 from verl.tools.schemas import OpenAIFunctionToolSchema, ToolResponse
 
+try:
+    from agent.env.workspace import snapshot
+    from agent.verifier.verifier import run_verifier
+    from agent.verl_adapter.loop_adapter import record_tool_event
+except ModuleNotFoundError:  # direct `python path/to/verl_workspace_tool.py`
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from agent.env.workspace import snapshot
+    from agent.verifier.verifier import run_verifier
+    from agent.verl_adapter.loop_adapter import record_tool_event
+
 
 _SAFE_PART = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -51,25 +63,53 @@ class WorkspaceTool(BaseTool):
     async def execute(self, instance_id: str, parameters: dict[str, Any], **kwargs) -> tuple[ToolResponse, float, dict]:
         config = self._configs.get(instance_id, {})
         agent_data = kwargs.get("agent_data")
+        root: Optional[Path] = None
         try:
             root = self._episode_root(instance_id, config, agent_data)
-            if self.operation != "verify_task":
-                # A later edit or command changes the state that was verified;
-                # require a fresh postcondition before awarding the episode.
-                self._invalidate_outcome(agent_data)
-            if self.operation == "exec_command":
-                return self._exec(root, parameters)
-            if self.operation == "apply_patch":
-                return self._patch(root, parameters)
             if self.operation == "verify_task":
                 return self._verify(root, config, agent_data)
-            return self._fault(config, agent_data, "unknown_operation", f"unknown workspace operation: {self.operation}")
+            if self.operation not in {"exec_command", "apply_patch"}:
+                return self._fault(config, agent_data, "unknown_operation", f"unknown workspace operation: {self.operation}")
+
+            # A later action invalidates the previous result. The verifier below
+            # then runs out-of-band after the action, never as a model tool.
+            self._invalidate_outcome(agent_data)
+            before = snapshot(root)
+            response, reward, result = self._exec(root, parameters) if self.operation == "exec_command" else self._patch(root, parameters)
+            after = snapshot(root)
+            result = dict(result or {})
+            result.setdefault("exit_code", 0)
+            result.setdefault("tool_status", "completed" if result["exit_code"] == 0 else "failed")
+            record_tool_event(
+                agent_data,
+                operation=self.operation,
+                arguments=parameters,
+                result=result,
+                state_before=before,
+                state_after=after,
+            )
+            self._auto_verify(root, config, agent_data, result)
+            return response, reward, result
         except subprocess.TimeoutExpired:
-            return self._fault(config, agent_data, "timeout", f"command timed out after {self.max_timeout}s")
+            return self._runtime_fault(root, config, agent_data, parameters, "timeout", f"command timed out after {self.max_timeout}s")
         except OSError as error:
-            return self._fault(config, agent_data, "tool_runtime", str(error))
-        except Exception as error:
+            return self._runtime_fault(root, config, agent_data, parameters, "tool_runtime", str(error))
+        except ValueError as error:
+            # Invalid arguments or a non-matching patch are policy/tool
+            # failures, not a broken harness.
+            if root is not None:
+                before = snapshot(root)
+                record_tool_event(
+                    agent_data,
+                    operation=self.operation,
+                    arguments=parameters,
+                    result={"exit_code": 1, "tool_status": "failed", "failure_class": "tool_failure", "output": str(error)},
+                    state_before=before,
+                    state_after=before,
+                )
             return self._error(str(error))
+        except Exception as error:
+            return self._runtime_fault(root, config, agent_data, parameters, "tool_runtime", str(error))
 
     async def release(self, instance_id: str, **kwargs) -> None:
         self._configs.pop(instance_id, None)
@@ -122,7 +162,10 @@ class WorkspaceTool(BaseTool):
             check=False,
         )
         output = (result.stdout + result.stderr)[-self.max_output :]
-        return ToolResponse(text=f"exit_code={result.returncode}\n{output}"), 0.0, {"exit_code": result.returncode}
+        return ToolResponse(text=f"exit_code={result.returncode}\n{output}"), 0.0, {
+            "exit_code": result.returncode,
+            "output": output,
+        }
 
     def _patch(self, root: Path, parameters: dict[str, Any]) -> tuple[ToolResponse, float, dict]:
         patch = str(parameters.get("patch", ""))
@@ -148,7 +191,7 @@ class WorkspaceTool(BaseTool):
         output = (result.stdout + result.stderr)[-self.max_output :]
         if result.returncode:
             return self._error(f"git apply failed ({result.returncode}): {output}")
-        return ToolResponse(text=output or "patch applied"), 0.0, {}
+        return ToolResponse(text=output or "patch applied"), 0.0, {"exit_code": 0, "output": output}
 
     def _codex_patch(self, root: Path, patch: str) -> tuple[ToolResponse, float, dict]:
         blocks: list[tuple[str, str, list[str]]] = []
@@ -179,7 +222,7 @@ class WorkspaceTool(BaseTool):
                 path.unlink()
             else:
                 self._apply_codex_update(path, body)
-        return ToolResponse(text=f"applied {len(blocks)} file(s)"), 0.0, {}
+        return ToolResponse(text=f"applied {len(blocks)} file(s)"), 0.0, {"exit_code": 0}
 
     @staticmethod
     def _apply_codex_update(path: Path, body: list[str]) -> None:
@@ -214,47 +257,53 @@ class WorkspaceTool(BaseTool):
         return -1
 
     def _verify(self, root: Path, config: dict[str, Any], agent_data: Any) -> tuple[ToolResponse, float, dict]:
-        verifier = config.get("verifier")
-        command = verifier.get("command") if isinstance(verifier, dict) else verifier
-        if not isinstance(command, str) or not command.strip():
-            outcome = {
-                "task_id": config.get("task_id"),
-                "task_success": 0.0,
-                "verifier_score": 0.0,
-                "harness_status": "fault",
-                "protocol_status": "valid",
-                "tool_status": "failed",
-                "failure_class": "missing_verifier",
-                "verifier_version": config.get("verifier_version", "manifest-v1"),
-            }
-            self._publish_outcome(agent_data, outcome)
-            return ToolResponse(text=json.dumps(outcome)), 0.0, {}
-        result = subprocess.run(
-            command,
-            cwd=root,
-            shell=True,
-            capture_output=True,
-            text=True,
+        outcome = run_verifier(
+            str(root),
+            config.get("verifier"),
+            task_id=str(config.get("task_id")) if config.get("task_id") is not None else None,
+            verifier_version=str(config.get("verifier_version", "manifest-v1")),
             timeout=self.max_timeout,
-            check=False,
+            max_output=self.max_output,
         )
-        passed = result.returncode == 0
-        verifier_fault = result.returncode in {2, 126, 127} or result.returncode < 0
-        output = (result.stdout + result.stderr)[-self.max_output :]
-        outcome = {
-            "task_id": config.get("task_id"),
-            "task_success": float(passed),
-            "verifier_score": float(passed),
-            "harness_status": "fault" if verifier_fault else "healthy",
-            "protocol_status": "valid",
-            "tool_status": "completed",
-            "failure_class": None if passed else ("verifier_runtime" if verifier_fault else "task_assertion"),
-            "verifier_version": config.get("verifier_version", "manifest-v1"),
-            "verifier_returncode": result.returncode,
-            "verifier_output": output,
-        }
         self._publish_outcome(agent_data, outcome)
-        return ToolResponse(text=json.dumps({"passed": passed, "output": output})), float(passed), {}
+        return ToolResponse(text=json.dumps(outcome)), float(outcome.get("score", 0.0)), {
+            "exit_code": 0 if outcome.get("harness_status") == "healthy" else 1,
+            "harness_status": outcome.get("harness_status"),
+        }
+
+    def _auto_verify(self, root: Path, config: dict[str, Any], agent_data: Any, tool_result: dict[str, Any]) -> None:
+        outcome = run_verifier(
+            str(root),
+            config.get("verifier"),
+            task_id=str(config.get("task_id")) if config.get("task_id") is not None else None,
+            verifier_version=str(config.get("verifier_version", "manifest-v1")),
+            timeout=self.max_timeout,
+            max_output=self.max_output,
+        )
+        outcome["tool_status"] = tool_result.get("tool_status", "completed")
+        outcome["tool_result"] = tool_result
+        self._publish_outcome(agent_data, outcome)
+
+    def _runtime_fault(
+        self,
+        root: Optional[Path],
+        config: dict[str, Any],
+        agent_data: Any,
+        parameters: dict[str, Any],
+        failure_class: str,
+        message: str,
+    ):
+        if root is not None:
+            state = snapshot(root)
+            record_tool_event(
+                agent_data,
+                operation=self.operation,
+                arguments=parameters,
+                result={"exit_code": 1, "tool_status": "failed", "failure_class": failure_class, "output": message},
+                state_before=state,
+                state_after=state,
+            )
+        return self._fault(config, agent_data, failure_class, message)
 
     @staticmethod
     def _publish_outcome(agent_data: Any, outcome: dict[str, Any]) -> None:
@@ -277,13 +326,22 @@ class WorkspaceTool(BaseTool):
             "failure_class": failure_class,
             "verifier_version": config.get("verifier_version", "manifest-v1"),
             "verifier_output": message,
+            "reward_source": "unscored",
+            "eligible": False,
+            "protocol_status": "valid",
         }
         self._publish_outcome(agent_data, outcome)
         return ToolResponse(text=f"ERROR: {message}"), 0.0, {"harness_status": "fault"}
 
     @staticmethod
     def _error(message: str) -> tuple[ToolResponse, float, dict]:
-        return ToolResponse(text=f"ERROR: {message}"), 0.0, {"harness_status": "healthy"}
+        return ToolResponse(text=f"ERROR: {message}"), 0.0, {
+            "exit_code": 1,
+            "harness_status": "healthy",
+            "tool_status": "failed",
+            "failure_class": "tool_failure",
+            "output": message,
+        }
 
 
 def _schema(name: str, description: str, properties: dict, required: list[str]) -> OpenAIFunctionToolSchema:
