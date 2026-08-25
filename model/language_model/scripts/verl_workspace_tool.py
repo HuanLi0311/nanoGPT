@@ -279,6 +279,11 @@ class WorkspaceTool(BaseTool):
         }
 
     def _auto_verify(self, root: Path, config: dict[str, Any], agent_data: Any, tool_result: dict[str, Any]) -> None:
+        # Standalone tool users may intentionally omit a verifier; the RL data
+        # validator rejects that case before training, while local tool smoke
+        # tests keep the outcome unset until an explicit verifier is supplied.
+        if not config.get("verifier"):
+            return
         outcome = run_verifier(
             str(root),
             config.get("verifier"),
