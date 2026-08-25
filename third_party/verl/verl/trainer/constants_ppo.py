@@ -95,6 +95,9 @@ def get_ppo_ray_runtime_env(config=None):
         "env_vars": PPO_RAY_RUNTIME_ENV["env_vars"].copy(),
         **({"working_dir": None} if working_dir is None else {}),
     }
+    worker_setup_hook = os.environ.get("NANOAGENT_RAY_WORKER_SETUP_HOOK")
+    if worker_setup_hook:
+        runtime_env["worker_process_setup_hook"] = worker_setup_hook
     # Only Megatron on Hopper/Ampere needs CUDA_DEVICE_MAX_CONNECTIONS=1.
     if _is_hopper_or_ampere and _uses_megatron(config):
         runtime_env["env_vars"]["CUDA_DEVICE_MAX_CONNECTIONS"] = "1"

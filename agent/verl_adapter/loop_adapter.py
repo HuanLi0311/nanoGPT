@@ -16,6 +16,19 @@ except ModuleNotFoundError:  # direct script execution
     from agent.env.workspace import snapshot, state_delta
 
 
+def preload_worker() -> None:
+    """Warm stdlib imports before Ray starts concurrent TransferQueue actors."""
+
+    # Ray can start several actors at once; torch imports these modules through
+    # different paths and Python 3.11 occasionally observes a half-initialized
+    # stdlib package.  Keep this hook stdlib-only so it is cheap for every worker.
+    import asyncio.base_events  # noqa: F401
+    import json.decoder  # noqa: F401
+    import multiprocessing.context  # noqa: F401
+    import unittest.mock  # noqa: F401
+    import unittest.result  # noqa: F401
+
+
 def _extra_fields(agent_data: Any) -> dict[str, Any]:
     if agent_data is None:
         return {}

@@ -36,6 +36,7 @@ tensor_parallel_size=${TENSOR_MODEL_PARALLEL_SIZE:-1}
 attn_implementation=${ATTN_IMPLEMENTATION:-sdpa}
 ray_dashboard=${RAY_DASHBOARD:-false}
 transfer_queue_enable=${TRANSFER_QUEUE_ENABLE:-false}
+transfer_queue_units=${TRANSFER_QUEUE_UNITS:-1}
 agent_loop_num_workers=${AGENT_LOOP_NUM_WORKERS:-1}
 reward_num_workers=${REWARD_NUM_WORKERS:-1}
 dataloader_num_workers=${DATALOADER_NUM_WORKERS:-1}
@@ -138,6 +139,9 @@ export VLLM_USE_V1="${VLLM_USE_V1:-1}"
 # Ray server actor.  TP=1 does not need it; disabling it avoids a silent actor
 # exit while preserving the same AsyncLLM interface.
 export VLLM_ENABLE_V1_MULTIPROCESSING="${VLLM_ENABLE_V1_MULTIPROCESSING:-0}"
+# TransferQueue actors import torch concurrently; preload the stdlib modules
+# that torch reaches through different import paths in Python 3.11.
+export NANOAGENT_RAY_WORKER_SETUP_HOOK="${NANOAGENT_RAY_WORKER_SETUP_HOOK:-agent.verl_adapter.loop_adapter.preload_worker}"
 cd "$verl"
 args=(
   "algorithm.adv_estimator=grpo"
@@ -184,6 +188,7 @@ args=(
   "reward.reward_manager.module.path=$root/model/language_model/scripts/verl_reward_manager.py"
   "reward.num_workers=$reward_num_workers"
   "transfer_queue.enable=$transfer_queue_enable"
+  "transfer_queue.backend.SimpleStorage.num_data_storage_units=$transfer_queue_units"
   "trainer.v1.sampler.sync_refill_failed_groups=True"
   "trainer.project_name=nanoagent"
   "trainer.experiment_name=${EXPERIMENT_NAME:-${algorithm}_qwen3_8b}"
