@@ -58,7 +58,7 @@ def iter_filtered(path: Path, *, write_to: Path | None = None) -> tuple[Counter,
                     kept += 1
                     keep.append(True)
             if writer and any(keep):
-                writer.write_table(batch.filter(pa.array(keep)))
+                writer.write_batch(batch.filter(pa.array(keep)))
     finally:
         if writer:
             writer.close()
