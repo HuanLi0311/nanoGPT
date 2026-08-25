@@ -164,6 +164,7 @@ class TrainingWorker(Worker, DistProfilerExtension):
             device = get_device_name()
 
         self.engine.to(device=device, model=model, optimizer=optimizer, grad=grad)
+        log_gpu_memory_usage(f"After manual model transfer to {device}", logger=logger, level=logging.WARNING)
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def set_loss_fn(self, loss_fn):
