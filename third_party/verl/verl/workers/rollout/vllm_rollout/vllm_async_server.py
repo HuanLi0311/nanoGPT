@@ -1171,8 +1171,11 @@ class vLLMReplica(RolloutReplica):
                 "VLLM_WORKER_MULTIPROC_METHOD",
                 "VLLM_ENABLE_V1_MULTIPROCESSING",
             ):
-                if os.environ.get(key):
-                    env_vars[key] = os.environ[key]
+                value = os.environ.get(key)
+                if value or key == "VLLM_USE_V1":
+                    # vLLM auto-selects V0 in this Ray actor when V1 is not
+                    # explicitly present; Verl's server calls the V1 API.
+                    env_vars[key] = value or "1"
 
             server = self.server_class.options(
                 scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
