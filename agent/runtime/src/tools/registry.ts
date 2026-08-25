@@ -40,7 +40,15 @@ export type ToolContext = {
   spawnAgent?: (request: SpawnAgentRequest) => Promise<SpawnAgentResponse>;
   sendAgentMessage?: (taskName: string, message: string, trigger: boolean) => Promise<void>;
   interruptAgent?: (taskName: string) => Promise<void>;
-  verifyTask?: () => Promise<{ score: number; passed: boolean; reason: string; harnessStatus?: string }>;
+  verifyTask?: () => Promise<{
+    score: number;
+    passed: boolean;
+    reason: string;
+    harnessStatus?: string;
+    failureClass?: string;
+    rewardSource?: string;
+    eligible?: boolean;
+  }>;
 };
 
 export type ToolResult = { content: string; exitCode: number; data: unknown };

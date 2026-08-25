@@ -1,8 +1,8 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { extract } from "../../data/src/codex-jsonl.ts";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+import type { Event, Trajectory } from "../../shared/src/types.ts";
 import { deepseek } from "../../runtime/src/deepseek.ts";
-import { run } from "../../runtime/src/loop.ts";
+import { run } from "../../runtime/src/runtime.ts";
 import { toolSchemas } from "../../runtime/src/tools/registry.ts";
 
 async function files(root: string): Promise<string[]> {
@@ -13,6 +13,30 @@ async function files(root: string): Promise<string[]> {
     else if (name.name.endsWith(".jsonl")) out.push(path);
   }
   return out;
+}
+
+async function extract(file: string): Promise<Trajectory> {
+  const events: Event[] = [];
+  for (const line of (await readFile(file, "utf8")).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let raw: any;
+    try { raw = JSON.parse(line); } catch { continue; }
+    const item = raw?.payload && typeof raw.payload === "object" ? raw.payload : raw;
+    const role = item?.role;
+    if (!["system", "user", "assistant", "tool"].includes(role)) continue;
+    const kind = item.kind === "tool_call" || item.kind === "tool_result" ? item.kind : "message";
+    events.push({
+      role,
+      kind,
+      content: typeof item.content === "string" ? item.content : typeof item.text === "string" ? item.text : undefined,
+      tool: typeof item.tool === "string" ? item.tool : typeof item.name === "string" ? item.name : undefined,
+      arguments: item.arguments,
+      toolCallId: item.tool_call_id ?? item.toolCallId ?? item.id,
+      toolResult: item.tool_result ?? item.toolResult,
+      exitCode: item.exit_code ?? item.exitCode,
+    });
+  }
+  return { trajectoryId: basename(file), source: "codex", events };
 }
 
 const command = process.argv[2] ?? "extract";

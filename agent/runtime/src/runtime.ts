@@ -1,13 +1,41 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Event, ToolSpec } from "../../shared/src/types.ts";
-import { runCoreLoop, type Model, type TerminationReason } from "./core-loop.ts";
+import { runCoreLoop, type Model, type TerminationReason } from "./core_loop.ts";
 import { callTool, type ToolContext } from "./tools/registry.ts";
-import { verify, type Verification } from "./reward.ts";
 
-export type { Model } from "./core-loop.ts";
+export type { Model } from "./core_loop.ts";
+export type Verification = {
+  score: number;
+  passed: boolean;
+  reason: string;
+  harnessStatus: string;
+  failureClass?: string;
+  rewardSource?: string;
+  eligible?: boolean;
+};
 export type RunState = { id: string; status: "running" | "done" | "failed"; attempt: number; events: Event[]; final?: string; verification?: Verification; terminationReason?: TerminationReason };
 type Options = { id: string; prompt: string; model: Model; tools: ToolSpec[]; context: ToolContext; statePath: string; maxTurns?: number; retries?: number };
+
+function verify(events: Event[], final: string): Verification {
+  const calls = events.filter((event) => event.kind === "tool_call");
+  const results = events.filter((event) => event.kind === "tool_result");
+  if (!final.trim()) return { score: 0, passed: false, reason: "empty final answer", harnessStatus: "protocol", failureClass: "empty_final" };
+  const callIds = calls.map((event) => event.toolCallId).filter((id): id is string => Boolean(id));
+  const resultIds = results.map((event) => event.toolCallId).filter((id): id is string => Boolean(id));
+  if (callIds.length !== calls.length || resultIds.length !== results.length) {
+    return { score: 0, passed: false, reason: "tool call/result missing tool_call_id", harnessStatus: "protocol", failureClass: "protocol" };
+  }
+  if (new Set(callIds).size !== callIds.length) {
+    return { score: 0, passed: false, reason: "duplicate tool_call_id", harnessStatus: "protocol", failureClass: "protocol" };
+  }
+  if (new Set(resultIds).size !== resultIds.length || resultIds.length !== callIds.length || resultIds.some((id) => !callIds.includes(id))) {
+    return { score: 0, passed: false, reason: "tool result IDs do not match tool calls", harnessStatus: "protocol", failureClass: "protocol" };
+  }
+  const failures = results.filter((event) => (event.exitCode ?? 0) !== 0).length;
+  if (failures) return { score: 0, passed: false, reason: `${failures} tool failure(s)`, harnessStatus: "tool_failure", failureClass: "tool_failure" };
+  return { score: 0, passed: false, reason: "missing independent verifier", harnessStatus: "unscored", failureClass: "missing_verifier", eligible: false };
+}
 
 async function taskVerification(events: Event[], final: string, context: ToolContext): Promise<Verification> {
   const protocol = verify(events, final);
@@ -19,6 +47,9 @@ async function taskVerification(events: Event[], final: string, context: ToolCon
       score: Math.max(0, Math.min(1, Number(outcome.score) || 0)),
       passed: Boolean(outcome.passed), reason: String(outcome.reason),
       harnessStatus: String(outcome.harnessStatus ?? "healthy"),
+      failureClass: outcome.failureClass,
+      rewardSource: outcome.rewardSource,
+      eligible: outcome.eligible,
     };
   } catch (error) {
     return { score: 0, passed: false, reason: String(error), harnessStatus: "harness_fault" };

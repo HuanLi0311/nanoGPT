@@ -1,5 +1,5 @@
 import type { ChatMessage, ToolSpec } from "../../shared/src/types.ts";
-import type { Model } from "./loop.ts";
+import type { Model } from "./core_loop.ts";
 
 export function deepseek(apiKey = process.env.DEEPSEEK_API_KEY, model = process.env.DEEPSEEK_MODEL ?? "deepseek-chat"): Model {
   if (!apiKey) throw new Error("DEEPSEEK_API_KEY is required");

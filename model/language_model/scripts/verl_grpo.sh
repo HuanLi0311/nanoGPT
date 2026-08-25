@@ -114,51 +114,84 @@ fi
 
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 cd "$verl"
-exec "$python" -m verl.trainer.main_ppo \
-  algorithm.adv_estimator=grpo \
-  data.train_files="['$data_train']" \
-  data.val_files="['$data_val']" \
-  data.return_raw_chat=True \
-  data.need_tools_kwargs=True \
-  data.tool_config_path="$tool_config" \
-  data.train_batch_size="$train_batch_size" \
-  data.max_prompt_length="$max_prompt_length" \
-  data.max_response_length="$max_response_length" \
-  data.filter_overlong_prompts=True \
-  data.truncation=error \
-  actor_rollout_ref.model.path="$model" \
-  actor_rollout_ref.rollout.name="${ROLLOUT_BACKEND:-vllm}" \
-  actor_rollout_ref.rollout.mode=async \
-  actor_rollout_ref.rollout.n="$rollout_n" \
-  actor_rollout_ref.rollout.temperature="${TEMPERATURE:-0.7}" \
-  actor_rollout_ref.rollout.tensor_model_parallel_size="$tensor_parallel_size" \
-  actor_rollout_ref.rollout.max_model_len="$max_model_len" \
-  actor_rollout_ref.rollout.max_num_batched_tokens="$max_num_batched_tokens" \
-  actor_rollout_ref.rollout.max_num_seqs="$max_num_seqs" \
-  actor_rollout_ref.rollout.gpu_memory_utilization="$gpu_memory_utilization" \
-  actor_rollout_ref.rollout.enforce_eager="$enforce_eager" \
-  actor_rollout_ref.rollout.agent.default_agent_loop=tool_agent \
-  actor_rollout_ref.rollout.multi_turn.enable=True \
-  actor_rollout_ref.rollout.multi_turn.tool_config_path="$root/model/language_model/config/verl_tools.yaml" \
-  actor_rollout_ref.rollout.multi_turn.format="${TOOL_FORMAT:-hermes}" \
-  +actor_rollout_ref.model.override_config.attn_implementation="$attn_implementation" \
-  actor_rollout_ref.actor.ppo_mini_batch_size="$ppo_mini_batch_size" \
-  actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu="${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}" \
-  actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu="${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}" \
-  actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu="${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}" \
-  actor_rollout_ref.actor.ppo_epochs=1 \
-  reward.custom_reward_function.path="$root/model/language_model/scripts/verl_reward.py" \
-  reward.custom_reward_function.name=compute_score \
-  reward.reward_manager.source=importlib \
-  reward.reward_manager.name=RetryOnIneligibleRewardManager \
-  reward.reward_manager.module.path="$root/model/language_model/scripts/verl_reward_manager.py" \
-  trainer.v1.sampler.sync_refill_failed_groups=True \
-  trainer.project_name=nanoagent \
-  trainer.experiment_name="${EXPERIMENT_NAME:-grpo_codex}" \
-  trainer.n_gpus_per_node="$gpus" \
-  trainer.nnodes=1 \
-  trainer.total_epochs="${TOTAL_EPOCHS:-1}" \
-  trainer.total_training_steps="${TOTAL_TRAINING_STEPS:-null}" \
-  trainer.logger="['$logger']" \
-  +ray_kwargs.ray_init.include_dashboard="$ray_dashboard" \
-  "$@"
+args=(
+  "algorithm.adv_estimator=grpo"
+  "algorithm.use_kl_in_reward=False"
+  "data.train_files=['$data_train']"
+  "data.val_files=['$data_val']"
+  "data.return_raw_chat=True"
+  "data.need_tools_kwargs=True"
+  "data.tool_config_path=$tool_config"
+  "data.train_batch_size=$train_batch_size"
+  "data.max_prompt_length=$max_prompt_length"
+  "data.max_response_length=$max_response_length"
+  "data.filter_overlong_prompts=True"
+  "data.truncation=error"
+  "actor_rollout_ref.model.path=$model"
+  "actor_rollout_ref.rollout.name=${ROLLOUT_BACKEND:-vllm}"
+  "actor_rollout_ref.rollout.mode=async"
+  "actor_rollout_ref.rollout.n=$rollout_n"
+  "actor_rollout_ref.rollout.temperature=${TEMPERATURE:-0.7}"
+  "actor_rollout_ref.rollout.tensor_model_parallel_size=$tensor_parallel_size"
+  "actor_rollout_ref.rollout.max_model_len=$max_model_len"
+  "actor_rollout_ref.rollout.max_num_batched_tokens=$max_num_batched_tokens"
+  "actor_rollout_ref.rollout.max_num_seqs=$max_num_seqs"
+  "actor_rollout_ref.rollout.gpu_memory_utilization=$gpu_memory_utilization"
+  "actor_rollout_ref.rollout.enforce_eager=$enforce_eager"
+  "actor_rollout_ref.rollout.agent.default_agent_loop=tool_agent"
+  "actor_rollout_ref.rollout.multi_turn.enable=True"
+  "actor_rollout_ref.rollout.multi_turn.tool_config_path=$root/model/language_model/config/verl_tools.yaml"
+  "actor_rollout_ref.rollout.multi_turn.format=${TOOL_FORMAT:-hermes}"
+  "+actor_rollout_ref.model.override_config.attn_implementation=$attn_implementation"
+  "actor_rollout_ref.actor.ppo_mini_batch_size=$ppo_mini_batch_size"
+  "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}"
+  "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}"
+  "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}"
+  "actor_rollout_ref.actor.ppo_epochs=1"
+  "reward.custom_reward_function.path=$root/model/language_model/scripts/verl_reward.py"
+  "reward.custom_reward_function.name=compute_score"
+  "reward.reward_manager.source=importlib"
+  "reward.reward_manager.name=RetryOnIneligibleRewardManager"
+  "reward.reward_manager.module.path=$root/model/language_model/scripts/verl_reward_manager.py"
+  "trainer.v1.sampler.sync_refill_failed_groups=True"
+  "trainer.project_name=nanoagent"
+  "trainer.experiment_name=${EXPERIMENT_NAME:-${algorithm}_qwen3_8b}"
+  "trainer.n_gpus_per_node=$gpus"
+  "trainer.nnodes=1"
+  "trainer.total_epochs=${TOTAL_EPOCHS:-1}"
+  "trainer.total_training_steps=${TOTAL_TRAINING_STEPS:-null}"
+  "trainer.logger=['$logger']"
+  "+ray_kwargs.ray_init.include_dashboard=$ray_dashboard"
+)
+
+case "$algorithm" in
+  grpo) ;;
+  sapo)
+    args+=(
+      "actor_rollout_ref.actor.policy_loss.loss_mode=sapo"
+      "+actor_rollout_ref.actor.policy_loss.tau_pos=${TAU_POS:-1.0}"
+      "+actor_rollout_ref.actor.policy_loss.tau_neg=${TAU_NEG:-1.05}"
+    )
+    ;;
+  dapo)
+    args+=(
+      "algorithm.filter_groups.enable=True"
+      "algorithm.filter_groups.metric=seq_final_reward"
+      "algorithm.norm_adv_by_std_in_grpo=False"
+      "actor_rollout_ref.actor.clip_ratio_low=${CLIP_RATIO_LOW:-0.2}"
+      "actor_rollout_ref.actor.clip_ratio_high=${CLIP_RATIO_HIGH:-0.28}"
+      "actor_rollout_ref.actor.clip_ratio_c=${CLIP_RATIO_C:-10.0}"
+      "+reward.reward_kwargs.overlong_buffer_cfg.enable=${OVERLONG_BUFFER_ENABLE:-True}"
+      "+reward.reward_kwargs.overlong_buffer_cfg.len=${OVERLONG_BUFFER_LEN:-4096}"
+      "+reward.reward_kwargs.overlong_buffer_cfg.penalty_factor=${OVERLONG_PENALTY_FACTOR:-1.0}"
+      "+reward.reward_kwargs.overlong_buffer_cfg.log=False"
+      "+reward.reward_kwargs.max_resp_len=$max_response_length"
+    )
+    ;;
+  *)
+    echo "unknown ALGORITHM=$algorithm (expected grpo, sapo, or dapo)" >&2
+    exit 2
+    ;;
+esac
+
+exec "$python" -m verl.trainer.main_ppo "${args[@]}" "$@"

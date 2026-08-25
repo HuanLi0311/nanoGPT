@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { run } from "../../runtime/src/loop.ts";
+import { run } from "../../runtime/src/runtime.ts";
 import { parseAction } from "../../runtime/src/parser.ts";
 import { execCommand } from "../../runtime/src/tools/exec-command.ts";
 import { callTool, toolSchemas, type ToolContext } from "../../runtime/src/tools/registry.ts";
