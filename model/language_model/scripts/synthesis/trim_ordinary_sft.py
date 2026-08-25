@@ -142,7 +142,7 @@ def rewrite(root: Path, split: str, selected: list[dict], archive: Path) -> dict
                 raise RuntimeError(f"row-count mismatch for {source.name}")
             stats[source.name] = {"input": input_rows, "removed": input_rows - kept_rows, "kept": kept_rows}
 
-        archive.mkdir(parents=True)
+        archive.mkdir(parents=True, exist_ok=True)
         for source in ordinary_paths(root, split):
             shutil.move(str(source), archive / source.name)
             (temp / source.name).replace(source)
