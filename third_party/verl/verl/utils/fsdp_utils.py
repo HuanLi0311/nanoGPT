@@ -194,6 +194,9 @@ def offload_fsdp_model_to_cpu(model: FSDP, empty_cache: bool = True):
         flat_param._local_shard = flat_param.data
         assert id(flat_param._local_shard) != id(flat_param.data)
     if empty_cache:
+        # ponytail: non_blocking D2H copies must finish before vLLM allocates
+        # its cache, otherwise the allocator still sees the FSDP shards.
+        get_torch_device().synchronize()
         get_torch_device().empty_cache()
 
 
