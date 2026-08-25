@@ -14,7 +14,18 @@
 import os
 from importlib.metadata import PackageNotFoundError, version
 
-from .vllm_rollout import ServerAdapter  # noqa: F401
+# Keep the package importable without importing the complete vLLM client graph.
+# Ray imports ``vllm_async_server`` while registering an asyncio actor; eager
+# loading ``vllm_rollout`` here makes that worker disconnect on vLLM 0.8.x.
+__all__ = ["ServerAdapter"]
+
+
+def __getattr__(name):
+    if name == "ServerAdapter":
+        from .vllm_rollout import ServerAdapter
+
+        return ServerAdapter
+    raise AttributeError(name)
 
 
 def get_version(pkg):
