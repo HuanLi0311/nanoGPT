@@ -112,7 +112,10 @@ fi
 if [[ -z "$gpus" ]]; then
   gpus=$("$python" -c 'import torch; print(max(1, torch.cuda.device_count()))' 2>/dev/null || echo 1)
 fi
-ray_cpus=${RAY_NUM_CPUS:-$((gpus * 4))}
+# ponytail: Verl's default TransferQueue reserves nine CPU slots; leave room
+# for its storage actors and the per-GPU placement group without using all
+# 180 host CPUs. Override for larger experiments with RAY_NUM_CPUS.
+ray_cpus=${RAY_NUM_CPUS:-$((gpus * 4 + 8))}
 
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 cd "$verl"
