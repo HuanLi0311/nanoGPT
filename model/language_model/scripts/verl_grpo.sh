@@ -142,6 +142,9 @@ export VLLM_ENABLE_V1_MULTIPROCESSING="${VLLM_ENABLE_V1_MULTIPROCESSING:-0}"
 # TransferQueue actors import torch concurrently; preload the stdlib modules
 # that torch reaches through different import paths in Python 3.11.
 export NANOAGENT_RAY_WORKER_SETUP_HOOK="${NANOAGENT_RAY_WORKER_SETUP_HOOK:-agent.verl_adapter.loop_adapter.preload_worker}"
+# vLLM 0.8.x inspects model classes in a subprocess; concurrent replica
+# startup races in Python's codec imports, so serialize only initialization.
+export VERL_SERIALIZE_ROLLOUT_INIT="${VERL_SERIALIZE_ROLLOUT_INIT:-1}"
 cd "$verl"
 args=(
   "algorithm.adv_estimator=grpo"

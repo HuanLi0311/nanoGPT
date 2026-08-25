@@ -563,18 +563,31 @@ class LLMServerManager:
             for replica_rank in range(num_replicas)
         ]
 
+        serialize_init = os.environ.get("VERL_SERIALIZE_ROLLOUT_INIT", "0") == "1"
         if self.worker_group and self.rollout_config.name != "trtllm":
-            await asyncio.gather(*[server.init_hybrid(self.worker_group) for server in self.rollout_replicas])
+            if serialize_init:
+                for server in self.rollout_replicas:
+                    await server.init_hybrid(self.worker_group)
+            else:
+                await asyncio.gather(*[server.init_hybrid(self.worker_group) for server in self.rollout_replicas])
         # TODO: unify trtllm to init_hybrid
         elif self.worker_group and self.rollout_config.name == "trtllm":
-            await asyncio.gather(
-                *[
-                    server.init_hybrid_colocated(self.worker_group, self.rollout_resource_pool)
-                    for server in self.rollout_replicas
-                ]
-            )
+            if serialize_init:
+                for server in self.rollout_replicas:
+                    await server.init_hybrid_colocated(self.worker_group, self.rollout_resource_pool)
+            else:
+                await asyncio.gather(
+                    *[
+                        server.init_hybrid_colocated(self.worker_group, self.rollout_resource_pool)
+                        for server in self.rollout_replicas
+                    ]
+                )
         else:
-            await asyncio.gather(*[server.init_standalone() for server in self.rollout_replicas])
+            if serialize_init:
+                for server in self.rollout_replicas:
+                    await server.init_standalone()
+            else:
+                await asyncio.gather(*[server.init_standalone() for server in self.rollout_replicas])
 
         self.server_handles = [server._server_handle for server in self.rollout_replicas]
         self.server_addresses = [server._server_address for server in self.rollout_replicas]
