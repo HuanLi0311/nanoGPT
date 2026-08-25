@@ -164,16 +164,6 @@ class TrainingWorker(Worker, DistProfilerExtension):
             device = get_device_name()
 
         self.engine.to(device=device, model=model, optimizer=optimizer, grad=grad)
-        if os.getenv("VERL_DEBUG_OFFLOAD") == "1" and device == "cpu" and model:
-            get_torch_device().synchronize()
-            param_device = next(self.engine.module.parameters()).device
-            logger.warning(
-                "FSDP offload %s: param_device=%s allocated=%.2fGB reserved=%.2fGB",
-                type(self.engine).__name__,
-                param_device,
-                get_torch_device().memory_allocated() / 2**30,
-                get_torch_device().memory_reserved() / 2**30,
-            )
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def set_loss_fn(self, loss_fn):

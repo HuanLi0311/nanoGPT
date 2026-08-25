@@ -438,14 +438,6 @@ class vLLMHttpServer:
             await self.run_headless(server_args)
 
     async def run_server(self, args: argparse.Namespace):
-        print(
-            "nanoagent vLLM server start pid=%s cuda=%s v1_mp=%s worker_mp=%s",
-            os.getpid(),
-            os.environ.get(get_visible_devices_keyword()),
-            os.environ.get("VLLM_ENABLE_V1_MULTIPROCESSING"),
-            os.environ.get("VLLM_WORKER_MULTIPROC_METHOD"),
-            flush=True,
-        )
         engine_args = AsyncEngineArgs.from_cli_args(args)
         usage_context = UsageContext.OPENAI_API_SERVER
         vllm_config = engine_args.create_engine_config(usage_context=usage_context)
@@ -459,11 +451,9 @@ class vLLMHttpServer:
             kwargs["disable_log_stats"] = engine_args.disable_log_stats
 
         engine_client = AsyncLLM.from_vllm_config(vllm_config=vllm_config, usage_context=usage_context, **kwargs)
-        print("nanoagent vLLM engine ready pid=%s" % os.getpid(), flush=True)
 
         # Don't keep the dummy data in memory
         await engine_client.reset_mm_cache()
-        print("nanoagent vLLM mm cache reset pid=%s" % os.getpid(), flush=True)
         # A sampled <|image_pad|>/<|video_pad|> has no image behind it, and every consumer of the
         # sequence assumes it does. Mask them out with the OOV tail, so the policy cannot pick one.
         await engine_client.collective_rpc(
@@ -473,7 +463,6 @@ class vLLMHttpServer:
                 "banned_token_ids": get_vision_placeholder_token_ids(self.model_config.processor),
             },
         )
-        print("nanoagent vLLM model patch ready pid=%s" % os.getpid(), flush=True)
 
         build_app_sig = inspect.signature(build_app)
         supported_tasks: tuple[Any, ...] = ()
@@ -488,7 +477,6 @@ class vLLMHttpServer:
         if "model_config" in build_app_sig.parameters:
             build_app_kwargs["model_config"] = engine_client.model_config
         app = build_app(args, **build_app_kwargs)
-        print("nanoagent vLLM app built pid=%s" % os.getpid(), flush=True)
 
         init_app_sig = inspect.signature(init_app_state)
         if "vllm_config" in init_app_sig.parameters:
@@ -497,13 +485,11 @@ class vLLMHttpServer:
             await init_app_state(engine_client, app.state, args, supported_tasks)
         else:
             await init_app_state(engine_client, app.state, args)
-        print("nanoagent vLLM app state ready pid=%s" % os.getpid(), flush=True)
         if self.replica_rank == 0 and self.node_rank == 0:
             logger.info(f"Initializing a V1 LLM engine with config: {vllm_config}")
 
         self.engine = engine_client
         self._server_port, self._server_task = await run_uvicorn(app, args, self._server_address)
-        print("nanoagent vLLM uvicorn ready pid=%s port=%s" % (os.getpid(), self._server_port), flush=True)
 
     async def run_headless(self, args: argparse.Namespace):
         """Run headless server in a separate thread."""
