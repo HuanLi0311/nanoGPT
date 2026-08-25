@@ -527,7 +527,10 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def to(self, device, model=True, optimizer=True, grad=True):
         """Manual control of load/offload"""
-        self.actor.to(device=device, model=model, optimizer=optimizer, grad=grad)
+        if self.actor is not None:
+            self.actor.to(device=device, model=model, optimizer=optimizer, grad=grad)
+        if self.ref is not None:
+            self.ref.to(device=device, model=model, optimizer=optimizer, grad=grad)
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def init_model(self):

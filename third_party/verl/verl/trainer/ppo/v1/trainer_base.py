@@ -313,6 +313,16 @@ class PPOTrainer(ABC):
         self.actor_rollout_wg.init_model()
         logger.info("actor and ref model engine initialized")
 
+        # ponytail: Older FSDP/vLLM combinations can leave param-offloaded
+        # shards resident after initialization.  Colocated vLLM must start
+        # with that memory released; the normal rollout path loads shards back
+        # when actor weights are needed.
+        rollout_name = self.config.actor_rollout_ref.rollout.name
+        actor_offload = self.config.actor_rollout_ref.actor.fsdp_config.param_offload
+        ref_offload = self.config.actor_rollout_ref.ref.fsdp_config.param_offload
+        if rollout_name in {"vllm", "sglang"} and (actor_offload or ref_offload):
+            self.actor_rollout_wg.to(device="cpu", model=True, optimizer=False, grad=False)
+
         # if ref_in_actor is True, the reference policy will be actor without lora applied
         lora_rank = self.config.actor_rollout_ref.model.get("lora", {}).get("rank", 0)
         if lora_rank <= 0:
