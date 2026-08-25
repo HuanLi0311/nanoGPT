@@ -22,30 +22,8 @@ from pprint import pprint
 from typing import Any, Callable, Optional
 
 import ray
-import vllm.entrypoints.cli.serve
 from packaging import version
 from ray.actor import ActorHandle
-from vllm import SamplingParams
-from vllm.engine.arg_utils import AsyncEngineArgs
-try:
-    from vllm.entrypoints.cli.serve import run_headless
-except ImportError:  # vLLM 0.8.x has no separate headless CLI; single-node runs never call this branch.
-    from vllm.entrypoints.cli.serve import run_server as run_headless
-from vllm.entrypoints.openai.api_server import build_app, init_app_state
-try:
-    from vllm.entrypoints.openai.parser.harmony_utils import get_encoding
-except ModuleNotFoundError:  # vLLM 0.8.x moved/does not need the GPT-OSS helper.
-    def get_encoding():
-        raise RuntimeError("GPT-OSS harmony encoding requires a newer vLLM")
-from vllm.inputs import TokensPrompt
-from vllm.lora.request import LoRARequest
-from vllm.outputs import RequestOutput
-from vllm.usage.usage_lib import UsageContext
-try:
-    from vllm.utils.argparse_utils import FlexibleArgumentParser
-except ModuleNotFoundError:  # vLLM 0.8.x exports it directly from vllm.utils.
-    from vllm.utils import FlexibleArgumentParser
-from vllm.v1.engine.async_llm import AsyncLLM
 
 from verl.plugin.platform import get_platform
 from verl.utils.config import omega_conf_to_dataclass
@@ -54,7 +32,6 @@ from verl.utils.net_utils import get_free_port, is_valid_ipv6_address
 from verl.utils.profiler import DistProfiler, build_vllm_profiler_args
 from verl.utils.tokenizer import normalize_token_ids
 from verl.utils.tracking import RLInsightLogger
-from verl.utils.vllm.vllm_quant_utils import apply_vllm_quant_patches
 from verl.workers.config import HFModelConfig, RolloutConfig
 from verl.workers.rollout.replica import RolloutMode, RolloutReplica, TokenOutput
 from verl.workers.rollout.utils import (
@@ -63,21 +40,19 @@ from verl.workers.rollout.utils import (
     qwen2_5_vl_dedup_image_tokens,
     run_uvicorn,
 )
-from verl.workers.rollout.vllm_rollout.utils import (
-    VLLM_LORA_INT_ID,
-    VLLM_LORA_NAME,
-    VLLM_LORA_PATH,
-    SuppressSignalInThread,
-    build_cli_args_from_config,
-    build_mtp_speculative_config,
-    extract_prompt_logprobs,
-    get_vllm_max_lora_rank,
-)
 
-_VLLM_VERSION = version.parse(vllm.__version__)
 
-if os.getenv("VERL_USE_GPT_OSS", "0") == "1":
-    get_encoding()
+def _vllm_version():
+    """Import vLLM only after the Ray actor has been created.
+
+    vLLM 0.8.x imports multiprocessing/asyncio state at module import time.
+    Importing that graph while Ray is registering an asyncio actor can make the
+    worker disconnect without a Python traceback, so the rollout-only imports
+    stay inside the methods that actually use them.
+    """
+    import vllm
+
+    return version.parse(vllm.__version__)
 
 
 logger = logging.getLogger(__file__)
@@ -244,6 +219,17 @@ class vLLMHttpServer:
         self._pd_prefill_engine_id = prefill_engine_id
 
     async def launch_server(self, master_address: str = None, master_port: int = None, dp_rpc_port: int = None):
+        try:
+            from vllm.utils.argparse_utils import FlexibleArgumentParser
+        except ModuleNotFoundError:  # vLLM 0.8.x exports it directly from vllm.utils.
+            from vllm.utils import FlexibleArgumentParser
+
+        from verl.workers.rollout.vllm_rollout.utils import (
+            build_cli_args_from_config,
+            build_mtp_speculative_config,
+            get_vllm_max_lora_rank,
+        )
+
         if self.node_rank != 0:
             assert master_address and master_port and dp_rpc_port, (
                 "non-master node should provide master_address, master_port and dp_rpc_port"
@@ -401,7 +387,9 @@ class vLLMHttpServer:
             # releases either lack the feature or under-size the routed-experts host
             # buffer and crash with an IndexError. Fail fast with an actionable message
             # instead of surfacing an opaque runtime error deep inside vLLM.
-            if _VLLM_VERSION < version.parse("0.22.0"):
+            import vllm
+
+            if _vllm_version() < version.parse("0.22.0"):
                 raise RuntimeError(
                     "rollout.enable_rollout_routing_replay=True requires vLLM >= 0.22.0 "
                     f"(installed: {vllm.__version__}). Upgrade vLLM (e.g. `pip install -U "
@@ -438,6 +426,11 @@ class vLLMHttpServer:
             await self.run_headless(server_args)
 
     async def run_server(self, args: argparse.Namespace):
+        from vllm.engine.arg_utils import AsyncEngineArgs
+        from vllm.entrypoints.openai.api_server import build_app, init_app_state
+        from vllm.usage.usage_lib import UsageContext
+        from vllm.v1.engine.async_llm import AsyncLLM
+
         engine_args = AsyncEngineArgs.from_cli_args(args)
         usage_context = UsageContext.OPENAI_API_SERVER
         vllm_config = engine_args.create_engine_config(usage_context=usage_context)
@@ -493,6 +486,12 @@ class vLLMHttpServer:
 
     async def run_headless(self, args: argparse.Namespace):
         """Run headless server in a separate thread."""
+        try:
+            from vllm.entrypoints.cli.serve import run_headless
+        except ImportError:  # vLLM 0.8.x uses run_server for this path.
+            from vllm.entrypoints.cli.serve import run_server as run_headless
+        from verl.workers.rollout.vllm_rollout.utils import SuppressSignalInThread
+
         args.api_server_count = 0
 
         def run_headless_wrapper():
@@ -589,6 +588,16 @@ class vLLMHttpServer:
             extra_args = dict(sampling_params.pop("extra_args", None) or {})
             extra_args["kv_transfer_params"] = kv_transfer_params
             sampling_params["extra_args"] = extra_args
+
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+        from vllm.lora.request import LoRARequest
+        from verl.workers.rollout.vllm_rollout.utils import (
+            VLLM_LORA_INT_ID,
+            VLLM_LORA_NAME,
+            VLLM_LORA_PATH,
+            extract_prompt_logprobs,
+        )
 
         sampling_params = SamplingParams(max_tokens=max_tokens, **sampling_params)
         prompt_ids = qwen2_5_vl_dedup_image_tokens(prompt_ids, self.model_config.processor)
@@ -981,7 +990,7 @@ class vLLMHttpServer:
 
     def _preprocess_engine_kwargs(self, engine_kwargs: dict) -> None:
         """Mutate engine_kwargs in-place before the CLI args dict is built."""
-        if _VLLM_VERSION < version.parse("0.22.0"):
+        if _vllm_version() < version.parse("0.22.0"):
             # Work around multimodal processor cache desync across pause/resume.
             # See: https://github.com/vllm-project/vllm/pull/43001/
             engine_kwargs.setdefault("mm_processor_cache_gb", 0)
@@ -1048,12 +1057,16 @@ class vLLMHttpServer:
                 }
                 hf_overrides["quantization_config"] = dict(FP8_BLOCK_QUANT_KWARGS)
                 # Will remove the patch after vllm support on-the-fly quant for rollout natively.
+                from verl.utils.vllm.vllm_quant_utils import apply_vllm_quant_patches
+
                 apply_vllm_quant_patches()
                 # for subprocesses patching
                 os.environ["VERL_VLLM_FP8_QUANT_ENABLED"] = "1"
 
         model_quantization_config = getattr(self.model_config.hf_config, "quantization_config", {}) or {}
         if quantization is None and model_quantization_config.get("quant_method") == "fp8":
+            from verl.utils.vllm.vllm_quant_utils import apply_vllm_quant_patches
+
             apply_vllm_quant_patches()
             os.environ["VERL_VLLM_FP8_QUANT_ENABLED"] = "1"
 
@@ -1068,6 +1081,8 @@ class vLLMHttpServer:
 
     def _get_cli_modules(self) -> list:
         """Return the list of CLI command modules used for argument parsing."""
+        import vllm.entrypoints.cli.serve
+
         return [vllm.entrypoints.cli.serve]
 
     def _get_cli_description(self) -> str:
