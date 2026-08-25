@@ -147,7 +147,7 @@ def rollout_loop(ax, accent: str, label: str):
         textwrap.fill(label, 75),
         ha="center",
         va="center",
-        fontsize=6.65,
+        fontsize=5.4,
         color=accent,
         weight="bold",
         linespacing=1.1,
@@ -159,7 +159,7 @@ def rollout_loop(ax, accent: str, label: str):
         "rollout boundary: output at t → input at t + 1",
         ha="center",
         va="center",
-        fontsize=6.1,
+        fontsize=5.0,
         color=MUTED,
         zorder=6,
     )
@@ -172,20 +172,20 @@ def stage(ax, x, title, detail, kind, width=0.18):
     box(
         ax,
         x,
-        0.475,
+        0.45,
         width,
-        0.17,
+        0.24,
         facecolor=FILL[kind],
         edgecolor=EDGE[kind],
         linewidth=1.1,
     )
     ax.text(
         x + width / 2,
-        0.595,
+        0.615,
         title_text,
         ha="center",
         va="center",
-        fontsize=7.0 if title != "PROCESSING_TOOLS" else 6.4,
+        fontsize=6.0 if title != "PROCESSING_TOOLS" else 5.7,
         color=INK,
         weight="bold",
         linespacing=1.02,
@@ -193,11 +193,11 @@ def stage(ax, x, title, detail, kind, width=0.18):
     )
     ax.text(
         x + width / 2,
-        0.515,
+        0.505,
         textwrap.fill(detail, 24),
         ha="center",
         va="center",
-        fontsize=6.15,
+        fontsize=5.2,
         color=INK,
         linespacing=1.08,
         zorder=4,
@@ -223,7 +223,7 @@ def draw_lane(ax, spec):
         facecolor=accent,
         edgecolor=accent,
         linewidth=0,
-        fontsize=8.8,
+        fontsize=7.8,
         weight="bold",
         color=WHITE,
     )
@@ -233,7 +233,7 @@ def draw_lane(ax, spec):
         spec["kind"],
         ha="right",
         va="center",
-        fontsize=6.8,
+        fontsize=5.8,
         color=accent,
         weight="bold",
     )
@@ -246,7 +246,7 @@ def draw_lane(ax, spec):
         "OUTER RUNTIME",
         ha="left",
         va="center",
-        fontsize=6.6,
+        fontsize=5.7,
         color=accent,
         weight="bold",
     )
@@ -256,7 +256,7 @@ def draw_lane(ax, spec):
         textwrap.fill(spec["outer"], 125),
         ha="left",
         va="center",
-        fontsize=6.55,
+        fontsize=5.35,
         color=INK,
     )
 
@@ -266,7 +266,7 @@ def draw_lane(ax, spec):
         "INNER PIPE  /  one rollout interaction",
         ha="left",
         va="center",
-        fontsize=6.6,
+        fontsize=5.7,
         color=accent,
         weight="bold",
     )
@@ -278,9 +278,9 @@ def draw_lane(ax, spec):
     stage(ax, 0.715, "OUTPUT / TERMINATED", spec["output"], "output", width=0.21)
 
     # Forward pipe arrows.
-    arrow(ax, (0.195, 0.56), (0.235, 0.56), color=accent)
-    arrow(ax, (0.425, 0.56), (0.465, 0.56), color=accent)
-    arrow(ax, (0.655, 0.56), (0.705, 0.56), color=accent)
+    arrow(ax, (0.195, 0.57), (0.235, 0.57), color=accent)
+    arrow(ax, (0.425, 0.57), (0.465, 0.57), color=accent)
+    arrow(ax, (0.655, 0.57), (0.705, 0.57), color=accent)
 
     rollout_loop(ax, accent, spec["loop"])
 
@@ -303,66 +303,66 @@ def main():
             "name": "Verl ToolAgentLoop",
             "kind": "TOKEN-LEVEL RL ROLLOUT",
             "accent": BLUE,
-            "outer": "AgentLoopManager / Worker: schedule and batch rollouts; connect tokenizer, server and trainer; emit AgentLoopOutput.",
+            "outer": "AgentLoopManager / Worker: rollout scheduling, batching, tokenizer/server wiring; trainer-facing AgentLoopOutput.",
             "input": "prompt_ids + tool schemas",
-            "generate": "server_manager.generate\nresponse ids / logprobs",
-            "tools": "FunctionTool / BaseTool\nparallel calls → tool tokens",
-            "output": "response_ids + mask\nmetrics / reward boundary",
-            "loop": "tool-response tokens + partial rollout become the next generation input; final AgentLoopOutput is handed to the trainer.",
+            "generate": "server generate\nids / logprobs",
+            "tools": "Function / BaseTool\nparallel calls → tokens",
+            "output": "ids + mask\nmetrics / reward boundary",
+            "loop": "tool-response tokens + partial rollout become the next generation input; final output goes to the trainer.",
         },
         {
             "name": "Codex",
             "kind": "STREAMING SESSION LOOP",
             "accent": ORANGE,
             "outer": "RegularTask + SessionTask / Session: cancellation, persistence, compaction, queued input, hooks, subagents and turn scheduling.",
-            "input": "history + pending input\nturn context",
-            "generate": "stream response items\nFunctionCall / CustomToolCall",
-            "tools": "parallel tool runtime\nappend tool outputs",
-            "output": "protocol events +\ntranscript / follow-up",
-            "loop": "turn result, transcript updates or queued follow-up become the next run_turn context; no task verifier is intrinsic to this loop.",
+            "input": "history + pending\nturn context",
+            "generate": "stream response\nFunction / Custom call",
+            "tools": "parallel runtime\nappend outputs",
+            "output": "events + transcript\nfollow-up",
+            "loop": "turn result, transcript updates or queued follow-up become the next run_turn context; task verification is external.",
         },
         {
             "name": "Prime",
             "kind": "SESSION + CONTINUATION LOOP",
             "accent": GREEN,
             "outer": "AgentSession + autonomous/headless: persistence, tool hooks/events, compaction, goals, child lifecycles and quality-gated continuation.",
-            "input": "AgentSession state\nprompt + tool registry",
-            "generate": "underlying agent\nprovider response + calls",
-            "tools": "tool registry + hooks\nemit tool_result",
-            "output": "session/tool events\ntranscript + gate result",
-            "loop": "tool events and the continuation gate become the next prompt; autonomous/headless may inject a repair or continuation turn.",
+            "input": "session state\nprompt + registry",
+            "generate": "underlying agent\nresponse + calls",
+            "tools": "registry + hooks\nemit tool_result",
+            "output": "events + transcript\ngate result",
+            "loop": "tool events and the continuation gate become the next prompt; autonomous/headless may inject a repair turn.",
         },
     ]
 
     # Provisional double-column manuscript figure: 180 mm wide, with vector
     # PDF/SVG as the masters.  The target journal is not specified yet.
-    fig = plt.figure(figsize=(180 / 25.4, 120 / 25.4), facecolor=WHITE)
+    fig = plt.figure(figsize=(180 / 25.4, 140 / 25.4), facecolor=WHITE)
     fig.text(
         0.04,
         0.965,
         "Three Agent loop strategies as rollout pipes",
         ha="left",
         va="top",
-        fontsize=16.5,
+        fontsize=11.5,
         color=INK,
         weight="bold",
     )
     fig.text(
         0.04,
-        0.935,
+        0.925,
         "Each implementation has its own inner interaction pipe and outer runtime. The large return arrow is the rollout boundary from output at round t to input at round t + 1.",
         ha="left",
         va="top",
-        fontsize=8.3,
+        fontsize=6.4,
         color=MUTED,
     )
     fig.text(
         0.965,
-        0.935,
+        0.925,
         "schematic · vector master",
         ha="right",
         va="top",
-        fontsize=7.0,
+        fontsize=5.5,
         color=MUTED,
     )
 
@@ -377,7 +377,7 @@ def main():
         "nanoGPT placement: runner.ts currently spans the pipe plus session state/persistence and task verification. A cleaner target is inner AgentLoop → outer SessionRunner → harness verifier; Verl reward/task verification remains external unless explicitly returned as an observation.",
         ha="left",
         va="center",
-        fontsize=7.0,
+        fontsize=5.3,
         color=INK,
         bbox={
             "boxstyle": "round,pad=0.40",
@@ -392,7 +392,7 @@ def main():
         "Color is redundant with explicit state labels; arrows encode control flow, not performance or reward magnitude.",
         ha="left",
         va="center",
-        fontsize=6.6,
+        fontsize=5.0,
         color=MUTED,
     )
 
