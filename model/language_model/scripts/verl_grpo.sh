@@ -112,6 +112,7 @@ fi
 if [[ -z "$gpus" ]]; then
   gpus=$("$python" -c 'import torch; print(max(1, torch.cuda.device_count()))' 2>/dev/null || echo 1)
 fi
+ray_cpus=${RAY_NUM_CPUS:-$((gpus * 4))}
 
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 cd "$verl"
@@ -162,6 +163,7 @@ args=(
   "trainer.total_epochs=${TOTAL_EPOCHS:-1}"
   "trainer.total_training_steps=${TOTAL_TRAINING_STEPS:-null}"
   "trainer.logger=['$logger']"
+  "ray_kwargs.ray_init.num_cpus=$ray_cpus"
   "+ray_kwargs.ray_init.include_dashboard=$ray_dashboard"
 )
 
