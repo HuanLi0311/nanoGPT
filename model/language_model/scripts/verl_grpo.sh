@@ -20,6 +20,7 @@ fi
 if [[ -n "${TASK_MANIFEST:-}" ]]; then
   data_train="$data/tasks_train.jsonl"
   data_val="$data/tasks_val.jsonl"
+  TASK_MANIFEST="$TASK_MANIFEST" "$root/model/language_model/scripts/prepare_verl_data.sh" >/dev/null
   # The four-task calibration manifest has three train rows.  A batch of one
   # keeps the smoke run non-empty; larger studies should set TRAIN_BATCH_SIZE.
   train_batch_size=${TRAIN_BATCH_SIZE:-1}

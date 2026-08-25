@@ -5,7 +5,14 @@ from __future__ import annotations
 import subprocess
 from typing import Any
 
-from .types import VerificationResult
+try:
+    from .types import VerificationResult
+except ImportError:  # direct script execution
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from agent.verifier.types import VerificationResult
 
 
 def _command(verifier: Any) -> str | None:

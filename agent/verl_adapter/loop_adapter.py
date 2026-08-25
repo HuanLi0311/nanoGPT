@@ -6,7 +6,14 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from agent.env.workspace import snapshot, state_delta
+try:
+    from agent.env.workspace import snapshot, state_delta
+except ModuleNotFoundError:  # direct script execution
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from agent.env.workspace import snapshot, state_delta
 
 
 def _extra_fields(agent_data: Any) -> dict[str, Any]:
@@ -26,7 +33,11 @@ def _tool_call_id(agent_data: Any, operation: str, arguments: Any) -> tuple[str,
     for call in getattr(agent_data, "tool_calls", []) or []:
         if getattr(call, "name", None) != operation:
             continue
-        if getattr(call, "arguments", None) == encoded:
+        try:
+            same_arguments = json.loads(getattr(call, "arguments", "")) == arguments
+        except (TypeError, json.JSONDecodeError):
+            same_arguments = getattr(call, "arguments", None) == encoded
+        if same_arguments:
             call_id = getattr(call, "tool_call_id", None)
             if call_id:
                 return str(call_id), "linked"

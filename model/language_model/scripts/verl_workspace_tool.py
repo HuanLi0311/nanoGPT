@@ -123,6 +123,13 @@ class WorkspaceTool(BaseTool):
         root = self.workspace_root / task_id / episode_id
         root.mkdir(parents=True, exist_ok=True)
         self._initialize_files(root, config.get("files", {}))
+        if agent_data is not None and hasattr(agent_data, "extra_fields"):
+            initial = snapshot(root)
+            agent_data.extra_fields.setdefault("task_id", task_id)
+            agent_data.extra_fields.setdefault("environment_id", f"workspace:{task_id}")
+            agent_data.extra_fields.setdefault("initial_state_hash", initial["state_hash"])
+            agent_data.extra_fields.setdefault("harness_version", "nanoagent-verl-v1")
+            agent_data.extra_fields.setdefault("verifier_version", str(config.get("verifier_version", "manifest-v1")))
         self._roots[instance_id] = root
         return root
 

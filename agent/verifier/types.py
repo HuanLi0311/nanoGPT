@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 
-@dataclass(slots=True)
+@dataclass
 class VerificationResult:
     score: float
     passed: bool
