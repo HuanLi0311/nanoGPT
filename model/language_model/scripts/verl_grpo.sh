@@ -44,6 +44,11 @@ gpu_memory_utilization=${GPU_MEMORY_UTILIZATION:-0.5}
 enforce_eager=${VLLM_ENFORCE_EAGER:-false}
 logger=${VERL_LOGGER:-console}
 tool_config="$root/model/language_model/config/verl_tools.yaml"
+# Colocated FSDP and vLLM otherwise keep two Qwen copies resident during
+# server startup. CPU parameter offload leaves the GPU budget to the rollout;
+# callers can disable it for a disaggregated deployment.
+actor_param_offload=${ACTOR_PARAM_OFFLOAD:-true}
+ref_param_offload=${REF_PARAM_OFFLOAD:-true}
 
 [[ -x "$python" ]] || { echo "missing Python environment: $python" >&2; exit 1; }
 
@@ -148,6 +153,8 @@ args=(
   "actor_rollout_ref.rollout.multi_turn.tool_config_path=$root/model/language_model/config/verl_tools.yaml"
   "actor_rollout_ref.rollout.multi_turn.format=${TOOL_FORMAT:-hermes}"
   "+actor_rollout_ref.model.override_config.attn_implementation=$attn_implementation"
+  "actor_rollout_ref.actor.fsdp_config.param_offload=$actor_param_offload"
+  "actor_rollout_ref.ref.fsdp_config.param_offload=$ref_param_offload"
   "actor_rollout_ref.actor.ppo_mini_batch_size=$ppo_mini_batch_size"
   "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}"
   "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}"
