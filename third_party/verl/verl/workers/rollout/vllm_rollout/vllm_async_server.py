@@ -29,12 +29,19 @@ from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.entrypoints.cli.serve import run_headless
 from vllm.entrypoints.openai.api_server import build_app, init_app_state
-from vllm.entrypoints.openai.parser.harmony_utils import get_encoding
+try:
+    from vllm.entrypoints.openai.parser.harmony_utils import get_encoding
+except ModuleNotFoundError:  # vLLM 0.8.x moved/does not need the GPT-OSS helper.
+    def get_encoding():
+        raise RuntimeError("GPT-OSS harmony encoding requires a newer vLLM")
 from vllm.inputs import TokensPrompt
 from vllm.lora.request import LoRARequest
 from vllm.outputs import RequestOutput
 from vllm.usage.usage_lib import UsageContext
-from vllm.utils.argparse_utils import FlexibleArgumentParser
+try:
+    from vllm.utils.argparse_utils import FlexibleArgumentParser
+except ModuleNotFoundError:  # vLLM 0.8.x exports it directly from vllm.utils.
+    from vllm.utils import FlexibleArgumentParser
 from vllm.v1.engine.async_llm import AsyncLLM
 
 from verl.plugin.platform import get_platform

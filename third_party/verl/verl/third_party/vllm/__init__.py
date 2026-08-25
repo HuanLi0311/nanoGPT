@@ -43,9 +43,12 @@ elif is_npu_available:
     VLLM_SLEEP_LEVEL = 1
     from vllm import LLM
     from vllm.distributed import parallel_state
-elif vs.parse(package_version) >= vs.parse("0.18.0"):
+elif vs.parse(package_version) >= vs.parse("0.8.2"):
     vllm_version = package_version
-    VLLM_SLEEP_LEVEL = 2
+    # vLLM 0.8.x has the V1 engine used by this checkout but does not expose
+    # every sleep/cache API that newer Verl assumes.  Level 1 is the common
+    # denominator and keeps the installed Qwen3-compatible backend intact.
+    VLLM_SLEEP_LEVEL = 1 if vs.parse(package_version) < vs.parse("0.18.0") else 2
     from vllm import LLM
     from vllm.distributed import parallel_state
 else:
@@ -54,7 +57,7 @@ else:
     if not is_sglang_available():
         raise ValueError(
             f"vllm version {package_version} not supported and SGLang also not Found. Currently supported "
-            f"vllm versions are 0.18.0+"
+            f"vllm versions are 0.8.2+"
         )
 
 __all__ = ["LLM", "parallel_state"]
