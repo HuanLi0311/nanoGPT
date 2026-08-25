@@ -247,7 +247,7 @@ class SFTTrainer:
             sampler=self.train_sampler,
             collate_fn=self.collate_fn,
             num_workers=self.config.data.num_workers,
-            pin_memory=True,
+            pin_memory=False,
             drop_last=True,
             pin_memory_device=device_name,
         )
@@ -262,7 +262,7 @@ class SFTTrainer:
                 sampler=self.val_sampler,
                 collate_fn=self.collate_fn,
                 num_workers=self.config.data.num_workers,
-                pin_memory=True,
+                pin_memory=False,
                 # Evaluation must not disappear when a rank has a partial final batch.
                 drop_last=False,
                 pin_memory_device=device_name,
