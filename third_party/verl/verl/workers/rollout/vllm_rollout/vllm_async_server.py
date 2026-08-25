@@ -27,7 +27,10 @@ from packaging import version
 from ray.actor import ActorHandle
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.entrypoints.cli.serve import run_headless
+try:
+    from vllm.entrypoints.cli.serve import run_headless
+except ImportError:  # vLLM 0.8.x has no separate headless CLI; single-node runs never call this branch.
+    from vllm.entrypoints.cli.serve import run_server as run_headless
 from vllm.entrypoints.openai.api_server import build_app, init_app_state
 try:
     from vllm.entrypoints.openai.parser.harmony_utils import get_encoding
