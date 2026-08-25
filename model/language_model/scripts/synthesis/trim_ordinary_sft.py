@@ -28,8 +28,9 @@ CODING_TERMS = (
 )
 CODING_RE = re.compile(
     r"(?:```|^\s*(?:def|class|import|from|select|function)\b|"
+    r"(?<![A-Za-z0-9_])(?:"
     + "|".join(re.escape(term) for term in CODING_TERMS)
-    + r")",
+    + r")(?![A-Za-z0-9_]))",
     re.IGNORECASE | re.MULTILINE,
 )
 CODING_CONTEXT_RE = re.compile(
