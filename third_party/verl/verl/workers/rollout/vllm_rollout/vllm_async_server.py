@@ -223,6 +223,7 @@ class vLLMHttpServer:
             from vllm.utils.argparse_utils import FlexibleArgumentParser
         except ModuleNotFoundError:  # vLLM 0.8.x exports it directly from vllm.utils.
             from vllm.utils import FlexibleArgumentParser
+        from vllm.engine.arg_utils import AsyncEngineArgs
 
         from verl.workers.rollout.vllm_rollout.utils import (
             build_cli_args_from_config,
@@ -245,6 +246,7 @@ class vLLMHttpServer:
             engine_kwargs["limit_mm_per_prompt"] = {"image": self.config.get("limit_images")}
 
         self._preprocess_engine_kwargs(engine_kwargs)
+        supported_engine_args = set(inspect.signature(AsyncEngineArgs).parameters)
 
         # Override default generation config from hugging face model config,
         # user can still override them by passing kwargs in each request.
@@ -290,7 +292,6 @@ class vLLMHttpServer:
             "max_num_batched_tokens": self.config.max_num_batched_tokens,
             "enable_prefix_caching": self.config.enable_prefix_caching,
             "enable_sleep_mode": self.config.enable_sleep_mode,
-            "logprobs_mode": self.config.logprobs_mode,
             "enforce_eager": self.config.enforce_eager,
             "gpu_memory_utilization": self.config.gpu_memory_utilization,
             "disable_log_stats": self.config.disable_log_stats,
@@ -303,6 +304,10 @@ class vLLMHttpServer:
             "compilation_config": compilation_config,
             **engine_kwargs,
         }
+        # Verl's config contains newer vLLM options, but vLLM 0.8.x forwards
+        # unknown serve options to its worker parser and exits on them.
+        if "logprobs_mode" in supported_engine_args:
+            args["logprobs_mode"] = self.config.logprobs_mode
 
         # update profiler args
         profiler_args = build_vllm_profiler_args(
@@ -992,8 +997,13 @@ class vLLMHttpServer:
         """Mutate engine_kwargs in-place before the CLI args dict is built."""
         if _vllm_version() < version.parse("0.22.0"):
             # Work around multimodal processor cache desync across pause/resume.
-            # See: https://github.com/vllm-project/vllm/pull/43001/
-            engine_kwargs.setdefault("mm_processor_cache_gb", 0)
+            # See: https://github.com/vllm-project/vllm/pull/43001/.  The
+            # option itself was introduced after vLLM 0.8.x, so only pass it
+            # when the installed AsyncEngineArgs actually accepts it.
+            from vllm.engine.arg_utils import AsyncEngineArgs
+
+            if "mm_processor_cache_gb" in inspect.signature(AsyncEngineArgs).parameters:
+                engine_kwargs.setdefault("mm_processor_cache_gb", 0)
 
     def _get_override_generation_config(self) -> dict:
         """Return the override_generation_config dict."""
