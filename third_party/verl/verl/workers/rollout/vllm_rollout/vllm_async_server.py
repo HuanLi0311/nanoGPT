@@ -1165,7 +1165,12 @@ class vLLMReplica(RolloutReplica):
             # the vLLM worker start method visible to the actor subprocess;
             # fork can terminate silently when vLLM is created from a Ray
             # actor after CUDA/NCCL initialization.
-            for key in ("VLLM_LOGGING_LEVEL", "VLLM_WORKER_MULTIPROC_METHOD", "VLLM_ENABLE_V1_MULTIPROCESSING"):
+            for key in (
+                "VLLM_LOGGING_LEVEL",
+                "VLLM_USE_V1",
+                "VLLM_WORKER_MULTIPROC_METHOD",
+                "VLLM_ENABLE_V1_MULTIPROCESSING",
+            ):
                 if os.environ.get(key):
                     env_vars[key] = os.environ[key]
 
