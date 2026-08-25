@@ -101,6 +101,10 @@ def get_ppo_ray_runtime_env(config=None):
     for key in list(runtime_env["env_vars"].keys()):
         if os.environ.get(key) is not None:
             runtime_env["env_vars"].pop(key, None)
+    # Preserve an explicit driver-side vLLM log level in Ray's replacement
+    # environment; otherwise the server actors silently fall back to WARN.
+    if os.environ.get("VLLM_LOGGING_LEVEL") is not None:
+        runtime_env["env_vars"]["VLLM_LOGGING_LEVEL"] = os.environ["VLLM_LOGGING_LEVEL"]
     # Always forward these at call-time, not import-time.
     for key in ("VERL_FULL_DETERMINISM", "VLLM_BATCH_INVARIANT", "VERL_RL_INSIGHT_ENABLE"):
         runtime_env["env_vars"][key] = os.environ.get(key, "0")
