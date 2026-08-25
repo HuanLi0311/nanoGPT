@@ -1,16 +1,15 @@
 # NanoAgent runtime dependencies. Install this together with
 # third_party/verl/requirements.txt through scripts/setup_nanoagent_env.sh.
-# air-node-03 has an NVIDIA 555 driver (CUDA 12.5); the CUDA 12.1 wheels below
-# are driver-compatible, satisfy Transformers 5's PyTorch >=2.4 runtime floor,
-# and avoid the CUDA 13-only veRL uv environment.
---extra-index-url https://download.pytorch.org/whl/cu121
+# air-node-02 has an NVIDIA 555 driver; vLLM 0.8.5 is the Qwen3-compatible
+# rollout backend used here and requires the Torch 2.6 CUDA 12.4 wheel stack.
+--extra-index-url https://download.pytorch.org/whl/cu124
 
-torch==2.4.1+cu121
-torchvision==0.19.1+cu121
-torchaudio==2.4.1+cu121
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+torchaudio==2.6.0+cu124
 torchdata==0.8.0
 
-numpy>=2.0.0
+numpy>=2.0.0,<2.3
 pyarrow>=19.0.0
 PyYAML>=6.0.0
 safetensors>=0.4.0
@@ -21,3 +20,6 @@ transformers==5.5.3
 Pillow>=10.0.0
 matplotlib>=3.8.0
 flash-attn==2.7.4.post1 --no-deps
+# Verl's async tool-agent loop needs a vLLM backend; pip resolves its
+# transitive runtime packages without a separate environment.
+vllm==0.8.5.post1
