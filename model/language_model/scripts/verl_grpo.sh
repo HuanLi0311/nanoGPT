@@ -127,10 +127,10 @@ if [[ "$actor_optimizer" == "Adafactor" && -z "$actor_optimizer_config" ]]; then
   actor_optimizer_config='{relative_step:false,scale_parameter:false,warmup_init:false}'
 fi
 if [[ "$actor_optimizer" == "AdamW" && -z "$actor_optimizer_config" ]]; then
-  # ponytail: PyTorch CUDA foreach AdamW allocates a step-sized temporary peak;
-  # use the lower-memory native path by default, and opt into foreach/fused
-  # only after measuring the target GPU headroom.
-  actor_optimizer_config='{foreach:false}'
+  # ponytail: fused AdamW keeps the optimizer step's temporary peak low and
+  # is faster on CUDA; fall back to {foreach:false} if a target torch build
+  # lacks the fused kernel.
+  actor_optimizer_config='{fused:true}'
 fi
 
 [[ -x "$python" ]] || { echo "missing Python environment: $python" >&2; exit 1; }
