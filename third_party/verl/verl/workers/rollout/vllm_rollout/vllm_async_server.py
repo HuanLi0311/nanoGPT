@@ -63,12 +63,15 @@ def _preload_process_imports() -> None:
     dependency or changing the rollout protocol.
     """
     import asyncio.base_events
+    import email.errors
     import encodings.aliases
     import encodings.unicode_escape
+    import importlib._abc
     import json.decoder
     import multiprocessing.context
     import token
     import tokenize
+    import urllib3.exceptions
     import unittest.mock
     import unittest.result
 

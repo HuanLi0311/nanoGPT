@@ -23,8 +23,11 @@ def preload_worker() -> None:
     # different paths and Python 3.11 occasionally observes a half-initialized
     # stdlib package.  Keep this hook stdlib-only so it is cheap for every worker.
     import asyncio.base_events  # noqa: F401
+    import email.errors  # noqa: F401
+    import importlib._abc  # noqa: F401
     import json.decoder  # noqa: F401
     import multiprocessing.context  # noqa: F401
+    import urllib3.exceptions  # noqa: F401
     import unittest.mock  # noqa: F401
     import unittest.result  # noqa: F401
 
