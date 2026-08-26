@@ -10,3 +10,7 @@ import json.decoder  # noqa: F401
 import multiprocessing.context  # noqa: F401
 import unittest.mock  # noqa: F401
 import unittest.result  # noqa: F401
+try:
+    import zoneinfo._common  # noqa: F401
+except ModuleNotFoundError:
+    pass
