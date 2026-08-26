@@ -46,6 +46,7 @@ max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS:-$max_model_len}
 max_num_seqs=${MAX_NUM_SEQS:-$((train_batch_size * rollout_n))}
 gpu_memory_utilization=${GPU_MEMORY_UTILIZATION:-0.5}
 enforce_eager=${VLLM_ENFORCE_EAGER:-false}
+overlong_buffer_len=${OVERLONG_BUFFER_LEN:-$max_response_length}
 logger=${VERL_LOGGER:-console}
 tool_config="$root/model/language_model/config/verl_tools.yaml"
 # Colocated FSDP and vLLM otherwise keep two Qwen copies resident during
@@ -234,7 +235,7 @@ case "$algorithm" in
       "actor_rollout_ref.actor.clip_ratio_high=${CLIP_RATIO_HIGH:-0.28}"
       "actor_rollout_ref.actor.clip_ratio_c=${CLIP_RATIO_C:-10.0}"
       "+reward.reward_kwargs.overlong_buffer_cfg.enable=${OVERLONG_BUFFER_ENABLE:-True}"
-      "+reward.reward_kwargs.overlong_buffer_cfg.len=${OVERLONG_BUFFER_LEN:-4096}"
+      "+reward.reward_kwargs.overlong_buffer_cfg.len=$overlong_buffer_len"
       "+reward.reward_kwargs.overlong_buffer_cfg.penalty_factor=${OVERLONG_PENALTY_FACTOR:-1.0}"
       "+reward.reward_kwargs.overlong_buffer_cfg.log=False"
       "+reward.reward_kwargs.max_resp_len=$max_response_length"
