@@ -69,7 +69,7 @@ KAT-Coder-V2.5 给出了一个重要的诊断：如果模型只在单一 Harness
 
 ## harness改动方法
 
-> 暂不展开具体的 Harness 编辑器、代码生成或自动改写方法；当前先固定研究问题、baseline 和评测协议。
+> 暂不展开具体的 Harness 编辑器、代码生成或自动改写方法；我觉得由现有agent(比如codex 不是在训练的agent) 的coding能力根据实验结果来改动也挺好的。当前先固定研究问题、baseline 和评测协议。
 
 ## Baseline
 
