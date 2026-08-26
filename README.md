@@ -279,7 +279,7 @@ ALGORITHM=sapo ./model/language_model/scripts/verl_grpo.sh
 ALGORITHM=dapo OVERLONG_BUFFER_LEN=64 ./model/language_model/scripts/verl_grpo.sh
 ```
 
-`TRAIN_BATCH_SIZE` 可以省略，launcher 会保证 `TRAIN_BATCH_SIZE * ROLLOUT_N` 满足 FSDP 的世界大小约束；若显式设置，8 卡、`ROLLOUT_N=4` 时应使用 2、4、6… 等合法值。首次链路 smoke 可临时设置 `TOTAL_EPOCHS=1 SAVE_FREQ=-1 TEST_FREQ=-1 VLLM_ENFORCE_EAGER=true`。不要关闭 verified-data 检查，也不要把 `verify_task` 暴露成模型工具。
+`TRAIN_BATCH_SIZE` 可以省略，launcher 会保证 `TRAIN_BATCH_SIZE * ROLLOUT_N` 满足 FSDP 的世界大小约束；若显式设置，8 卡、`ROLLOUT_N=4` 时应使用 2、4、6… 等合法值。AdamW 默认使用原生 `foreach=false` 以压低 optimizer step 峰值显存；确认目标卡有余量后才通过 `ACTOR_OPTIMIZER_CONFIG='{foreach:true}'` 切回 foreach。首次链路 smoke 可临时设置 `TOTAL_EPOCHS=1 SAVE_FREQ=-1 TEST_FREQ=-1 VLLM_ENFORCE_EAGER=true`。不要关闭 verified-data 检查，也不要把 `verify_task` 暴露成模型工具。
 
 SFT 使用与预训练 checkpoint 相同的 tokenizer；先从原始 Codex 会话生成最终 Parquet：
 

@@ -126,6 +126,12 @@ fi
 if [[ "$actor_optimizer" == "Adafactor" && -z "$actor_optimizer_config" ]]; then
   actor_optimizer_config='{relative_step:false,scale_parameter:false,warmup_init:false}'
 fi
+if [[ "$actor_optimizer" == "AdamW" && -z "$actor_optimizer_config" ]]; then
+  # ponytail: PyTorch CUDA foreach AdamW allocates a step-sized temporary peak;
+  # use the lower-memory native path by default, and opt into foreach/fused
+  # only after measuring the target GPU headroom.
+  actor_optimizer_config='{foreach:false}'
+fi
 
 [[ -x "$python" ]] || { echo "missing Python environment: $python" >&2; exit 1; }
 
