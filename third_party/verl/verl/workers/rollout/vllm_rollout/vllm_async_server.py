@@ -56,7 +56,7 @@ def _vllm_version():
 
 
 def _preload_process_imports() -> None:
-    """Finish stdlib imports before vLLM creates a worker process.
+    """Finish import-graph initialization before vLLM creates a worker process.
 
     ponytail: vLLM 0.8.x can fork/spawn from an import-heavy Ray actor; the
     small preload avoids Python 3.11 codec/module races without adding a

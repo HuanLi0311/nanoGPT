@@ -19,9 +19,9 @@ except ModuleNotFoundError:  # direct script execution
 def preload_worker() -> None:
     """Warm stdlib imports before Ray starts concurrent TransferQueue actors."""
 
-    # Ray can start several actors at once; torch imports these modules through
-    # different paths and Python 3.11 occasionally observes a half-initialized
-    # stdlib package.  Keep this hook stdlib-only so it is cheap for every worker.
+    # Ray can start several actors at once; torch/Ray imports these modules
+    # through different paths and Python 3.11 occasionally observes a
+    # half-initialized package.  Keep this hook limited to existing runtime deps.
     import asyncio.base_events  # noqa: F401
     import email.errors  # noqa: F401
     import importlib._abc  # noqa: F401
