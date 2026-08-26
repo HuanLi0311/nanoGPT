@@ -10,6 +10,42 @@ model=${MODEL_PATH:-"$root/model/language_model/checkpoints/qwen/Qwen3-8B"}
 algorithm=${ALGORITHM:-grpo}
 gpus=${NGPUS_PER_NODE:-}
 
+if [[ -z "$gpus" ]]; then
+  gpus=$("$python" -c 'import torch; print(max(1, torch.cuda.device_count()))' 2>/dev/null || echo 1)
+fi
+[[ "$gpus" =~ ^[1-9][0-9]*$ ]] || { echo "NGPUS_PER_NODE must be a positive integer: $gpus" >&2; exit 2; }
+
+rollout_n=${ROLLOUT_N:-4}
+[[ "$rollout_n" =~ ^[1-9][0-9]*$ ]] || { echo "ROLLOUT_N must be a positive integer: $rollout_n" >&2; exit 2; }
+batch_unit=$("$python" - "$gpus" "$rollout_n" <<'PY'
+import math
+import sys
+
+gpus, rollout_n = map(int, sys.argv[1:])
+print(gpus // math.gcd(gpus, rollout_n))
+PY
+)
+
+if [[ -n "${TENSOR_MODEL_PARALLEL_SIZE:-}" ]]; then
+  tensor_parallel_size=$TENSOR_MODEL_PARALLEL_SIZE
+elif (( gpus >= 4 )); then
+  # One Qwen3-8B replica per four A100s keeps colocated vLLM startup bounded;
+  # override for a different model/topology.
+  tensor_parallel_size=4
+else
+  tensor_parallel_size=1
+fi
+[[ "$tensor_parallel_size" =~ ^[1-9][0-9]*$ ]] || {
+  echo "TENSOR_MODEL_PARALLEL_SIZE must be a positive integer: $tensor_parallel_size" >&2
+  exit 2
+}
+(( gpus % tensor_parallel_size == 0 )) || {
+  echo "NGPUS_PER_NODE ($gpus) must be divisible by TENSOR_MODEL_PARALLEL_SIZE ($tensor_parallel_size)" >&2
+  exit 2
+}
+
+worker_slots=$(( gpus < 8 ? gpus : 8 ))
+
 if [[ -z "${TASK_MANIFEST:-}" ]]; then
   # The checked-in parquet is historical Codex replay without a verifier. RL
   # defaults to the small executable manifest so an accidental launch cannot
@@ -21,39 +57,63 @@ if [[ -n "${TASK_MANIFEST:-}" ]]; then
   data_train="$data/tasks_train.jsonl"
   data_val="$data/tasks_val.jsonl"
   TASK_MANIFEST="$TASK_MANIFEST" "$root/model/language_model/scripts/prepare_verl_data.sh" >/dev/null
-  # The four-task calibration manifest has three train rows.  A batch of one
-  # keeps the smoke run non-empty; larger studies should set TRAIN_BATCH_SIZE.
-  train_batch_size=${TRAIN_BATCH_SIZE:-1}
+  minimum_train_batch_size=1
 else
   data_train="$data/train.parquet"
   data_val="$data/val.parquet"
-  train_batch_size=${TRAIN_BATCH_SIZE:-4}
+  minimum_train_batch_size=4
 fi
 
+if [[ -n "${TRAIN_BATCH_SIZE:-}" ]]; then
+  train_batch_size=$TRAIN_BATCH_SIZE
+else
+  # Verl's FSDP validator requires train_batch_size * rollout_n to divide the
+  # data-parallel world size. Pick the smallest legal batch at or above the
+  # smoke/study default instead of failing later inside Hydra validation.
+  train_batch_size=$("$python" - "$batch_unit" "$minimum_train_batch_size" <<'PY'
+import sys
+
+unit, minimum = map(int, sys.argv[1:])
+print(((minimum + unit - 1) // unit) * unit)
+PY
+  )
+fi
+[[ "$train_batch_size" =~ ^[1-9][0-9]*$ ]] || {
+  echo "TRAIN_BATCH_SIZE must be a positive integer: $train_batch_size" >&2
+  exit 2
+}
+(( (train_batch_size * rollout_n) % gpus == 0 )) || {
+  echo "TRAIN_BATCH_SIZE ($train_batch_size) * ROLLOUT_N ($rollout_n) must be divisible by NGPUS_PER_NODE ($gpus)" >&2
+  echo "Use a TRAIN_BATCH_SIZE that is a multiple of $batch_unit (or omit it for automatic sizing)." >&2
+  exit 2
+}
+
 ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-$train_batch_size}
-rollout_n=${ROLLOUT_N:-4}
-tensor_parallel_size=${TENSOR_MODEL_PARALLEL_SIZE:-1}
 attn_implementation=${ATTN_IMPLEMENTATION:-sdpa}
 ray_dashboard=${RAY_DASHBOARD:-false}
-transfer_queue_units=${TRANSFER_QUEUE_UNITS:-1}
-agent_loop_num_workers=${AGENT_LOOP_NUM_WORKERS:-1}
-reward_num_workers=${REWARD_NUM_WORKERS:-1}
-dataloader_num_workers=${DATALOADER_NUM_WORKERS:-1}
+transfer_queue_units=${TRANSFER_QUEUE_UNITS:-$worker_slots}
+agent_loop_num_workers=${AGENT_LOOP_NUM_WORKERS:-$worker_slots}
+reward_num_workers=${REWARD_NUM_WORKERS:-$worker_slots}
+dataloader_num_workers=${DATALOADER_NUM_WORKERS:-$worker_slots}
 max_prompt_length=${MAX_PROMPT_LENGTH:-1200}
 max_response_length=${MAX_RESPONSE_LENGTH:-256}
 max_model_len=${MAX_MODEL_LEN:-$((max_prompt_length + max_response_length))}
 max_num_batched_tokens=${MAX_NUM_BATCHED_TOKENS:-$max_model_len}
 max_num_seqs=${MAX_NUM_SEQS:-$((train_batch_size * rollout_n))}
-gpu_memory_utilization=${GPU_MEMORY_UTILIZATION:-0.5}
+gpu_memory_utilization=${GPU_MEMORY_UTILIZATION:-0.4}
 enforce_eager=${VLLM_ENFORCE_EAGER:-false}
-overlong_buffer_len=${OVERLONG_BUFFER_LEN:-$max_response_length}
+overlong_buffer_len=${OVERLONG_BUFFER_LEN:-$((max_response_length / 4))}
+(( overlong_buffer_len > 0 )) || overlong_buffer_len=1
 logger=${VERL_LOGGER:-console}
+save_freq=${SAVE_FREQ:-100}
+test_freq=${TEST_FREQ:-100}
 tool_config="$root/model/language_model/config/verl_tools.yaml"
 # Colocated FSDP and vLLM otherwise keep two Qwen copies resident during
 # server startup. CPU parameter offload leaves the GPU budget to the rollout;
 # callers can disable it for a disaggregated deployment.
 actor_param_offload=${ACTOR_PARAM_OFFLOAD:-true}
 ref_param_offload=${REF_PARAM_OFFLOAD:-true}
+actor_optimizer_offload=${ACTOR_OPTIMIZER_OFFLOAD:-true}
 actor_optimizer=${ACTOR_OPTIMIZER:-AdamW}
 actor_optimizer_impl=${ACTOR_OPTIMIZER_IMPL:-}
 actor_optimizer_config=${ACTOR_OPTIMIZER_CONFIG:-}
@@ -131,9 +191,6 @@ print(f"verified RL data: {', '.join(sys.argv[1:])}")
 PY
 fi
 
-if [[ -z "$gpus" ]]; then
-  gpus=$("$python" -c 'import torch; print(max(1, torch.cuda.device_count()))' 2>/dev/null || echo 1)
-fi
 # ponytail: Verl's default TransferQueue reserves nine CPU slots; leave room
 # for its storage actors and the per-GPU placement group without using all
 # 180 host CPUs. Override for larger experiments with RAY_NUM_CPUS.
@@ -190,6 +247,7 @@ args=(
   "actor_rollout_ref.rollout.multi_turn.format=${TOOL_FORMAT:-hermes}"
   "+actor_rollout_ref.model.override_config.attn_implementation=$attn_implementation"
   "actor_rollout_ref.actor.fsdp_config.param_offload=$actor_param_offload"
+  "actor_rollout_ref.actor.fsdp_config.optimizer_offload=$actor_optimizer_offload"
   "actor_rollout_ref.ref.fsdp_config.param_offload=$ref_param_offload"
   "actor_rollout_ref.actor.ppo_mini_batch_size=$ppo_mini_batch_size"
   "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}"
@@ -212,6 +270,8 @@ args=(
   "trainer.nnodes=1"
   "trainer.total_epochs=${TOTAL_EPOCHS:-1}"
   "trainer.total_training_steps=${TOTAL_TRAINING_STEPS:-null}"
+  "trainer.save_freq=$save_freq"
+  "trainer.test_freq=$test_freq"
   "trainer.logger=['$logger']"
   "ray_kwargs.ray_init.num_cpus=$ray_cpus"
   "+ray_kwargs.ray_init.include_dashboard=$ray_dashboard"

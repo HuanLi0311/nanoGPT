@@ -10,5 +10,8 @@ else
   exit 1
 fi
 
+if [[ "$python" != */* ]]; then
+  python="$(command -v "$python" || true)"
+fi
 [[ -x "$python" ]] || { echo "missing Python executable: $python" >&2; exit 1; }
 printf '%s\n' "$python"
