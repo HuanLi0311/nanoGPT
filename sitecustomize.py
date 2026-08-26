@@ -1,9 +1,11 @@
 """Warm Python 3.11 stdlib imports before Ray/vLLM spawn workers start."""
 
+import os
+import importlib
+
 # ponytail: keep the workaround at the interpreter boundary; a vLLM spawn
 # child does not run Verl's Ray worker setup hook.  Remove this once the
 # Python/Ray/vLLM import race is fixed upstream.
-import importlib
 
 
 def _warm(name: str) -> None:
@@ -36,5 +38,8 @@ for _ in range(2):
 
 # Ray's default_worker is the first import in vLLM's spawn child.  Importing it
 # here makes that child reuse one completed stdlib/Ray graph instead of racing
-# through it while vLLM starts its EngineCore.
-_warm("ray")
+# through it while vLLM starts its EngineCore.  Keep ordinary repo Python
+# commands free of this import; the launcher exports the hook variable before
+# starting Verl and its children inherit it.
+if os.environ.get("NANOAGENT_RAY_WORKER_SETUP_HOOK"):
+    _warm("ray")
