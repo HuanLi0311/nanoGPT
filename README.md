@@ -249,20 +249,37 @@ npm run extract -- ~/.codex/sessions ../data/canonical/codex-trajectories.jsonl
 DEEPSEEK_API_KEY=... npm run run -- "检查仓库并报告状态"
 ```
 
-verl 数据和 GRPO 奖励契约由以下入口生成和启动：
+### Verl RL：GRPO、SAPO、DAPO
+
+三种方法共用 Verl 原生 V1 trainer、FSDP actor、vLLM rollout、TransferQueue、AgentLoop 和 reward manager；launcher 只负责资源、数据契约和 NanoAgent workspace tool 的接线。默认会把 actor 参数和 optimizer state offload 到 CPU，并按 GPU 数量选择合法的 batch。真实训练请把 smoke manifest 换成自己的 verified task manifest。
 
 ```bash
-git submodule update --init --recursive
-./model/language_model/scripts/prepare_verl_data.sh
-# 历史 Codex replay 没有独立 verifier，默认会被 launcher 拒绝进入 RL。
-# 旧三工具 workspace smoke 只验证遗留 adapter，不是 20 工具 RL：
-TASK_MANIFEST=agent/tasks/harness_smoke.jsonl ./model/language_model/scripts/prepare_verl_data.sh
-TASK_MANIFEST=agent/tasks/harness_smoke.jsonl \
-  TRAIN_BATCH_SIZE=1 TOTAL_TRAINING_STEPS=1 \
-  ALLOW_LEGACY_VERL_TOOLS=1 \
-  MODEL_PATH=model/language_model/checkpoints/qwen/Qwen3-8B-Base \
-  ./model/language_model/scripts/verl_grpo.sh
+ssh air-node-02
+cd /home/JJ_Group/lih2511/test/nanoGPT
+
+export PYTHON_BIN=/home/JJ_Group/lih2511/.conda/envs/nanoagent/bin/python
+export MODEL_PATH=$PWD/model/language_model/checkpoints/qwen/Qwen3-8B
+export NGPUS_PER_NODE=8
+export TENSOR_MODEL_PARALLEL_SIZE=4
+export TASK_MANIFEST=$PWD/agent/tasks/harness_smoke.jsonl  # 换成真实 verified manifest
+export ROLLOUT_N=4
+export ACTOR_OPTIMIZER_OFFLOAD=true
+export GPU_MEMORY_UTILIZATION=0.4
+export TOTAL_EPOCHS=30
+export SAVE_FREQ=100
+export TEST_FREQ=100
+
+# GRPO：algorithm.adv_estimator=grpo，使用 Verl 原生 GRPO loss。
+./model/language_model/scripts/verl_grpo.sh
+
+# SAPO：只切换 Verl 原生 policy_loss.loss_mode 和 tau 参数。
+ALGORITHM=sapo ./model/language_model/scripts/verl_grpo.sh
+
+# DAPO：启用 Verl 原生 group filtering、asymmetric clipping 和 overlong reward。
+ALGORITHM=dapo OVERLONG_BUFFER_LEN=64 ./model/language_model/scripts/verl_grpo.sh
 ```
+
+`TRAIN_BATCH_SIZE` 可以省略，launcher 会保证 `TRAIN_BATCH_SIZE * ROLLOUT_N` 满足 FSDP 的世界大小约束；若显式设置，8 卡、`ROLLOUT_N=4` 时应使用 2、4、6… 等合法值。首次链路 smoke 可临时设置 `TOTAL_EPOCHS=1 SAVE_FREQ=-1 TEST_FREQ=-1 VLLM_ENFORCE_EAGER=true`。不要关闭 verified-data 检查，也不要把 `verify_task` 暴露成模型工具。
 
 SFT 使用与预训练 checkpoint 相同的 tokenizer；先从原始 Codex 会话生成最终 Parquet：
 
