@@ -819,7 +819,7 @@ class vLLMHttpServer:
             # processes across all DP shards (unlike collective_rpc which only reaches
             # TP workers within a single shard).
             await self.engine.wake_up(tags=tags or self._get_wake_up_tags())
-            await self.engine.reset_prefix_cache(reset_connector=True)
+            await self._reset_prefix_cache()
         elif self.rollout_mode == RolloutMode.COLOCATED:
             # Directly call engine to wake up without sync weights.
             await self.engine.wake_up(tags=self._get_wake_up_tags())
@@ -827,7 +827,7 @@ class vLLMHttpServer:
             # (e.g. MooncakeStoreConnector) whose entries were computed
             # against the previous weights. No-op success when no connector
             # is configured (vLLM scheduler treats it as such).
-            await self.engine.reset_prefix_cache(reset_connector=True)
+            await self._reset_prefix_cache()
         elif self.rollout_mode == RolloutMode.STANDALONE:
             logger.info("skip wake_up in standalone mode")
 
@@ -848,7 +848,7 @@ class vLLMHttpServer:
             # (e.g. MooncakeStoreConnector) whose entries were computed
             # against the previous model weights. With no connector it
             # is a no-op success, so we can pass it unconditionally.
-            await self.engine.reset_prefix_cache(reset_connector=True)
+            await self._reset_prefix_cache()
 
             reset_mm_cache = getattr(self.engine, "reset_mm_cache", None)
             if reset_mm_cache is not None:
@@ -856,6 +856,19 @@ class vLLMHttpServer:
             reset_encoder_cache = getattr(self.engine, "reset_encoder_cache", None)
             if reset_encoder_cache is not None:
                 await reset_encoder_cache()
+
+    async def _reset_prefix_cache(self) -> None:
+        reset_prefix_cache = getattr(self.engine, "reset_prefix_cache", None)
+        if reset_prefix_cache is None:
+            return
+        try:
+            supports_connector = "reset_connector" in inspect.signature(reset_prefix_cache).parameters
+        except (TypeError, ValueError):
+            supports_connector = False
+        if supports_connector:
+            await reset_prefix_cache(reset_connector=True)
+        else:
+            await reset_prefix_cache()
 
     async def release_kv_cache(self):
         """Release only kv_cache GPU memory, keeping model weights intact.
@@ -894,7 +907,9 @@ class vLLMHttpServer:
         self.global_steps = global_steps
 
     async def wait_for_requests_to_drain(self):
-        await self.engine.wait_for_requests_to_drain()
+        wait_for_requests_to_drain = getattr(self.engine, "wait_for_requests_to_drain", None)
+        if wait_for_requests_to_drain is not None:
+            await wait_for_requests_to_drain()
 
     async def abort_all_requests(self, reset_prefix_cache: bool = True) -> dict[str, Any]:
         """Abort all ongoing generation requests.
@@ -1154,7 +1169,9 @@ class vLLMHttpServer:
         else:
             sleep_level = 2
         await self.engine.sleep(level=sleep_level)
-        await self.engine.reset_encoder_cache()
+        reset_encoder_cache = getattr(self.engine, "reset_encoder_cache", None)
+        if reset_encoder_cache is not None:
+            await reset_encoder_cache()
 
 
 class vLLMReplica(RolloutReplica):
