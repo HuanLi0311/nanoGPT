@@ -311,4 +311,7 @@ if [[ -n "$actor_optimizer_config" ]]; then
   args+=("++actor_rollout_ref.actor.optim.override_optimizer_config=$actor_optimizer_config")
 fi
 
-exec "$python" -m verl.trainer.main_ppo "${args[@]}" "$@"
+# Preload Python 3.11 modules before torch/Ray's import graph starts.  This
+# keeps the entrypoint native (the same main_ppo module) while avoiding the
+# intermittent partially-initialized stdlib packages seen on air-node-02.
+exec "$python" -c 'import email.feedparser, email.parser, multiprocessing.context, runpy; runpy.run_module("verl.trainer.main_ppo", run_name="__main__")' "${args[@]}" "$@"
