@@ -647,7 +647,11 @@ class vLLMHttpServer:
         if audio_data is not None:
             multi_modal_data["audio"] = audio_data
 
-        prompt_kwargs = {"prompt_token_ids": prompt_ids, "multi_modal_data": multi_modal_data}
+        prompt_kwargs = {"prompt_token_ids": prompt_ids}
+        # vLLM 0.8.x treats an empty multimodal dict as a multimodal request,
+        # which is invalid for text-only checkpoints such as Qwen3-8B.
+        if multi_modal_data:
+            prompt_kwargs["multi_modal_data"] = multi_modal_data
         if mm_processor_kwargs:
             prompt_kwargs["mm_processor_kwargs"] = mm_processor_kwargs
         try:
