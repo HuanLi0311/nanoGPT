@@ -53,6 +53,18 @@ tool_config="$root/model/language_model/config/verl_tools.yaml"
 # callers can disable it for a disaggregated deployment.
 actor_param_offload=${ACTOR_PARAM_OFFLOAD:-true}
 ref_param_offload=${REF_PARAM_OFFLOAD:-true}
+actor_optimizer=${ACTOR_OPTIMIZER:-AdamW}
+actor_optimizer_impl=${ACTOR_OPTIMIZER_IMPL:-}
+actor_optimizer_config=${ACTOR_OPTIMIZER_CONFIG:-}
+if [[ -z "$actor_optimizer_impl" ]]; then
+  case "$actor_optimizer" in
+    Adafactor) actor_optimizer_impl=transformers.optimization ;;
+    *) actor_optimizer_impl=torch.optim ;;
+  esac
+fi
+if [[ "$actor_optimizer" == "Adafactor" && -z "$actor_optimizer_config" ]]; then
+  actor_optimizer_config='{relative_step:false,scale_parameter:false,warmup_init:false}'
+fi
 
 [[ -x "$python" ]] || { echo "missing Python environment: $python" >&2; exit 1; }
 
@@ -180,6 +192,8 @@ args=(
   "actor_rollout_ref.ref.fsdp_config.param_offload=$ref_param_offload"
   "actor_rollout_ref.actor.ppo_mini_batch_size=$ppo_mini_batch_size"
   "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-1}"
+  "actor_rollout_ref.actor.optim.optimizer=$actor_optimizer"
+  "actor_rollout_ref.actor.optim.optimizer_impl=$actor_optimizer_impl"
   "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}"
   "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=${LOG_PROB_MICRO_BATCH_SIZE_PER_GPU:-1}"
   "actor_rollout_ref.actor.ppo_epochs=1"
@@ -231,5 +245,9 @@ case "$algorithm" in
     exit 2
     ;;
 esac
+
+if [[ -n "$actor_optimizer_config" ]]; then
+  args+=("++actor_rollout_ref.actor.optim.override_optimizer_config=$actor_optimizer_config")
+fi
 
 exec "$python" -m verl.trainer.main_ppo "${args[@]}" "$@"
