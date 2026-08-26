@@ -457,13 +457,13 @@ class vLLMHttpServer:
 
         # vLLM 0.8.x starts AsyncLLM's EngineCore from a Ray actor. Its
         # spawn path intermittently inherits an import-in-progress and dies
-        # in Python's codec bootstrap; forkserver starts from a clean Python
-        # process while keeping the same AsyncLLM protocol.
-        if _vllm_version() < version.parse("0.9.0") and os.environ.get("VERL_VLLM_FORKSERVER", "1") == "1":
+        # in Python's codec bootstrap; fork still uses this actor's completed
+        # interpreter initialization and keeps the same AsyncLLM protocol.
+        if _vllm_version() < version.parse("0.9.0") and os.environ.get("VERL_VLLM_FORK", "1") == "1":
             import multiprocessing
             import vllm.v1.utils as vllm_utils
 
-            vllm_utils.get_mp_context = lambda: multiprocessing.get_context("forkserver")
+            vllm_utils.get_mp_context = lambda: multiprocessing.get_context("fork")
 
         engine_args = AsyncEngineArgs.from_cli_args(args)
         usage_context = UsageContext.OPENAI_API_SERVER
