@@ -466,13 +466,17 @@ class FSDPEngine(BaseEngine):
             FSDP.set_state_dict_type(
                 module,
                 state_dict_type=StateDictType.FULL_STATE_DICT,
-                state_dict_config=FullStateDictConfig(),
+                state_dict_config=FullStateDictConfig(offload_to_cpu=True),
             )
         elif fsdp_version(module) == 1:
             FSDP.set_state_dict_type(
                 module,
                 state_dict_type=StateDictType.SHARDED_STATE_DICT,
-                state_dict_config=ShardedStateDictConfig(),
+                # Keep DTensor redistribution off the training GPU.  The
+                # colocated vLLM process is asleep during export, but FSDP1's
+                # sharded state dict can still briefly replicate a whole
+                # parameter before slicing it.
+                state_dict_config=ShardedStateDictConfig(offload_to_cpu=True),
             )
 
         return module
