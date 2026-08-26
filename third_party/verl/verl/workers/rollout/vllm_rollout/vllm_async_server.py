@@ -55,6 +55,24 @@ def _vllm_version():
     return version.parse(vllm.__version__)
 
 
+def _preload_process_imports() -> None:
+    """Finish stdlib imports before vLLM creates a worker process.
+
+    ponytail: vLLM 0.8.x can fork/spawn from an import-heavy Ray actor; the
+    small preload avoids Python 3.11 codec/module races without adding a
+    dependency or changing the rollout protocol.
+    """
+    import asyncio.base_events
+    import encodings.aliases
+    import encodings.unicode_escape
+    import json.decoder
+    import multiprocessing.context
+    import token
+    import tokenize
+    import unittest.mock
+    import unittest.result
+
+
 logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
@@ -219,6 +237,7 @@ class vLLMHttpServer:
         self._pd_prefill_engine_id = prefill_engine_id
 
     async def launch_server(self, master_address: str = None, master_port: int = None, dp_rpc_port: int = None):
+        _preload_process_imports()
         try:
             from vllm.utils.argparse_utils import FlexibleArgumentParser
         except ModuleNotFoundError:  # vLLM 0.8.x exports it directly from vllm.utils.
