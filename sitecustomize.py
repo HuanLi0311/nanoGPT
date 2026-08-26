@@ -6,7 +6,6 @@
 import email.errors  # noqa: F401
 import email.feedparser  # noqa: F401
 import email.parser  # noqa: F401
-import json.decoder  # noqa: F401
 import multiprocessing.context  # noqa: F401
 import unittest.mock  # noqa: F401
 import unittest.result  # noqa: F401
