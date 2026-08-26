@@ -331,7 +331,13 @@ class vLLMColocateWorkerExtension:
                 process_quanted_weights_after_loading(model, reload_state)
         else:
             # Some post-load transforms are non-idempotent; run once after all buckets.
-            from vllm.model_executor.model_loader.utils import process_weights_after_loading
+            try:
+                from vllm.model_executor.model_loader.utils import process_weights_after_loading
+            except ImportError:
+                # vLLM 0.8.x keeps the same implementation private in loader.py.
+                from vllm.model_executor.model_loader.loader import (
+                    _process_weights_after_loading as process_weights_after_loading,
+                )
 
             for model, model_config in self._iter_all_models_with_config():
                 process_weights_after_loading(model, model_config, self.device)
