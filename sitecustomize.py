@@ -17,6 +17,9 @@ def _warm(name: str) -> None:
 
 for _ in range(2):
     for _module in (
+        "ctypes",
+        "ctypes._endian",
+        "http.client",
         "urllib.parse",
         "json",
         "json.decoder",
@@ -27,5 +30,11 @@ for _ in range(2):
         "unittest.mock",
         "unittest.result",
         "zoneinfo._common",
+        "urllib3.exceptions",
     ):
         _warm(_module)
+
+# Ray's default_worker is the first import in vLLM's spawn child.  Importing it
+# here makes that child reuse one completed stdlib/Ray graph instead of racing
+# through it while vLLM starts its EngineCore.
+_warm("ray")
