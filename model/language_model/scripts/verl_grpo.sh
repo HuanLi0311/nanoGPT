@@ -221,8 +221,8 @@ case "$algorithm" in
   sapo)
     args+=(
       "actor_rollout_ref.actor.policy_loss.loss_mode=sapo"
-      "+actor_rollout_ref.actor.policy_loss.tau_pos=${TAU_POS:-1.0}"
-      "+actor_rollout_ref.actor.policy_loss.tau_neg=${TAU_NEG:-1.05}"
+      "actor_rollout_ref.actor.tau_pos=${TAU_POS:-1.0}"
+      "actor_rollout_ref.actor.tau_neg=${TAU_NEG:-1.05}"
     )
     ;;
   dapo)
