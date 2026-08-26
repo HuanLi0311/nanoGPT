@@ -15,15 +15,21 @@ Agentic RL 中，一个经常被忽略的问题是：模型学到的究竟是“
 
 KAT-Coder-V2.5：[Harness Scaling](https://arxiv.org/abs/2607.05471)
 
-
 ## Motivation
 
+KAT-Coder-V2.5 给出了一个重要的诊断：如果模型只在单一 Harness 中训练，它可能学到的不是任务本身，而是特定的格式、上下文结构和控制流协议。通过扩大 Harness 的分布，可以减轻这类过拟合，使模型适应更多不同的脚手架。但这种视角主要把 Harness 当作模型需要泛化到的外部接口，仍然没有回答一个更根本的问题：模型在一个更强的 Harness 下取得的能力，究竟有多少已经转移到了模型自身？
+
+在实际的 Agent 系统中，Harness 承担的不只是工具调用和消息传输，还可能代替模型完成规划、上下文管理、反思、错误恢复和停止判断等语义工作。因此，当模型在复杂任务上表现变好时，性能提升可能来自模型能力，也可能只是来自更厚的外部控制。我们希望把这种“外部支撑是否被模型接管”单独拿出来研究，并将其视为与 Harness 格式、上下文结构和控制流多样性不同的另一个问题维度：前者改变模型面对的 Harness 分布，后者改变 Harness 对模型提供的语义支撑强度。
+
+我们的基本设想是让 Harness 在后训练过程中逐渐由厚变薄。训练早期，模型的推理和错误恢复能力尚不充分，可以由较厚的 Harness 提供稳定的上下文、反馈、反思和流程控制；随着这些行为逐渐被模型学会，再有选择地撤除相应的语义组件，迫使模型在缺少外部代劳的情况下接管原有职责。训练完成后，部署时只保留工具调用、权限控制、sandbox、存储和结果验证等必要的基础设施，而不再依赖完整的语义控制层。这里的目标不是让模型适应某一种更薄的固定模板，而是检验原本由 Harness 提供的能力是否真正内化为模型策略。
+
+因此，本文关注的核心问题不是“模型能否适配更多 Harness”，而是“模型能否在训练过程中逐渐需要更少的 Harness 帮助”。这个问题与 Harness Scaling、skill internalization 以及自动化 Harness editing 都有联系，但并不等同。下面将分别梳理这些方向：它们如何扩大 Harness 分布、如何把外部 skill 的作用转移给模型，以及如何对 Harness 进行适配、修复或自动演化，并据此明确本文的研究位置。
 
 ## 3. 相关工作：从 Harness 多样化到外部能力内化
 
 上面的工作主要研究两件事：扩大模型接触到的任务、环境和 Harness 分布，或者让固定模型在更强的运行时脚手架下完成任务。与本文最接近的工作，是另一条正在形成的 **skill internalization** 研究线：它们把外部 skill 看作训练早期的程序性知识支架，再尝试让模型在没有 skill 注入时继续完成任务。
 
-### 2.1 Skill internalization：最接近我们的先验
+### 3.1 Skill internalization：最接近我们的先验
 
 [SKILL0](https://arxiv.org/abs/2604.02268) 是目前与本文最接近的工作。它在训练 rollout 中提供完整的外部 skill context，然后通过 Dynamic Curriculum 逐步减少 skill budget；模型定期在有 skill 和无 skill 的条件下比较表现，根据每个 skill 对当前策略的 helpfulness 进行筛选，最终转向完全 zero-shot 的执行。SKILL0 明确把“从依赖外部 skill 到自主完成任务”作为训练目标，并提供了[公开代码](https://github.com/ZJU-REAL/SkillZero)。这说明“先用外部支架稳定探索，再撤掉支架促使模型内化”本身是一个有直接先例的训练范式，而不是单纯的直觉。
 
@@ -33,7 +39,7 @@ KAT-Coder-V2.5：[Harness Scaling](https://arxiv.org/abs/2607.05471)
 
 [Skill1](https://arxiv.org/abs/2605.06130) 和 [SkillRise](https://arxiv.org/abs/2607.26784) 研究 skill 的选择、使用、提炼和跨任务复用，使外部 skill library 持续演化。它们关注的是如何更好地管理和利用外部技能，而不是在训练后让模型摆脱整个技能层。因此，本文与 skill internalization 工作存在明确继承关系，但研究范围从“外部知识提示是否被吸收”扩展到了“外部语义控制是否被接管”。
 
-### 2.2 Runtime Harness 的适配、修复与自动演化
+### 3.2 Runtime Harness 的适配、修复与自动演化
 
 [Life-Harness](https://arxiv.org/abs/2605.22166) 在冻结模型参数的前提下，从失败轨迹中提取环境契约、程序性 skill、动作实现和轨迹调节方面的 runtime intervention，并把改进后的 Harness 固定下来用于后续任务。它证明了不改模型也可以通过适配接口提升 Agent 表现，但其目标是**让运行时 Harness 替模型补偿能力**，而本文要研究的是训练过程中逐步减少这种补偿。
 
@@ -43,7 +49,7 @@ KAT-Coder-V2.5：[Harness Scaling](https://arxiv.org/abs/2607.05471)
 
 [Agentic Harness Engineering](https://arxiv.org/abs/2604.25850)、[Meta-Harness](https://arxiv.org/abs/2603.28052)、[HarnessX](https://arxiv.org/abs/2606.14249) 和 [MemoHarness](https://arxiv.org/abs/2607.14159) 则把 Harness 作为可搜索、可组合、可适配的优化对象：它们尝试从轨迹、分数和经验库中修改 prompt、tool、memory、middleware、workflow 或其他控制维度。这些工作说明 Harness 可以被显式表示并自动演化，但它们优化的是“如何得到更强或更适配的 Harness”，不是“如何让模型在训练中逐渐不再依赖 Harness”。如果直接采用其中的完整自动演化循环，Harness 编辑器本身就会成为另一项研究贡献，容易掩盖本文真正要回答的问题。
 
-### 2.3 与本文的区别和研究定位
+### 3.3 与本文的区别和研究定位
 
 本文与上述工作的关系可以概括为：
 
@@ -54,7 +60,7 @@ KAT-Coder-V2.5：[Harness Scaling](https://arxiv.org/abs/2607.05471)
 
 因此，本文的最小研究边界应当是：**固定任务环境、工具执行和底层协议，只选择一个语义 Harness 组件族进行训练期 fading，观察模型是否能在该组件被撤除后接管其原有职责。** 如果只研究 skill context 的撤除，问题会与 SKILL0 高度重合；若希望保留独立性，更适合从 control-flow 或 context-management 组件开始，而不是同时改变 Harness 的格式、环境和控制流。
 
-## 3. 现有问题留下的空缺
+## 4. 现有问题留下的空缺
 
 把这些工作放在一起，可以看到目前至少有两种常见做法：
 
@@ -79,7 +85,7 @@ KAT-Coder-V2.5：[Harness Scaling](https://arxiv.org/abs/2607.05471)
 
 真正值得研究的可能不是在两个端点之间选择一个静态折中点，而是让这个折中点随着模型能力的发展而移动：早期需要更多外部支撑，后期逐步把支撑撤掉。
 
-## 4. 我们的动机：训练期的 Harness Fading
+## 5. 我们的动机：训练期的 Harness Fading
 
 我们希望研究一种训练期的 harness 演化过程：在模型推理能力尚不充分时，使用较厚的 harness 稳定任务执行、提供必要的上下文和反馈；随着模型逐渐学会规划、反思、状态管理和错误恢复，再逐步移除一部分语义脚手架，迫使模型接管这些原本由 harness 完成的工作。
 
