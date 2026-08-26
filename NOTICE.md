@@ -69,6 +69,71 @@ KAT-Coder-V2.5 给出了一个重要的诊断：如果模型只在单一 Harness
 
 ## harness改动方法
 
+> 暂不展开具体的 Harness 编辑器、代码生成或自动改写方法；当前先固定研究问题、baseline 和评测协议。
+
 ## Baseline
 
+这里的 baseline 不应主要比较不同的基础模型，而应在**相同基础模型、相同任务划分、相同工具和环境、相同优化预算**下，只改变目标语义组件在训练过程中的可用性。这样才能判断收益来自 Harness 的渐进撤除，还是来自模型规模、任务暴露量或额外计算量。
+
+设目标组件为某一类语义支撑（例如自动 reflection、planner、summary、retry 或 context management），最小 baseline 集合如下：
+
+1. **Always-thick**：训练和测试始终提供完整 Harness。它提供外部支撑下的性能上限，但不能说明能力已经被模型内化。
+2. **Always-thin**：从训练开始就不提供目标组件，训练和测试都使用轻量 Harness。它检验模型能否在没有外部支撑的情况下从头学会任务，也作为“直接自主训练”的对照。
+3. **Post-hoc removal**：训练阶段始终使用完整 Harness，只在测试时移除目标组件。它用于区分普通的 Harness-assisted post-training 与有意设计的 fading；如果这个 baseline 在轻量 Harness 下已经表现良好，渐进撤除的必要性就会减弱。
+4. **Random/mixed availability**：从训练一开始就随机决定每条 rollout 是否提供目标组件，使其平均支持预算与 fading 方法相当。它控制“接触过薄 Harness”这一因素，用来检验由厚到薄的训练顺序是否重要。
+5. **Harness-diversity control**：保持语义支撑始终完整，只改变格式、上下文组织或控制流协议，作为 KAT-Coder 风格的 Harness 多样性对照。它可以区分“模型适应了更多 Harness”与“模型需要更少 Harness 帮助”这两个不同来源的收益。
+6. **Progressive fading（本文方法）**：训练早期使用较厚 Harness，随后逐步降低目标组件的支持强度，并在最终轻量 Harness 下测试。具体如何编辑或自动生成 Harness 暂放在后续部分。
+
+如果最终选择的研究对象是 skill context，应额外复现 SKILL0 的 curriculum 作为最近邻 baseline；如果研究对象是 planner、reflection、summary、retry 或 context management，则不必把 SKILL0 变成第二个完整算法，只需复用其“厚支撑到零支撑”的对照思想。
+
+所有 baseline 至少需要控制基础模型、训练样本或环境实例数、RL 更新步数、随机种子和最大 rollout 预算；Harness 增加的输入 token、模型生成 token、工具调用次数和 wall-clock 成本应单独记录，不能把更高的训练或推理成本误报为能力提升。
+
 ## 测评方案与benchmark
+
+### 评测核心：同一任务上的 Harness 支撑曲线
+
+第一版不新造一个独立任务集，而是在已有可执行环境上为同一批任务提供多种 Harness 条件。固定任务初始状态、用户目标、工具集合、权限和底层环境，只改变目标语义组件的支持程度：
+
+- **Full Harness**：目标组件完整工作，例如自动提供规划、反思、摘要、重试或上下文管理；
+- **Partial Harness**：只保留必要的触发信号或基础反馈，减少 Harness 对决策的代劳；
+- **Light Harness**：只保留工具执行、权限、sandbox、存储和结果验证等基础设施，目标语义组件不再主动替模型做决定。
+
+在训练的多个 checkpoint 上，使用完全相同的 held-out 任务分别运行这三种条件，形成 (P(	ext{success}mid	ext{checkpoint},	ext{Harness level})) 曲线。主要结果不是单一的最终分数，而是：
+
+- **Light-Harness success**：最终轻量 Harness 下的任务成功率，是部署目标对应的主指标；
+- **Support gap**：Full Harness 与 Light Harness 的成功率差距。随着训练进行，若差距缩小且 Light-Harness success 上升，才说明模型可能接管了外部组件的职责；
+- **相对 baseline 的内化增益**：重点比较 Progressive fading 与 Post-hoc removal、Random/mixed availability 的 Light-Harness 表现，而不是只与 Always-thin 比较。
+
+为了避免把“学会某种提示模板”误判成能力内化，还需要在不改变任务语义的情况下保留一组未见过的 Harness 实现，例如不同的提示措辞、上下文排列或等价的控制流实现。真正的内化应当在这些 implementation-held-out 条件下仍然成立；如果只对训练中出现过的薄模板有效，更可能是协议适应而不是 Harness 职责迁移。
+
+### 指标
+
+评测应优先使用环境执行结果，而不是只用语言模型 judge：
+
+- **任务正确性**：最终数据库、文件系统、应用状态或代码测试是否满足目标；
+- **副作用与约束遵守**：是否产生未授权修改、错误工具调用、违反 policy 的动作或不应出现的状态变化；
+- **长程执行质量**：成功前的模型 turn 数、工具调用数、生成 token、失败恢复次数和最终成功率；
+- **恢复能力**：在工具报错、返回信息不完整、上下文被压缩或中途出现干扰后，模型能否继续完成任务；
+- **可靠性**：对同一任务重复运行多次，报告均值、方差和 pass^k，而不是只报告一次成功率。
+
+其中，轨迹中的“模型是否输出了类似 reflection 的文字”只能作为辅助分析，不能作为主要指标。模型可能用不同形式完成同一语义职责，最终状态、关键中间里程碑和不应发生的事件更适合作为判断依据。
+
+### 主 benchmark：AppWorld
+
+主 benchmark 建议采用 [AppWorld](https://arxiv.org/abs/2407.18901)。它提供可控的多应用环境，包含 9 个日常应用、457 个 API 和 750 个交互式任务；官方评测使用基于环境状态的 unit tests，同时检查 collateral damage，因此允许不同的有效执行路径，不要求模型复现某一条固定 API 序列。官方仓库也提供 `train`、`dev`、`test_normal` 和 `test_challenge` 划分。[代码仓库](https://github.com/StonyBrookNLP/appworld)
+
+AppWorld 适合当前问题的原因是：任务需要跨应用、多步 API 交互和持续状态管理，足以暴露 planner、context management、reflection 和 retry 等语义 Harness 的作用。训练或 curriculum 只使用 train/dev，最终报告在未参与训练的 test_normal 和 test_challenge 上进行；同一测试任务在 Full、Partial、Light 三种 Harness 下成对运行。
+
+### 外部验证：ToolSandbox
+
+为避免结论只适用于 AppWorld 的 API 形式，建议使用 [ToolSandbox](https://arxiv.org/abs/2408.04682) 做外部验证。ToolSandbox 包含有状态工具、工具之间的隐式状态依赖、多轮用户模拟，以及基于 Milestone/Minefield 的中间和最终执行评测；其场景平均交互轮数和工具调用数也高于许多单轮 tool-use benchmark。[代码仓库](https://github.com/apple/ToolSandbox)
+
+ToolSandbox 特别适合检查模型是否能够在缺少自动反思或自动恢复时跟踪状态、处理工具异常、回溯错误并避免幻觉式调用。这里不需要把 ToolSandbox 作为第二个训练环境，第一版只将其作为 held-out evaluation，检验在不同任务分布和不同评测器上的 Light-Harness 泛化。
+
+### 可选的可靠性检查：τ-bench
+
+如果实验资源允许，可在 [τ-bench](https://arxiv.org/abs/2406.12045) 上补充低成本的可靠性检查。τ-bench 通过领域 API、策略约束和用户模拟测试 Agent，并用对话结束时的数据库目标状态判断任务是否完成，同时提供 pass^k 衡量多次运行的一致性。它适合检查 Harness 变薄后模型是否出现更多违规动作、错误确认或随机失败，但不作为本文的主 benchmark。
+
+### 最小可行实验组合
+
+第一版可以收敛为：**一个基础模型、一个目标 Harness 语义组件、AppWorld 主 benchmark、五个对照条件加一个 fading 方法、Full/Partial/Light 三档测试条件，以及 ToolSandbox 的 held-out 外部验证。** 这样评测的核心是“随着训练进行，模型在轻量 Harness 下是否获得更高且更稳定的执行能力”，而不是同时研究新的 Harness 编辑器、新的任务环境和新的 benchmark 构造方法。
