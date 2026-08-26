@@ -15,7 +15,11 @@ Agentic RL 中，一个经常被忽略的问题是：模型学到的究竟是“
 
 KAT-Coder-V2.5：[Harness Scaling](https://arxiv.org/abs/2607.05471)
 
-## 2. 相关工作：从 Harness 多样化到外部能力内化
+
+## Motivation
+
+
+## 3. 相关工作：从 Harness 多样化到外部能力内化
 
 上面的工作主要研究两件事：扩大模型接触到的任务、环境和 Harness 分布，或者让固定模型在更强的运行时脚手架下完成任务。与本文最接近的工作，是另一条正在形成的 **skill internalization** 研究线：它们把外部 skill 看作训练早期的程序性知识支架，再尝试让模型在没有 skill 注入时继续完成任务。
 
