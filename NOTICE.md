@@ -67,7 +67,19 @@ KAT-Coder-V2.5 给出了一个重要的诊断：如果模型只在单一 Harness
 在这个视角下，harness、模型和任务环境不是彼此替代的关系，而是一个逐步迁移能力归属的协同系统：强 harness 帮助较弱模型进入复杂任务，训练把其中一部分能力沉淀到模型，变薄后的 harness 再把模型暴露给新的任务难度和新的环境变化。
 
 
+## 基础模型
+
+当前主要考虑使用 Qwen3.5-27B 作为主实验模型。Qwen3.5-27B 是 Qwen3.5 系列中的 27B dense 版本，具备较强的代码和 Agent 能力；同时，Prime-RL/verl 已经提供了 Qwen3.5 dense 相关的模型与训练支持，能够降低训练基础设施方面的额外工作。[Qwen3.5-27B 模型卡](https://huggingface.co/Qwen/Qwen3.5-27B) 和 [Qwen3.5 dense 模型文档](https://huggingface.co/docs/transformers/model_doc/qwen3_5)
+
+不过，“Qwen3.5-27B 未经过 RL”目前不能作为成立的前提。公开的 `Qwen/Qwen3.5-27B` 模型卡将其标记为 post-trained model，Qwen 官方介绍也明确提到 Qwen3.5 的 post-training 主要受大规模 RL 推动。因此，实验中应把它表述为**公开的 dense post-trained checkpoint**，并完整记录其已知训练阶段，而不能把它当作未经 RL 的 base model。[Qwen3.5 官方介绍](https://qwen.ai/blog?id=qwen3.5)
+
+如果本文必须研究“从未经过 RL 的模型开始，通过 Harness-assisted RL 逐步内化能力”，则需要进一步确认 Qwen 团队是否提供 Qwen3.5-27B 的 pre-training-only checkpoint。目前可以确认公开提供了 [Qwen3.5-9B-Base](https://huggingface.co/Qwen/Qwen3.5-9B-Base)，但不能据此推断 27B Base 也已公开。因而，Qwen3.5-27B 适合作为主模型候选，但“是否有无 RL 的 27B 起点”应列为实验前的 checkpoint 核验事项。
+
 ## harness改动方法
+
+当前的 Harness 候选可以采用 [Prime-RL](https://github.com/PrimeIntellect-ai/prime-rl) 与其 [verifiers](https://github.com/PrimeIntellect-ai/verifiers) 体系。这个选择总体合理，但更准确的说法是：Prime-RL 是成熟、模块化且便于修改的 agentic RL/runtime stack，而不是天然意义上的“最简 Harness”。其 verifiers v1 明确将 taskset、harness 和 runtime 分离，并支持在统一 runtime 下组合不同 Harness；因此我们可以选用其中最简单的 ReAct/CLI 风格 Harness 作为起点，只改动目标语义层，同时保持任务环境、工具执行和结果验证不变。[verifiers v1 说明](https://www.primeintellect.ai/blog/verifiers-v1)
+
+还需要区分两个容易混淆的名称：如果这里的 “PRIME” 指 [Process Reinforcement through IMplicit REwards](https://github.com/PRIME-RL/PRIME)，它是隐式过程奖励与在线 RL 方法，不能直接称为 Harness；它可以作为训练算法或 reward backend，而 Harness 应指 Prime-RL/verifiers 中负责生成 rollout 的程序。
 
 > 暂不展开具体的 Harness 编辑器、代码生成或自动改写方法；我觉得由现有agent(比如codex 不是在训练的agent) 的coding能力根据实验结果来改动也挺好的。当前先固定研究问题、baseline 和评测协议。
 
