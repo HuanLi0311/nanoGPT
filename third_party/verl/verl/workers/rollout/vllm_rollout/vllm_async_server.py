@@ -450,8 +450,12 @@ class vLLMHttpServer:
 
         engine_client = AsyncLLM.from_vllm_config(vllm_config=vllm_config, usage_context=usage_context, **kwargs)
 
-        # Don't keep the dummy data in memory
-        await engine_client.reset_mm_cache()
+        # Don't keep the dummy multimodal data in memory when this vLLM
+        # version exposes the legacy cache hook.  vLLM 0.8.x has no such
+        # method; its dummy loader does not need an extra cleanup call.
+        reset_mm_cache = getattr(engine_client, "reset_mm_cache", None)
+        if reset_mm_cache is not None:
+            await reset_mm_cache()
         # A sampled <|image_pad|>/<|video_pad|> has no image behind it, and every consumer of the
         # sequence assumes it does. Mask them out with the OOV tail, so the policy cannot pick one.
         await engine_client.collective_rpc(
@@ -827,8 +831,12 @@ class vLLMHttpServer:
             # is a no-op success, so we can pass it unconditionally.
             await self.engine.reset_prefix_cache(reset_connector=True)
 
-            await self.engine.reset_mm_cache()
-            await self.engine.reset_encoder_cache()
+            reset_mm_cache = getattr(self.engine, "reset_mm_cache", None)
+            if reset_mm_cache is not None:
+                await reset_mm_cache()
+            reset_encoder_cache = getattr(self.engine, "reset_encoder_cache", None)
+            if reset_encoder_cache is not None:
+                await reset_encoder_cache()
 
     async def release_kv_cache(self):
         """Release only kv_cache GPU memory, keeping model weights intact.
