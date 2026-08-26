@@ -13,7 +13,42 @@ Agentic RL 中，一个经常被忽略的问题是：模型学到的究竟是“
 部多智能体框架，移除编排层后能力是否会衰减。
 
 
-## 现有问题留下的空缺
+## 2. 相关工作：从 Harness 多样化到外部能力内化
+
+上面的工作主要研究两件事：扩大模型接触到的任务、环境和 Harness 分布，或者让固定模型在更强的运行时脚手架下完成任务。与本文最接近的工作，是另一条正在形成的 **skill internalization** 研究线：它们把外部 skill 看作训练早期的程序性知识支架，再尝试让模型在没有 skill 注入时继续完成任务。
+
+### 2.1 Skill internalization：最接近我们的先验
+
+[SKILL0](https://arxiv.org/abs/2604.02268) 是目前与本文最接近的工作。它在训练 rollout 中提供完整的外部 skill context，然后通过 Dynamic Curriculum 逐步减少 skill budget；模型定期在有 skill 和无 skill 的条件下比较表现，根据每个 skill 对当前策略的 helpfulness 进行筛选，最终转向完全 zero-shot 的执行。SKILL0 明确把“从依赖外部 skill 到自主完成任务”作为训练目标，并提供了[公开代码](https://github.com/ZJU-REAL/SkillZero)。这说明“先用外部支架稳定探索，再撤掉支架促使模型内化”本身是一个有直接先例的训练范式，而不是单纯的直觉。
+
+[Skill0.5](https://arxiv.org/abs/2605.28424) 进一步指出，并非所有 skill 都应该被同样处理：通用 skill 可以被内化，任务特定 skill 则可以继续作为运行时资源使用，并通过难度感知的路由器在两者之间选择。它强调的是内化和利用之间的折中，以及对分布外任务的帮助；本文则关心 Harness 中由外部系统承担的语义职责能否逐步迁移到模型，而不只区分通用知识和任务知识。
+
+[SKILLC](https://arxiv.org/abs/2605.27899) 把有 skill 与无 skill 的 rollout 配成对照，并把两者的差异直接用于 contrastive credit assignment，试图区分“依赖 skill 才成功”和“已经能够自主成功”的策略更新。[OPID](https://arxiv.org/abs/2606.26790) 和 [SEED](https://arxiv.org/abs/2607.14777) 则从 on-policy trajectory 中提取 hindsight skill，再通过蒸馏或辅助目标把其行为效果沉淀回模型。这些工作主要改进的是**能力内化的学习信号**；它们没有把 planner、reflection、summary、retry 或 subagent orchestration 等更广义的 Harness 控制组件作为可逐步撤除的对象。
+
+[Skill1](https://arxiv.org/abs/2605.06130) 和 [SkillRise](https://arxiv.org/abs/2607.26784) 研究 skill 的选择、使用、提炼和跨任务复用，使外部 skill library 持续演化。它们关注的是如何更好地管理和利用外部技能，而不是在训练后让模型摆脱整个技能层。因此，本文与 skill internalization 工作存在明确继承关系，但研究范围从“外部知识提示是否被吸收”扩展到了“外部语义控制是否被接管”。
+
+### 2.2 Runtime Harness 的适配、修复与自动演化
+
+[Life-Harness](https://arxiv.org/abs/2605.22166) 在冻结模型参数的前提下，从失败轨迹中提取环境契约、程序性 skill、动作实现和轨迹调节方面的 runtime intervention，并把改进后的 Harness 固定下来用于后续任务。它证明了不改模型也可以通过适配接口提升 Agent 表现，但其目标是**让运行时 Harness 替模型补偿能力**，而本文要研究的是训练过程中逐步减少这种补偿。
+
+[HarnessFix](https://arxiv.org/abs/2606.06324) 把失败轨迹和 Harness 实现对齐，构造 Harness-aware Trace Intermediate Representation，再将诊断结果映射到受限的 repair operator，并用回归验证接受或拒绝 patch。它为安全地修改 Harness 提供了很有价值的工程范式：故障定位、局部编辑、回归检查和失败回滚。但 HarnessFix 的目标是修复有缺陷的 Harness，而不是有意移除一个原本有效的语义组件。
+
+[Harness-R1](https://arxiv.org/abs/2608.02276) 更直接地训练一个专门的 Harness engineer：它读取目标 Agent 的失败轨迹，生成可执行 patch，再通过重新运行冻结的目标 Agent 获得真实任务收益作为奖励。它证明了 executable Harness editing 可以被作为一个学习问题处理，并且与目标模型形成协同演化。但该方向目前仍是很新的工作；其目标是提升冻结 Agent 的成功率，公开 patch 接口也主要围绕生命周期 hook 的新增或覆盖，而不是构造“由厚变薄”的单向编辑过程。
+
+[Agentic Harness Engineering](https://arxiv.org/abs/2604.25850)、[Meta-Harness](https://arxiv.org/abs/2603.28052)、[HarnessX](https://arxiv.org/abs/2606.14249) 和 [MemoHarness](https://arxiv.org/abs/2607.14159) 则把 Harness 作为可搜索、可组合、可适配的优化对象：它们尝试从轨迹、分数和经验库中修改 prompt、tool、memory、middleware、workflow 或其他控制维度。这些工作说明 Harness 可以被显式表示并自动演化，但它们优化的是“如何得到更强或更适配的 Harness”，不是“如何让模型在训练中逐渐不再依赖 Harness”。如果直接采用其中的完整自动演化循环，Harness 编辑器本身就会成为另一项研究贡献，容易掩盖本文真正要回答的问题。
+
+### 2.3 与本文的区别和研究定位
+
+本文与上述工作的关系可以概括为：
+
+- **与 KAT-Coder 的区别**：KAT-Coder 通过改变 Harness 的格式、上下文组织和控制流，增加模型面对的 Harness 分布，目标是跨 Harness 泛化；本文改变的是外部语义支撑的强度，目标是能力从 Harness 向模型迁移。前者回答“模型能否适应更多 Harness”，后者回答“模型能否在更少 Harness 帮助下完成同一类任务”。
+- **与 SKILL0 的关系**：SKILL0 是本文最直接的先验，已经证明了“训练期注入、逐步撤除、最终 zero-shot 执行”这一基本范式。本文不能再把这个范式本身作为唯一贡献；需要把研究对象明确为 skill 之外的 Harness 语义组件，例如 Harness 强制触发的 reflection、自动 planner、summary、retry 或 subagent 编排，并研究它们的职责是否被模型接管。
+- **与 Life-Harness、HarnessFix 和 Harness-R1 的区别**：这些工作主要让 Harness 适应模型、修复 Harness 缺陷或通过编辑增加任务收益；本文要求 Harness 的变化具有明确的“变薄”方向，不能通过新增补丁抵消被移除的支架，并且最终部署时保留的是轻量的基础设施，而不是完整的语义控制层。
+- **与 Skill0.5、SKILLC、OPID 和 SEED 的区别**：这些工作解决的是哪些 skill 应该保留，以及如何给 skill internalization 提供更好的信用分配或蒸馏信号；本文关注的核心问题是 Harness 组件承担的规划、反思、状态管理和错误恢复职责能否内化。它们可以作为训练信号或课程调度的参考，但不应成为本文同时要解决的第二个算法问题。
+
+因此，本文的最小研究边界应当是：**固定任务环境、工具执行和底层协议，只选择一个语义 Harness 组件族进行训练期 fading，观察模型是否能在该组件被撤除后接管其原有职责。** 如果只研究 skill context 的撤除，问题会与 SKILL0 高度重合；若希望保留独立性，更适合从 control-flow 或 context-management 组件开始，而不是同时改变 Harness 的格式、环境和控制流。
+
+## 3. 现有问题留下的空缺
 
 把这些工作放在一起，可以看到目前至少有两种常见做法：
 
@@ -60,4 +95,3 @@ Agentic RL 中，一个经常被忽略的问题是：模型学到的究竟是“
 在这个视角下，harness、模型和任务环境不是彼此替代的关系，而是一个逐步迁移能力归属的协同系统：强 harness 帮助较弱模型进入复杂任务，训练把其中一部分能力沉淀到模型，变薄后的 harness 再把模型暴露给新的任务难度和新的环境变化。
 
 后续需要进一步回答的，是如何定义 harness 的“厚度”、如何安全地逐步撤除组件，以及如何区分真正的能力内化和单纯的接口适应。这些属于后续的评测与实现问题。
-
