@@ -314,4 +314,4 @@ fi
 # Preload Python 3.11 modules before torch/Ray's import graph starts.  This
 # keeps the entrypoint native (the same main_ppo module) while avoiding the
 # intermittent partially-initialized stdlib packages seen on air-node-02.
-exec "$python" -c 'import email.feedparser, email.parser, multiprocessing.context, runpy; runpy.run_module("verl.trainer.main_ppo", run_name="__main__")' "${args[@]}" "$@"
+exec "$python" -c 'import email.feedparser, email.parser, multiprocessing.context, runpy, unittest.mock, unittest.result; runpy.run_module("verl.trainer.main_ppo", run_name="__main__")' "${args[@]}" "$@"
