@@ -98,7 +98,7 @@ KAT-Coder-V2.5 给出了一个重要的诊断：如果模型只在单一 Harness
 - **Partial Harness**：只保留必要的触发信号或基础反馈，减少 Harness 对决策的代劳；
 - **Light Harness**：只保留工具执行、权限、sandbox、存储和结果验证等基础设施，目标语义组件不再主动替模型做决定。
 
-在训练的多个 checkpoint 上，使用完全相同的 held-out 任务分别运行这三种条件，形成 (P(	ext{success}mid	ext{checkpoint},	ext{Harness level})) 曲线。主要结果不是单一的最终分数，而是：
+在训练的多个 checkpoint 上，使用完全相同的 held-out 任务分别运行这三种条件，形成 `P(success | checkpoint, Harness level)` 曲线。主要结果不是单一的最终分数，而是：
 
 - **Light-Harness success**：最终轻量 Harness 下的任务成功率，是部署目标对应的主指标；
 - **Support gap**：Full Harness 与 Light Harness 的成功率差距。随着训练进行，若差距缩小且 Light-Harness success 上升，才说明模型可能接管了外部组件的职责；
@@ -122,7 +122,7 @@ KAT-Coder-V2.5 给出了一个重要的诊断：如果模型只在单一 Harness
 
 主 benchmark 建议采用 [AppWorld](https://arxiv.org/abs/2407.18901)。它提供可控的多应用环境，包含 9 个日常应用、457 个 API 和 750 个交互式任务；官方评测使用基于环境状态的 unit tests，同时检查 collateral damage，因此允许不同的有效执行路径，不要求模型复现某一条固定 API 序列。官方仓库也提供 `train`、`dev`、`test_normal` 和 `test_challenge` 划分。[代码仓库](https://github.com/StonyBrookNLP/appworld)
 
-AppWorld 适合当前问题的原因是：任务需要跨应用、多步 API 交互和持续状态管理，足以暴露 planner、context management、reflection 和 retry 等语义 Harness 的作用。训练或 curriculum 只使用 train/dev，最终报告在未参与训练的 test_normal 和 test_challenge 上进行；同一测试任务在 Full、Partial、Light 三种 Harness 下成对运行。
+AppWorld 适合当前问题的原因是：任务需要跨应用、多步 API 交互和持续状态管理，足以暴露 planner、context management、reflection 和 retry 等语义 Harness 的作用。训练或 curriculum 只使用 train/dev，最终报告在未参与训练的 test_normal 和 test_challenge 上进行；同一测试任务在 Full、Partial、Light 三种 Harness 下分别运行。
 
 ### 外部验证：ToolSandbox
 
