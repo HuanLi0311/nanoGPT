@@ -7,4 +7,5 @@ checkpoints/
 logs/
 .cache/
 test
-NOTICE_*md
+NOTICE*.md
+
