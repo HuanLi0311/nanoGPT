@@ -9,3 +9,6 @@ logs/
 test
 NOTICE*.md
 
+# External checkouts and their local/generated artifacts.
+third_party/G-OPD/
+third_party/Qwen3/
