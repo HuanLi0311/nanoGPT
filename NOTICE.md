@@ -72,9 +72,9 @@ LS = LRLVR + λOPD · LOPD
 
 教师不接收 LS 的反向传播。教师有独立的 hard-negative preference loss：
 
-LT = λHN · LHN + λanchor · DKL(πT ∥ πT₀)
+LT = λHN · LHN
 
-其中 πT₀ 是初始教师的冻结副本，只用于限制教师漂移。两个优化器分开执行，不建立跨模型 autograd 图。
+其中 πT₀ 是初始教师的冻结副本，通过下面的 reference margin 限制教师相对初始偏好的漂移。两个优化器分开执行，不建立跨模型 autograd 图。首轮不再额外叠一个 full-vocabulary KL loss；如果 reference margin 仍不足，再根据 pilot 的实测 KL 增加 sampled-KL anchor。
 
 ### 4.2 最小 token 级版本
 
@@ -93,6 +93,8 @@ LHN = − meanₜ log σ(βΔₜ)
 首轮使用 β = 0.1、λHN = 0.1、学生学习率 1×10⁻⁵、教师学习率 1×10⁻⁶。这些只是 pilot 起点，只能在训练集划出的 dev 上调整一次，不能看 AIME/HMMT test 调参。
 
 这个版本几乎不增加生成成本：教师给 OPD 计算 logits 时，直接在设备内取 top-k 和两组 gather log-prob，随后丢弃完整 vocabulary logits。
+
+这里的 token 级 chosen/rejected 只是由模型来源构造的 pseudo-preference，并不等价于语义上可证明的好/坏。它适合做最小梯度实验；如果收益只来自自我锐化，应停止扩大 token 版，转而验证短 continuation 或完整 Agent action 级偏好。
 
 ### 4.3 一次 outer iteration
 
@@ -131,6 +133,8 @@ P(教师动作优于学生动作 ∣ 二者同状态分歧) > 1/2
 - 学生成功：默认不对学生 token 做负更新；
 - 学生成功而教师候选失败：交换 chosen/rejected，允许教师真正向学生的新发现学习；
 - 二者都失败：跳过教师更新，除非有可信 process verifier。
+
+“学生成功而教师失败”的角色交换只适用于采样了可独立验证的 teacher continuation 或 Agent action；单个 teacher top-1 token 没有独立 outcome，不能伪造这个判定。
 
 这不会天然打乱师生角色。教师仍是主要正向参照，verifier 只在有外部证据时纠正少数角色误判。首轮必须同时跑无 verifier 与 verifier-gated 版本，才能知道 verifier 是必要条件还是锦上添花。
 
@@ -240,25 +244,28 @@ G-OPD 的 `math_eval/eval_math.py` 把 32 次生成中逐样本平均正确率�
 | E1 | GRPO / RLVR | 无 | 稀疏 outcome baseline |
 | E2 | 标准 OPD | 冻结 | 验证沿轨迹正向局部监督 |
 | E3 | OPD + RLVR | 冻结 | 排除“只是把两种已有信号相加” |
-| E4 | OPD + RLVR | 同状态 student hard negative；无 verifier | 核心提议 |
-| E5 | 同 E4 | shuffled-state student negative | 检验 same-state 必要性 |
-| E6 | 同 E4 | 随机 negative / self-sharpening | 检验是否只是熵收缩 |
-| E7 | 同 E4 | verifier-gated hard negative | 检验 verifier 的边际价值 |
-| E8 | 冻结学生 | 同 E4 | 单独判断教师能否从学生 negative 获益 |
+| E4a | 仅 OPD | 同状态 student hard negative；完全无 verifier | 核心机制的 verifier-free 版本 |
+| E4b | OPD + RLVR | 同状态 student hard negative；教师 loss 不看 verifier | 保留学生 RLVR 的实用版本 |
+| E5 | 同 E4b | shuffled-state student negative | 检验 same-state 必要性 |
+| E6 | 同 E4b | 随机 negative / self-sharpening | 检验是否只是熵收缩 |
+| E7 | 同 E4b | verifier-gated hard negative | 检验 verifier 对教师 loss 的边际价值 |
+| E8 | 冻结学生 | 同 E4a | 单独判断教师能否从学生 negative 获益 |
 
-首轮 pilot 不必把所有超参数做网格搜索。先固定 β = 0.1、λHN = 0.1、k = 64；只有 E4 在 dev 上表现出机制迹象后，再对 λHN ∈ {0.05, 0.1, 0.2} 做一次小消融。
+首轮 pilot 不必把所有超参数做网格搜索。先固定 β = 0.1、λHN = 0.1、k = 64；只有 E4a/E4b 在 dev 上表现出机制迹象后，再对 λHN ∈ {0.05, 0.1, 0.2} 做一次小消融。
+
+官方 OPD recipe 使用 `train_batch_size=1024, rollout.n=1`。为了让 GRPO 有组内比较，同时保持每 step 约 1024 条响应，E1/E3–E8 首轮使用 `train_batch_size=128, rollout.n=8, ppo_mini_batch_size=1024, micro_batch_size_per_gpu=1`；E2 既跑一次官方 n=1 复现，也跑一次 n=8 的等响应数版本。pilot 的 max response 为 4096，完整确认再恢复 16384。
 
 ### 7.5 成功判据
 
 只有同时满足以下条件，才认为核心假设得到支持：
 
-1. E4 的教师在 MATH-500 与四套竞赛题聚合分数上优于 T₀，且 paired CI 不只是 entropy 收缩；
-2. E4 稳定优于 E5/E6，说明同状态 student negative 提供了信息；
-3. E4 的学生不弱于冻结教师的 E3；
+1. E4a/E4b 的教师在 MATH-500 与四套竞赛题聚合分数上优于 T₀，paired CI 支持 outcome 改善，而不只是 entropy 收缩；
+2. E4b 稳定优于 E5/E6，说明同状态 student negative 提供了信息；
+3. E4b 的学生不弱于冻结教师的 E3；
 4. 至少 3 seeds 中方向一致，而不是挑最好 checkpoint；
 5. 旧 student negative 的复现率下降，并与 outcome error correction 正相关。
 
-如果只有 E7 有效，则结论应改成“verifier 是必要的方向约束”，不能继续声称无 verifier 即可形成可靠飞轮。
+如果只有 E7 有效，则结论应改成“verifier 是必要的方向约束”，不能继续声称无 verifier 即可形成可靠飞轮。E4b 中学生仍使用 RLVR，所以“教师负样本不经 verifier”和“整个训练完全 verifier-free”必须分别报告；只有 E4a 属于后者。
 
 ## 8. Agent 长程验证
 
@@ -445,6 +452,12 @@ CUDA_VISIBLE_DEVICES=0,1 python eval_math.py \
 - `verl/verl/trainer/ppo/ray_trainer.py`：固定“先 teacher score，后 student update，再 teacher update”的顺序并记录指标；
 - `verl/examples/g_opd/`：新增一个实验脚本，不修改官方 baseline 脚本，保证 E2 可原样复现。
 
+G-OPD 现有 `base_ref_model_path` / `base_ref_policy` 可复用为冻结 πT₀，首轮不要再造第四种 model role。另一个必须显式修正的实现细节是：当前 `only_reverse_kl_advantages=true` 会直接用 reverse-KL advantage **替换** GRPO advantage，并不会自动得到 OPD + RLVR。E3/E4b–E7 应明确计算：
+
+Atotal,i,t = AGRPO,i + λOPD · normalize(AOPD,i,t)
+
+首轮设 λOPD = 1，并记录两个分量各自的均值、标准差与梯度范数；不能只同时打开两个配置开关就把实验标成“OPD + RLVR”。
+
 每个 batch 新增的张量只需要：
 
 - `teacher_positive_ids`，形状 [B, L]；
@@ -471,7 +484,7 @@ CUDA_VISIBLE_DEVICES=0,1 python eval_math.py \
 - [ ] 跑初始 S₀/T₀ 的全部 benchmark，先确认教师确实整体强于学生。
 - [ ] 原样复现 E2 标准 OPD。
 - [ ] 实现 teacher hard-negative loss 与 toy gradient check。
-- [ ] 跑 E4/E5/E6 的 10K pilot，只看 DeepMath dev。
+- [ ] 跑 E4a/E4b/E5/E6 的 10K pilot，只看 DeepMath dev。
 - [ ] 冻结配置后评测 MATH-500、AIME24/25、HMMT25 Feb/Nov。
 - [ ] 3 seeds 确认；失败也保留完整日志。
 - [ ] 数学机制成立后，接入 action 级 Agent 实验。
