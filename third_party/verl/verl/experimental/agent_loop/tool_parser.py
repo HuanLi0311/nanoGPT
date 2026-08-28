@@ -192,7 +192,7 @@ class HermesToolParser(ToolParser):
         leading = len(body) - len(body.lstrip())
         body = body.lstrip()
         decoder = json.JSONDecoder()
-        for candidate in (body, cls._repair_invalid_escapes(body)):
+        for candidate in (body, self._repair_invalid_escapes(body)):
             try:
                 value, end = decoder.raw_decode(candidate)
             except (TypeError, json.JSONDecodeError):
@@ -200,7 +200,7 @@ class HermesToolParser(ToolParser):
             if not isinstance(value, dict):
                 return None, None
             try:
-                call = cls._function_call(value)
+                call = self._function_call(value)
             except ValueError:
                 return None, None
             return call, start + len(self.tool_call_start_token) + leading + end

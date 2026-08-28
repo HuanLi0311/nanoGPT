@@ -397,7 +397,7 @@ if __name__ == "__main__":
             response, _, _ = await tool.execute(instance, {"cmd": "test -f x.txt", "workdir": ".", "timeout_ms": 1000})
             assert "exit_code=0" in (response.text or "")
             response, _, _ = await tool.execute(
-                instance, {"cmd": "test -f x.txt", "workdir": str(root / "check" / "check")}
+                instance, {"cmd": "test -f x.txt", "workdir": str(tool._roots[instance])}
             )
             assert "exit_code=0" in (response.text or "")
             response, _, _ = await tool.execute(instance, {"cmd": "true", "workdir": "/outside/workspace"})
