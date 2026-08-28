@@ -1283,6 +1283,73 @@ class PPOTrainer(ABC):
             metric_dict["val-aux/num_turns/max"] = sample_turns.max()
             metric_dict["val-aux/num_turns/mean"] = sample_turns.mean()
 
+        # Keep the task-level view stable across validation checkpoints. Verl's
+        # grouped val-core metrics are useful for GRPO@N, but do not expose a
+        # single pass rate or the per-task tool execution signal.
+        rewards = reward_extra_infos_dict.get("reward", [])
+        n_samples = len(rewards)
+
+        def numeric_values(name: str) -> list[float | None]:
+            raw_values = reward_extra_infos_dict.get(name, [])
+            values = []
+            for index in range(n_samples):
+                value = raw_values[index] if index < len(raw_values) else None
+                try:
+                    value = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    value = None
+                values.append(value if value is not None and np.isfinite(value) else None)
+            return values
+
+        def mean(values: list[float | None]) -> float | None:
+            valid = [value for value in values if value is not None]
+            return float(np.mean(valid)) if valid else None
+
+        reward_values = numeric_values("reward")
+        pass_values = numeric_values("pass_rate")
+        task_values = numeric_values("task_success")
+        tool_values = numeric_values("tool_call_hit_rate")
+        for index in range(n_samples):
+            if pass_values[index] is None:
+                pass_values[index] = task_values[index] or reward_values[index]
+
+        for name, values in (
+            ("eval/reward_mean", reward_values),
+            ("eval/pass_rate", pass_values),
+            ("eval/tool_call_hit_rate", tool_values),
+        ):
+            value = mean(values)
+            if value is not None:
+                metric_dict[name] = value
+
+        if n_samples:
+            task_ids = reward_extra_infos_dict.get("task_id", [])
+            grouped = {}
+            for index in range(n_samples):
+                task_id = task_ids[index] if index < len(task_ids) else None
+                task_id = str(task_id) if task_id else "unknown"
+                safe_task_id = task_id.replace("/", "_").replace("\\", "_").replace(" ", "_")
+                stats = grouped.setdefault(safe_task_id, {"pass": [], "reward": [], "tool": []})
+                if pass_values[index] is not None:
+                    stats["pass"].append(pass_values[index])
+                if reward_values[index] is not None:
+                    stats["reward"].append(reward_values[index])
+                if tool_values[index] is not None:
+                    stats["tool"].append(tool_values[index])
+
+            metric_dict["eval/num_samples"] = float(n_samples)
+            metric_dict["eval/num_tasks"] = float(len(grouped))
+            for task_id, stats in grouped.items():
+                prefix = f"eval/task/{task_id}"
+                for suffix, values in (
+                    ("success_rate", stats["pass"]),
+                    ("reward_mean", stats["reward"]),
+                    ("tool_call_hit_rate", stats["tool"]),
+                ):
+                    value = mean(values)
+                    if value is not None:
+                        metric_dict[f"{prefix}/{suffix}"] = value
+
         return metric_dict
 
     def _start_profiling(self) -> None:
