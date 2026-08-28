@@ -22,7 +22,12 @@ def preload_worker() -> None:
     # Ray's agent-loop workers import datasets in a separate process.  Warm the
     # stdlib dependency first so that concurrent package initialization cannot
     # leave xml.dom without its registry module.
+    import email.feedparser  # noqa: F401
+    import email.parser  # noqa: F401
+    import multiprocessing.context  # noqa: F401
     import multiprocessing.managers  # noqa: F401
+    import unittest.mock  # noqa: F401
+    import unittest.result  # noqa: F401
     import xml.dom.domreg  # noqa: F401
 
     return
