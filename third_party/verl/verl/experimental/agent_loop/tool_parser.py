@@ -104,27 +104,139 @@ class HermesToolParser(ToolParser):
         self.tool_call_end_token: str = "</tool_call>"
         self.tool_call_regex = regex.compile(r"<tool_call>(.*?)</tool_call>", regex.DOTALL)
 
+    @staticmethod
+    def _repair_invalid_escapes(value: str) -> str:
+        """Preserve shell backslashes that are not JSON escapes."""
+
+        repaired: list[str] = []
+        in_string = False
+        escaped = False
+        for char in value:
+            if not in_string:
+                repaired.append(char)
+                if char == '"':
+                    in_string = True
+                continue
+            if escaped:
+                if char not in '"\\/bfnrtu':
+                    repaired.append("\\")
+                repaired.append(char)
+                escaped = False
+                continue
+            repaired.append(char)
+            if char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        if escaped:
+            repaired.append("\\")
+        return "".join(repaired)
+
+    @classmethod
+    def _decode_json_object(cls, raw: str) -> dict[str, Any] | None:
+        candidates = [raw]
+        repaired = cls._repair_invalid_escapes(raw)
+        if repaired != raw:
+            candidates.append(repaired)
+        last_error: Exception | None = None
+        for candidate in candidates:
+            for strict in (True, False):
+                try:
+                    value = json.loads(candidate, strict=strict)
+                except (TypeError, json.JSONDecodeError) as error:
+                    last_error = error
+                    continue
+                if isinstance(value, dict):
+                    return value
+                last_error = ValueError("tool call must be a JSON object")
+        if last_error is not None:
+            raise last_error
+        return None
+
+    @staticmethod
+    def _fallback_name(raw: str) -> str | None:
+        match = regex.search(r'"name"\s*:\s*"((?:\\.|[^"\\])*)"', raw)
+        if not match:
+            return None
+        try:
+            return str(json.loads('"' + match.group(1) + '"'))
+        except (TypeError, json.JSONDecodeError):
+            return match.group(1)
+
+    @classmethod
+    def _function_call(cls, value: dict[str, Any]) -> FunctionCall:
+        name = value.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("tool call is missing a function name")
+        arguments = value.get("arguments", {})
+        return FunctionCall(name=name, arguments=json.dumps(arguments, ensure_ascii=False))
+
+    @classmethod
+    def _parse_call(cls, raw: str) -> FunctionCall | None:
+        try:
+            return cls._function_call(cls._decode_json_object(raw.strip()) or {})
+        except Exception as error:
+            # Codex shell commands frequently contain regex backslashes. If a
+            # malformed call still identifies its tool, execute it as an empty
+            # argument call so the episode records a scored tool failure rather
+            # than being retried as a harness failure.
+            name = cls._fallback_name(raw)
+            if name:
+                logger.warning("Recovered malformed Hermes call for '%s': %s", name, error)
+                return FunctionCall(name=name, arguments="{}")
+            logger.error(f"Failed to decode tool call: {error}")
+            return None
+
+    def _parse_trailing_call(self, text: str, start: int) -> tuple[FunctionCall | None, int | None]:
+        body = text[start + len(self.tool_call_start_token) :]
+        leading = len(body) - len(body.lstrip())
+        body = body.lstrip()
+        decoder = json.JSONDecoder()
+        for candidate in (body, cls._repair_invalid_escapes(body)):
+            try:
+                value, end = decoder.raw_decode(candidate)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(value, dict):
+                return None, None
+            try:
+                call = cls._function_call(value)
+            except ValueError:
+                return None, None
+            return call, start + len(self.tool_call_start_token) + leading + end
+        return None, None
+
     @rollout_trace_op
     async def extract_tool_calls(
         self, responses_ids: list[int], tools: list[OpenAIFunctionToolSchema] = None
     ) -> tuple[str, list[FunctionCall]]:
         loop = get_event_loop()
         text = await loop.run_in_executor(None, self.tokenizer.decode, responses_ids)
-        if self.tool_call_start_token not in text or self.tool_call_end_token not in text:
+        if self.tool_call_start_token not in text:
             return text, []
 
-        matches = self.tool_call_regex.findall(text)
-        function_calls = []
+        function_calls: list[FunctionCall] = []
+        matches = list(self.tool_call_regex.finditer(text))
         for match in matches:
-            try:
-                function_call = json.loads(match)
-                name, arguments = function_call["name"], function_call["arguments"]
-                function_calls.append(FunctionCall(name=name, arguments=json.dumps(arguments, ensure_ascii=False)))
-            except Exception as e:
-                logger.error(f"Failed to decode tool call: {e}")
+            function_call = self._parse_call(match.group(1))
+            if function_call is not None:
+                function_calls.append(function_call)
+
+        # A response cap can remove only the closing Hermes tag. Recover a
+        # complete trailing JSON object, but never guess an incomplete one.
+        trailing_start = text.find(self.tool_call_start_token, matches[-1].end() if matches else 0)
+        trailing_range: tuple[int, int] | None = None
+        if trailing_start >= 0:
+            function_call, trailing_end = self._parse_trailing_call(text, trailing_start)
+            if function_call is not None and trailing_end is not None:
+                function_calls.append(function_call)
+                trailing_range = (trailing_start, trailing_end)
 
         # remaing text exclude tool call tokens
         content = self.tool_call_regex.sub("", text)
+        if trailing_range is not None:
+            start, end = trailing_range
+            content = content.replace(text[start:end], "", 1)
 
         return content, function_calls
 

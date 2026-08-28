@@ -148,6 +148,11 @@ class ToolAgentLoop(AgentLoopBase):
 
         # Per-sample tool selection: filter global tools by extra_info.tool_selection
         extra_info = kwargs.get("extra_info", {}) or {}
+        if isinstance(extra_info, dict):
+            if extra_info.get("task_id") is not None:
+                agent_data.extra_fields["task_id"] = str(extra_info["task_id"])
+            if extra_info.get("verifier_version") is not None:
+                agent_data.extra_fields["verifier_version"] = str(extra_info["verifier_version"])
         tool_selection = extra_info.get("tool_selection")
         if tool_selection and self.tools:
             selected = {name: self.tools[name] for name in tool_selection if name in self.tools}
@@ -274,9 +279,9 @@ class ToolAgentLoop(AgentLoopBase):
         if output.routed_experts is not None:
             agent_data.routed_experts = output.routed_experts
 
-        # Check termination conditions
-        if not ignore_termination and len(agent_data.response_mask) >= self.response_length:
-            return AgentState.TERMINATED
+        # A response cap may cut off only the closing Hermes tag. Parse the
+        # generated turn before terminating so a complete tool call at the
+        # boundary can still be executed.
         if self.max_assistant_turns and agent_data.assistant_turns >= self.max_assistant_turns:
             return AgentState.TERMINATED
         if self.max_user_turns and agent_data.user_turns >= self.max_user_turns:
@@ -295,8 +300,7 @@ class ToolAgentLoop(AgentLoopBase):
 
         if agent_data.tool_calls:
             return AgentState.PROCESSING_TOOLS
-        else:
-            return AgentState.TERMINATED
+        return AgentState.TERMINATED
 
     async def _handle_processing_tools_state(self, agent_data: AgentData) -> AgentState:
         """Handle the processing tools state: execute tool calls and prepare tool responses."""
@@ -431,6 +435,37 @@ class ToolAgentLoop(AgentLoopBase):
         message["tool_calls"] = tool_calls
         return message
 
+    @staticmethod
+    def _record_protocol_failure(agent_data: AgentData, failure_class: str, message: str) -> None:
+        """Make a model-side protocol error scoreable instead of retryable."""
+
+        fields = agent_data.extra_fields
+        existing = fields.get("task_outcome")
+        if isinstance(existing, dict) and existing.get("task_success"):
+            return
+        task_id = fields.get("task_id")
+        verifier_version = fields.get("verifier_version", "manifest-v1")
+        if task_id is None:
+            for config in agent_data.tools_kwargs.values():
+                if not isinstance(config, dict):
+                    continue
+                create_kwargs = config.get("create_kwargs", {})
+                if isinstance(create_kwargs, dict) and create_kwargs.get("task_id") is not None:
+                    task_id = str(create_kwargs["task_id"])
+                    verifier_version = create_kwargs.get("verifier_version", verifier_version)
+                    break
+        fields["task_outcome"] = {
+            "task_id": task_id,
+            "task_success": 0.0,
+            "verifier_score": 0.0,
+            "passed": False,
+            "harness_status": "healthy",
+            "protocol_status": "valid",
+            "failure_class": failure_class,
+            "reason": message,
+            "verifier_version": verifier_version,
+        }
+
     async def _call_tool(
         self, tool_call: FunctionCall, tools_kwargs: dict[str, Any], agent_data: AgentData
     ) -> tuple[ToolResponse, float, dict]:
@@ -449,6 +484,7 @@ class ToolAgentLoop(AgentLoopBase):
             available = list(active_tools.keys())
             msg = f"Unknown function '{tool_name}'. Available tools: {available}"
             logger.warning(msg)
+            self._record_protocol_failure(agent_data, "unknown_tool", msg)
             return ToolResponse(text=msg), 0.0, {}
 
         # Validate tool arguments
@@ -457,6 +493,7 @@ class ToolAgentLoop(AgentLoopBase):
         except (json.JSONDecodeError, TypeError) as e:
             msg = f"Invalid JSON in arguments for '{tool_name}': {e}"
             logger.warning(msg)
+            self._record_protocol_failure(agent_data, "invalid_tool_arguments", msg)
             return ToolResponse(text=msg), 0.0, {}
 
         # Execute tool
