@@ -18,7 +18,7 @@ tools:
               description: Codex-compatible shell command.
             workdir:
               type: string
-              description: Relative working directory inside the episode workspace (Codex name).
+              description: Working directory inside the episode workspace; relative paths are preferred, and absolute paths are accepted only when they resolve inside this episode (Codex name).
             yield_time_ms:
               type: integer
               description: Codex-compatible wait hint; bounded workspace execution waits for completion.
@@ -33,7 +33,7 @@ tools:
               description: Alias for cmd.
             cwd:
               type: string
-              description: Alias for workdir; relative path inside the episode workspace.
+              description: Alias for workdir; must resolve inside the episode workspace.
             timeout:
               type: integer
               description: Optional timeout in seconds; timeout_ms is the Codex millisecond form.

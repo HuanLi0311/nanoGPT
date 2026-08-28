@@ -107,6 +107,12 @@ class WorkspaceTool(BaseTool):
                     state_before=before,
                     state_after=before,
                 )
+                self._auto_verify(
+                    root,
+                    config,
+                    agent_data,
+                    {"exit_code": 1, "tool_status": "failed", "failure_class": "tool_failure"},
+                )
             return self._error(str(error))
         except Exception as error:
             return self._runtime_fault(root, config, agent_data, parameters, "tool_runtime", str(error))
@@ -145,7 +151,11 @@ class WorkspaceTool(BaseTool):
 
     @staticmethod
     def _safe_path(root: Path, relative: Any) -> Path:
-        candidate = (root / str(relative or ".")).resolve()
+        raw = str(relative or ".")
+        # Codex may send an absolute path. Accept it only when it already
+        # resolves inside this episode; foreign replay paths must not become
+        # a shell escape hatch.
+        candidate = (Path(raw) if Path(raw).is_absolute() else root / raw).resolve()
         if candidate != root and root not in candidate.parents:
             raise ValueError(f"path escapes workspace: {relative}")
         return candidate
@@ -386,6 +396,12 @@ if __name__ == "__main__":
             assert "exit_code=0" in (response.text or "")
             response, _, _ = await tool.execute(instance, {"cmd": "test -f x.txt", "workdir": ".", "timeout_ms": 1000})
             assert "exit_code=0" in (response.text or "")
+            response, _, _ = await tool.execute(
+                instance, {"cmd": "test -f x.txt", "workdir": str(root / "check" / "check")}
+            )
+            assert "exit_code=0" in (response.text or "")
+            response, _, _ = await tool.execute(instance, {"cmd": "true", "workdir": "/outside/workspace"})
+            assert "path escapes workspace" in (response.text or "")
             patch_tool = WorkspaceTool(
                 {"operation": "apply_patch", "workspace_root": str(root)},
                 _schema("apply_patch", "apply a patch", {"patch": {"type": "string"}}, ["patch"]),
