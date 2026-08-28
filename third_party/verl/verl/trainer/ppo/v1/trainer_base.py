@@ -1818,8 +1818,12 @@ class PPOTrainer(ABC):
         prompt_length = data["prompts"].offsets().diff()
         response_length = data["responses"].offsets().diff()
         global_token_num = (prompt_length + response_length).tolist()
-        min_global_steps = np.array([tag["min_global_steps"] for tag in batch.tags], dtype=int)[non_padding_mask]
-        max_global_steps = np.array([tag["max_global_steps"] for tag in batch.tags], dtype=int)[non_padding_mask]
+        # Refilled/failed trajectories may not carry replay-version metadata.
+        # Keep them in the normal metrics, but omit them from staleness metrics.
+        off_policy_mask = non_padding_mask & np.array(
+            [tag.get("min_global_steps") is not None and tag.get("max_global_steps") is not None for tag in batch.tags],
+            dtype=bool,
+        )
 
         # Only fetch speculative decoding stats when rollout writes them.
         spec_drafts = spec_accepts = spec_verifies = None
@@ -1893,22 +1897,29 @@ class PPOTrainer(ABC):
         #     so the lag is a range: the freshest weights used give the lower bound
         #     (global_steps - max_global_steps) and the oldest weights the worst case
         #     (global_steps - min_global_steps). We log the lower bound as the primary metric.
-        trajectory_spans = max_global_steps - min_global_steps + 1
-        trajectory_staleness = (global_steps - 1) - max_global_steps
-        trajectory_staleness_worst = (global_steps - 1) - min_global_steps
-        metrics.update(
-            {
-                "training/off_policy/trajectory_spans/mean": trajectory_spans.mean(),
-                "training/off_policy/trajectory_spans/max": trajectory_spans.max(),
-                "training/off_policy/trajectory_spans/min": trajectory_spans.min(),
-                "training/off_policy/trajectory_staleness/mean": trajectory_staleness.mean(),
-                "training/off_policy/trajectory_staleness/max": trajectory_staleness.max(),
-                "training/off_policy/trajectory_staleness/min": trajectory_staleness.min(),
-                "training/off_policy/trajectory_staleness_worst/mean": trajectory_staleness_worst.mean(),
-                "training/off_policy/trajectory_staleness_worst/max": trajectory_staleness_worst.max(),
-                "training/off_policy/trajectory_staleness_worst/min": trajectory_staleness_worst.min(),
-            }
-        )
+        if off_policy_mask.any():
+            min_global_steps = np.array(
+                [tag.get("min_global_steps") for tag in batch.tags], dtype=int
+            )[off_policy_mask]
+            max_global_steps = np.array(
+                [tag.get("max_global_steps") for tag in batch.tags], dtype=int
+            )[off_policy_mask]
+            trajectory_spans = max_global_steps - min_global_steps + 1
+            trajectory_staleness = (global_steps - 1) - max_global_steps
+            trajectory_staleness_worst = (global_steps - 1) - min_global_steps
+            metrics.update(
+                {
+                    "training/off_policy/trajectory_spans/mean": trajectory_spans.mean(),
+                    "training/off_policy/trajectory_spans/max": trajectory_spans.max(),
+                    "training/off_policy/trajectory_spans/min": trajectory_spans.min(),
+                    "training/off_policy/trajectory_staleness/mean": trajectory_staleness.mean(),
+                    "training/off_policy/trajectory_staleness/max": trajectory_staleness.max(),
+                    "training/off_policy/trajectory_staleness/min": trajectory_staleness.min(),
+                    "training/off_policy/trajectory_staleness_worst/mean": trajectory_staleness_worst.mean(),
+                    "training/off_policy/trajectory_staleness_worst/max": trajectory_staleness_worst.max(),
+                    "training/off_policy/trajectory_staleness_worst/min": trajectory_staleness_worst.min(),
+                }
+            )
 
 
 TRAINER_REGISTRY: dict[str, type[PPOTrainer]] = {}
