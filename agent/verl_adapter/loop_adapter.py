@@ -17,11 +17,12 @@ except ModuleNotFoundError:  # direct script execution
 
 
 def preload_worker() -> None:
-    """Keep Ray's worker setup hook side-effect free."""
+    """Warm stdlib imports before Verl/Ray starts its worker graph."""
 
     # Ray's agent-loop workers import datasets in a separate process.  Warm the
     # stdlib dependency first so that concurrent package initialization cannot
     # leave xml.dom without its registry module.
+    import multiprocessing.managers  # noqa: F401
     import xml.dom.domreg  # noqa: F401
 
     return
