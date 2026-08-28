@@ -124,6 +124,45 @@ token IDs
 
 `model/language_model/scripts/rl.py` 只实现不带 workspace 的紧凑计划 GRPO；遇到 environment/unscored 契约会直接拒绝。Codex coding-agent 的多轮工具训练统一走 `verl_grpo.sh`，由独立 verifier 产生 task reward。
 
+当前 air-node-03 上已跑通的 4B Verl/GRPO 命令如下。它使用 `global_step_3600` 的 4B SFT 模型、8 张 A100、15 条训练任务和 6 条验证任务，总计 100 step，并每 10 step 保存权重和验证一次：
+
+```bash
+cd /home/JJ_Group/lih2511/test/nanoGPT
+nohup env \
+  MODEL_PATH=/home/JJ_Group/lih2511/test/nanoGPT/logs/qwen-4B-sft/global_step_3600/merged_hf \
+  NGPUS_PER_NODE=8 \
+  TENSOR_MODEL_PARALLEL_SIZE=4 \
+  TASK_MANIFEST=/home/JJ_Group/lih2511/test/nanoGPT/agent/tasks/synthesis_full.jsonl \
+  ROLLOUT_N=4 \
+  TRAIN_BATCH_SIZE=2 \
+  MAX_RESPONSE_LENGTH=256 \
+  GPU_MEMORY_UTILIZATION=0.35 \
+  VLLM_ENFORCE_EAGER=true \
+  VLLM_WORKER_MULTIPROC_METHOD=spawn \
+  DATALOADER_NUM_WORKERS=0 \
+  AGENT_LOOP_NUM_WORKERS=8 \
+  REWARD_NUM_WORKERS=8 \
+  TRANSFER_QUEUE_UNITS=8 \
+  TOTAL_EPOCHS=100 \
+  TOTAL_TRAINING_STEPS=100 \
+  SAVE_FREQ=10 \
+  TEST_FREQ=10 \
+  VERL_LOGGER=console \
+  EXPERIMENT_NAME=grpo_qwen4b_sft_step3600_synthesisfull_eval10_v4 \
+  ./model/language_model/scripts/verl_grpo.sh \
+  trainer.default_local_dir=/home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_eval10_v4 \
+  trainer.val_before_train=true \
+  trainer.validation_data_dir=/home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_eval10_v4/validation \
+  actor_rollout_ref.rollout.val_kwargs.n=4 \
+  actor_rollout_ref.rollout.val_kwargs.do_sample=true \
+  actor_rollout_ref.rollout.val_kwargs.temperature=0.7 \
+  actor_rollout_ref.rollout.val_kwargs.top_p=1.0 \
+  actor_rollout_ref.rollout.val_kwargs.top_k=-1 \
+  > /home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_eval10_v4.log 2>&1 < /dev/null &
+```
+
+日志写入 `logs/grpo_qwen4b_sft_step3600_synthesisfull_eval10_v4.log`，权重写入对应目录下的 `global_step_10`、`global_step_20` 等目录，验证样本写入 `validation/0.jsonl`、`validation/10.jsonl` 等文件。
+
 可复现的小型完整实验使用北岭观测站数据，三个 YAML 都从同一 tokenizer 路径读取：
 
 ```bash
