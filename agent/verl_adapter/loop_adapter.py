@@ -30,6 +30,7 @@ def preload_worker() -> None:
     import importlib._abc  # noqa: F401
     import json.decoder  # noqa: F401
     import multiprocessing.context  # noqa: F401
+    import multiprocessing.managers  # noqa: F401
     import xml.dom.minidom  # noqa: F401
     import xml.dom.xmlbuilder  # noqa: F401
     import xml.etree.ElementTree  # noqa: F401
