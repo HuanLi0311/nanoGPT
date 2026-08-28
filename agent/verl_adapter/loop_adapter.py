@@ -24,6 +24,7 @@ def preload_worker() -> None:
     # leave xml.dom without its registry module.
     import email.feedparser  # noqa: F401
     import email.parser  # noqa: F401
+    import html.parser  # noqa: F401
     import multiprocessing.context  # noqa: F401
     import multiprocessing.managers  # noqa: F401
     import multiprocessing.sharedctypes  # noqa: F401

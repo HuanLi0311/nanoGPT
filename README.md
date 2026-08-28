@@ -189,17 +189,17 @@ nohup env \
   SAVE_FREQ=10 \
   TEST_FREQ=10 \
   VERL_LOGGER=console \
-  EXPERIMENT_NAME=grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry1 \
+  EXPERIMENT_NAME=grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry2 \
   ./model/language_model/scripts/verl_grpo.sh \
-  trainer.default_local_dir=/home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry1 \
+  trainer.default_local_dir=/home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry2 \
   trainer.val_before_train=true \
-  trainer.validation_data_dir=/home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry1/validation \
+  trainer.validation_data_dir=/home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry2/validation \
   actor_rollout_ref.rollout.val_kwargs.n=4 \
   actor_rollout_ref.rollout.val_kwargs.do_sample=true \
   actor_rollout_ref.rollout.val_kwargs.temperature=0.7 \
   actor_rollout_ref.rollout.val_kwargs.top_p=1.0 \
   actor_rollout_ref.rollout.val_kwargs.top_k=-1 \
-  > /home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry1.log 2>&1 < /dev/null &
+  > /home/JJ_Group/lih2511/test/nanoGPT/logs/grpo_qwen4b_sft_step3600_synthesisfull_codexcompat_eval10_v6_retry2.log 2>&1 < /dev/null &
 ```
 
 可复现的小型完整实验使用北岭观测站数据，三个 YAML 都从同一 tokenizer 路径读取：
