@@ -36,7 +36,7 @@ tools:
               description: Alias for workdir; relative path inside the episode workspace.
             timeout:
               type: integer
-              description: Alias for timeout_ms, in seconds.
+              description: Optional timeout in seconds; timeout_ms is the Codex millisecond form.
           required: [cmd]
   - class_name: model.language_model.scripts.verl_workspace_tool.WorkspaceTool
     config:
