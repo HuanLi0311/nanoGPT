@@ -13,16 +13,31 @@ tools:
         parameters:
           type: object
           properties:
+            cmd:
+              type: string
+              description: Codex-compatible shell command.
+            workdir:
+              type: string
+              description: Relative working directory inside the episode workspace (Codex name).
+            yield_time_ms:
+              type: integer
+              description: Codex-compatible wait hint; bounded workspace execution waits for completion.
+            max_output_tokens:
+              type: integer
+              description: Codex-compatible output hint; the workspace tool applies its own output cap.
+            timeout_ms:
+              type: integer
+              description: Codex-compatible command timeout in milliseconds.
             command:
               type: string
-              description: The command to run.
+              description: Alias for cmd.
             cwd:
               type: string
-              description: Relative working directory inside the workspace.
+              description: Alias for workdir; relative path inside the episode workspace.
             timeout:
               type: integer
-              description: Maximum command duration in seconds.
-          required: [command]
+              description: Alias for timeout_ms, in seconds.
+          required: [cmd]
   - class_name: model.language_model.scripts.verl_workspace_tool.WorkspaceTool
     config:
       type: native
@@ -33,7 +48,7 @@ tools:
       type: function
       function:
         name: apply_patch
-        description: Apply a standard unified diff inside the episode workspace.
+        description: Apply a Codex patch string or an object containing patch inside the episode workspace.
         parameters:
           type: object
           properties:

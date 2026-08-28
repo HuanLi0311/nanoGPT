@@ -151,14 +151,20 @@ class WorkspaceTool(BaseTool):
         return candidate
 
     def _exec(self, root: Path, parameters: dict[str, Any]) -> tuple[ToolResponse, float, dict]:
-        command = str(parameters.get("command", "")).strip()
+        command = str(parameters.get("command") or parameters.get("cmd") or "").strip()
         if not command:
-            return self._error("command is required")
+            return self._error("command/cmd is required")
         # ponytail: shell execution is workspace-scoped only; use an OS/container
         # sandbox before running untrusted workloads at scale.
-        cwd = self._safe_path(root, parameters.get("cwd", "."))
+        cwd_value = parameters.get("cwd")
+        if cwd_value is None:
+            cwd_value = parameters.get("workdir", ".")
+        cwd = self._safe_path(root, cwd_value)
         cwd.mkdir(parents=True, exist_ok=True)
-        timeout = min(self.max_timeout, max(1, int(parameters.get("timeout", self.max_timeout))))
+        timeout_value = parameters.get("timeout")
+        if timeout_value is None and parameters.get("timeout_ms") is not None:
+            timeout_value = max(1, int(parameters["timeout_ms"]) / 1000)
+        timeout = min(self.max_timeout, max(1, int(timeout_value or self.max_timeout)))
         result = subprocess.run(
             command,
             cwd=cwd,
@@ -174,8 +180,8 @@ class WorkspaceTool(BaseTool):
             "output": output,
         }
 
-    def _patch(self, root: Path, parameters: dict[str, Any]) -> tuple[ToolResponse, float, dict]:
-        patch = str(parameters.get("patch", ""))
+    def _patch(self, root: Path, parameters: dict[str, Any] | str) -> tuple[ToolResponse, float, dict]:
+        patch = parameters if isinstance(parameters, str) else str(parameters.get("patch", ""))
         if not patch.strip():
             return self._error("patch is required")
         if patch.lstrip().startswith("*** Begin Patch"):
@@ -378,6 +384,8 @@ if __name__ == "__main__":
             instance, _ = await tool.create(create_kwargs={"task_id": "check", "files": {"x.txt": "ok\n"}})
             response, _, _ = await tool.execute(instance, {"command": "test -f x.txt"})
             assert "exit_code=0" in (response.text or "")
+            response, _, _ = await tool.execute(instance, {"cmd": "test -f x.txt", "workdir": ".", "timeout_ms": 1000})
+            assert "exit_code=0" in (response.text or "")
             patch_tool = WorkspaceTool(
                 {"operation": "apply_patch", "workspace_root": str(root)},
                 _schema("apply_patch", "apply a patch", {"patch": {"type": "string"}}, ["patch"]),
@@ -391,8 +399,14 @@ if __name__ == "__main__":
                 patch_instance,
                 {"patch": "*** Begin Patch\n*** Update File: value.txt\n@@\n-OLD\n+NEW\n*** End Patch"},
             )
+            await patch_tool.execute(
+                patch_instance,
+                "*** Begin Patch\n*** Add File: raw.txt\n+RAW\n*** End Patch",
+            )
             values = list((root / "patch").rglob("value.txt"))
+            raw_values = list((root / "patch").rglob("raw.txt"))
             assert values and values[0].read_text(encoding="utf-8") == "NEW\n"
+            assert raw_values and raw_values[0].read_text(encoding="utf-8") == "RAW\n"
             verify_tool = WorkspaceTool(
                 {"operation": "verify_task", "workspace_root": str(root)},
                 _schema("verify_task", "verify", {}, []),
