@@ -19,10 +19,11 @@ except ModuleNotFoundError:  # direct script execution
 def preload_worker() -> None:
     """Keep Ray's worker setup hook side-effect free."""
 
-    # ponytail: the driver entrypoint already warms these stdlib modules.  A
-    # second import graph in Ray's forked setup hook races with Python 3.11's
-    # partially initialized packages; the upgrade path is a per-worker spawn
-    # model if this preload is ever needed for a different runtime.
+    # Ray's agent-loop workers import datasets in a separate process.  Warm the
+    # stdlib dependency first so that concurrent package initialization cannot
+    # leave xml.dom without its registry module.
+    import xml.dom.domreg  # noqa: F401
+
     return
 
 
