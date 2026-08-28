@@ -26,6 +26,7 @@ def preload_worker() -> None:
     import email.parser  # noqa: F401
     import multiprocessing.context  # noqa: F401
     import multiprocessing.managers  # noqa: F401
+    import multiprocessing.sharedctypes  # noqa: F401
     import unittest.mock  # noqa: F401
     import unittest.result  # noqa: F401
     import xml.dom.domreg  # noqa: F401
@@ -128,6 +129,9 @@ if __name__ == "__main__":
     from types import SimpleNamespace
     import tempfile
     from pathlib import Path
+
+    preload_worker()
+    import multiprocessing.sharedctypes  # noqa: F401
 
     with tempfile.TemporaryDirectory() as directory:
         data = SimpleNamespace(tool_calls=[], extra_fields={})
