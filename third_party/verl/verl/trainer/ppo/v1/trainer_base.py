@@ -1311,7 +1311,9 @@ class PPOTrainer(ABC):
         tool_values = numeric_values("tool_call_hit_rate")
         for index in range(n_samples):
             if pass_values[index] is None:
-                pass_values[index] = task_values[index] or reward_values[index]
+                pass_values[index] = (
+                    task_values[index] if task_values[index] is not None else reward_values[index]
+                )
 
         for name, values in (
             ("eval/reward_mean", reward_values),
