@@ -17,26 +17,13 @@ except ModuleNotFoundError:  # direct script execution
 
 
 def preload_worker() -> None:
-    """Warm stdlib imports before Ray starts concurrent TransferQueue actors."""
+    """Keep Ray's worker setup hook side-effect free."""
 
-    # Ray can start several actors at once; torch/Ray imports these modules
-    # through different paths and Python 3.11 occasionally observes a
-    # half-initialized package.  Keep this hook limited to existing runtime deps.
-    import asyncio.base_events  # noqa: F401
-    import email.errors  # noqa: F401
-    import email.feedparser  # noqa: F401
-    import email.parser  # noqa: F401
-    import html.parser  # noqa: F401
-    import importlib._abc  # noqa: F401
-    import json.decoder  # noqa: F401
-    import multiprocessing.context  # noqa: F401
-    import multiprocessing.managers  # noqa: F401
-    import xml.dom.minidom  # noqa: F401
-    import xml.dom.xmlbuilder  # noqa: F401
-    import xml.etree.ElementTree  # noqa: F401
-    import urllib3.exceptions  # noqa: F401
-    import unittest.mock  # noqa: F401
-    import unittest.result  # noqa: F401
+    # ponytail: the driver entrypoint already warms these stdlib modules.  A
+    # second import graph in Ray's forked setup hook races with Python 3.11's
+    # partially initialized packages; the upgrade path is a per-worker spawn
+    # model if this preload is ever needed for a different runtime.
+    return
 
 
 def _extra_fields(agent_data: Any) -> dict[str, Any]:
