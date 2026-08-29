@@ -152,10 +152,14 @@ class WorkspaceTool(BaseTool):
     @staticmethod
     def _safe_path(root: Path, relative: Any) -> Path:
         raw = str(relative or ".")
-        # Codex may send an absolute path. Accept it only when it already
-        # resolves inside this episode; foreign replay paths must not become
-        # a shell escape hatch.
-        candidate = (Path(raw) if Path(raw).is_absolute() else root / raw).resolve()
+        path = Path(raw)
+        # Official instruct models commonly assume a container mounted at
+        # /workspace. Treat that prefix as this episode's virtual root while
+        # keeping every other foreign absolute path outside the sandbox.
+        if path.is_absolute() and (path == Path("/workspace") or Path("/workspace") in path.parents):
+            candidate = (root / path.relative_to("/workspace")).resolve()
+        else:
+            candidate = (path if path.is_absolute() else root / path).resolve()
         if candidate != root and root not in candidate.parents:
             raise ValueError(f"path escapes workspace: {relative}")
         return candidate
@@ -399,6 +403,8 @@ if __name__ == "__main__":
             response, _, _ = await tool.execute(
                 instance, {"cmd": "test -f x.txt", "workdir": str(tool._roots[instance])}
             )
+            assert "exit_code=0" in (response.text or "")
+            response, _, _ = await tool.execute(instance, {"cmd": "test -f x.txt", "workdir": "/workspace"})
             assert "exit_code=0" in (response.text or "")
             response, _, _ = await tool.execute(instance, {"cmd": "true", "workdir": "/outside/workspace"})
             assert "path escapes workspace" in (response.text or "")
