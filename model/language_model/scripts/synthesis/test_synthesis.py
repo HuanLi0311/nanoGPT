@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from agent.verifier.verifier import run_verifier
+
 from .graph import build_graph, compose
 from .schema import read_jsonl
 from .synthesize import run_pipeline
@@ -14,6 +16,7 @@ from .trace_runner import ProgrammaticTraceRunner
 
 ROOT = Path(__file__).resolve().parents[4]
 TASKS = ROOT / "agent/tasks/synthesis_seed.jsonl"
+FULL_TASKS = ROOT / "agent/tasks/synthesis_full.jsonl"
 
 
 def main() -> None:
@@ -37,6 +40,31 @@ def main() -> None:
         assert outcome["trace_fidelity"] is True
         assert episode["events"][0]["state_delta"]["added"] == ["answer.txt"]
         assert episode["events"][1]["state_delta"] == {"added": [], "removed": [], "changed": []}
+
+        for full_task in read_jsonl(FULL_TASKS):
+            initial_root = temporary_root / "initial" / full_task["task_id"]
+            for relative, content in full_task.get("files", {}).items():
+                path = initial_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            initial_root.mkdir(parents=True, exist_ok=True)
+            initial = run_verifier(str(initial_root), full_task["verifier"], task_id=full_task["task_id"])
+            assert initial["task_success"] == 0.0, f"{full_task['task_id']} passes without model action"
+
+            full_graph = build_graph([full_task], [])
+            candidate = compose(
+                full_task,
+                full_graph,
+                candidate_index=0,
+                required_patterns=full_task["candidate_patterns"],
+            )
+            full_episode = runner.run(
+                full_task,
+                candidate["actions"],
+                f"semantic-{full_task['task_id']}",
+                candidate_index=0,
+            )
+            assert full_episode["outcome"]["task_success"] is True, full_task["task_id"]
 
         report = run_pipeline(
             TASKS,
