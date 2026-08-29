@@ -203,6 +203,8 @@ fi
 ray_cpus=${RAY_NUM_CPUS:-$((gpus * 4 + 8))}
 
 export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
+unset PYTHONPYCACHEPREFIX
+export PYTHONDONTWRITEBYTECODE=1
 # vLLM's multiprocessing backend is fork-unsafe inside a Ray actor.  Spawn is
 # the compatible default for this colocated Qwen3 launcher; callers can still
 # override it for a different backend.
