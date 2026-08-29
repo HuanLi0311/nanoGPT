@@ -8,6 +8,7 @@ logs/
 .cache/
 test
 NOTICE*.md
+!NOTICE_WARNING.md
 
 # External checkouts and their local/generated artifacts.
 third_party/G-OPD/
