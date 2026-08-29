@@ -19,6 +19,9 @@ def _warm(name: str) -> None:
 
 for _ in range(2):
     for _module in (
+        "asyncio",
+        "asyncio.base_events",
+        "asyncio.coroutines",
         "ctypes",
         "ctypes._endian",
         "http.client",
