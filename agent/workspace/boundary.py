@@ -56,3 +56,25 @@ def workspace_path(root: str | Path, value: Any = ".", *, must_exist: bool = Fal
     if must_exist and not candidate.exists():
         raise FileNotFoundError(candidate)
     return candidate
+
+
+if __name__ == "__main__":
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+        root = Path(directory)
+        assert workspace_path(root, "/workspace/file.txt") == root / "file.txt"
+        try:
+            workspace_path(root, "../outside")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("workspace escape was accepted")
+        (root / "link").symlink_to(outside, target_is_directory=True)
+        try:
+            workspace_path(root, "link/file.txt")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("symlink escape was accepted")
+    print("workspace boundary self-check passed")

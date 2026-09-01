@@ -49,7 +49,6 @@ function parseArguments(value: unknown, custom: boolean): { value: unknown; erro
   try { return { value: JSON.parse(value || "{}") }; }
   catch { return { value, error: "tool arguments are not valid JSON" }; }
 }
-}
 
 const renderArguments = (value: unknown): string => typeof value === "string" ? value : JSON.stringify(value ?? {});
 

@@ -398,10 +398,10 @@ if __name__ == "__main__":
         try:
             tool = WorkspaceTool(
                 {"operation": "exec_command", "workspace_root": str(root)},
-                _schema("exec_command", "run a command", {"command": {"type": "string"}}, ["command"]),
+                _schema("exec_command", "run a command", {"cmd": {"type": "string"}}, ["cmd"]),
             )
             instance, _ = await tool.create(create_kwargs={"task_id": "check", "files": {"x.txt": "ok\n"}})
-            response, _, _ = await tool.execute(instance, {"command": "test -f x.txt"})
+            response, _, _ = await tool.execute(instance, {"cmd": "test -f x.txt"})
             assert "exit_code=0" in (response.text or "")
             response, _, _ = await tool.execute(instance, {"cmd": "test -f x.txt", "workdir": ".", "timeout_ms": 1000})
             assert "exit_code=0" in (response.text or "")

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, unlink, rename, writeFile } from "node:fs/promises";
-import { resolve, relative } from "node:path";
+import { resolve } from "node:path";
+import { workspacePath } from "../../../workspace/boundary.ts";
 
 function applyGit(diff: string, cwd: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {
@@ -91,17 +92,19 @@ async function applyCodex(diff: string, root: string, paths: string[]): Promise<
 
 export async function applyPatch(diff: string, root: string): Promise<string> {
   if (!diff.trim()) throw new Error("patch is empty");
-  const base = resolve(root);
+  const base = await workspacePath(root, ".", true);
   const codex = diff.startsWith("*** Begin Patch");
-  const paths = codex
+  const headerPaths = codex
     ? [...diff.matchAll(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm)].map((m) => m[1])
     : [...diff.matchAll(/^(?:---|\+\+\+) [ab]\/([^\t\n]+)/gm)].map((m) => m[1]);
+  const gitPaths = [...diff.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMap((m) => [m[1], m[2]]);
+  const paths = [...new Set([...headerPaths, ...gitPaths])];
   const unified = /^(?:---|\+\+\+) (?:[ab]\/|\/dev\/null)/m.test(diff);
   if ((!codex && !(/(^|\n)diff --git a\//.test(diff) || (unified && paths.length))) || (codex && !paths.length)) {
     throw new Error("patch must be a Codex Begin Patch or unified git diff");
   }
   for (const path of paths) {
-    if (relative(base, resolve(base, path)).startsWith("..")) throw new Error("patch escapes workspace");
+    if (path !== "/dev/null") await workspacePath(base, path, false);
   }
   if (codex) return applyCodex(diff, root, paths);
   return applyGit(diff, base);
