@@ -8,7 +8,6 @@ recorded separately from the model-facing messages.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import re
 import shutil
@@ -20,6 +19,7 @@ from typing import Any
 from verl.tools.schemas import OpenAIFunctionToolSchema
 
 from model.language_model.scripts.verl_workspace_tool import WorkspaceTool
+from agent.workspace.snapshot import snapshot
 
 from .schema import fingerprint, task_prompt, task_verifier, validate_action, validate_task
 
@@ -42,11 +42,12 @@ def _tool_schema(name: str) -> OpenAIFunctionToolSchema:
     required: list[str]
     if name == "exec_command":
         properties = {
-            "command": {"type": "string", "description": "Command to run."},
-            "cwd": {"type": "string", "description": "Relative workspace directory."},
-            "timeout": {"type": "integer", "description": "Maximum duration in seconds."},
+            "cmd": {"type": "string", "description": "Command to run."},
+            "workdir": {"type": "string", "description": "Relative workspace directory."},
+            "yield_time_ms": {"type": "integer", "description": "Polling delay in milliseconds."},
+            "max_output_tokens": {"type": "integer", "description": "Maximum returned output tokens."},
         }
-        required = ["command"]
+        required = ["cmd"]
     elif name == "apply_patch":
         properties = {"patch": {"type": "string", "description": "Unified or Codex patch."}}
         required = ["patch"]
@@ -75,15 +76,22 @@ def _json_safe(value: Any) -> Any:
         return str(value)
 
 
+def _canonical_action(action: dict[str, Any]) -> dict[str, Any]:
+    """Keep legacy synthetic actions readable while emitting the Codex ABI."""
+
+    if action.get("tool") != "exec_command" or not isinstance(action.get("arguments"), dict):
+        return action
+    arguments = dict(action["arguments"])
+    if "cmd" not in arguments and "command" in arguments:
+        arguments["cmd"] = arguments.pop("command")
+    if "workdir" not in arguments and "cwd" in arguments:
+        arguments["workdir"] = arguments.pop("cwd")
+    return {**action, "arguments": arguments}
+
+
 def snapshot_environment(root: Path) -> dict[str, Any]:
-    files: dict[str, dict[str, Any]] = {}
-    if root.exists():
-        for path in sorted(root.rglob("*")):
-            if not path.is_file() or ".git" in path.parts:
-                continue
-            relative = path.relative_to(root).as_posix()
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            files[relative] = {"sha256": digest, "size": path.stat().st_size}
+    state = snapshot(root)
+    files = {item["path"]: {"sha256": item["sha256"], "size": item["size"]} for item in state["files"]}
     environment = {"root_kind": "workspace", "files": files}
     return {"state_hash": fingerprint(environment), **environment}
 
@@ -184,6 +192,7 @@ class ProgrammaticTraceRunner:
         validate_task(task)
         for action in actions:
             validate_action(action)
+        actions = [_canonical_action(action) for action in actions]
 
         task_id = safe_part(task["task_id"], "task")
         episode_key = safe_part(episode_id, "episode")
@@ -196,6 +205,7 @@ class ProgrammaticTraceRunner:
             "files": task["files"],
             "verifier": task["verifier"],
             "verifier_version": task.get("verifier_version", "manifest-v1"),
+            "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
         }
         agent_data = SimpleNamespace(request_id=episode_id, extra_fields={})
         for tool in self.tools.values():
@@ -252,7 +262,7 @@ class ProgrammaticTraceRunner:
                 "provenance": {
                     "episode_id": episode_id,
                     "candidate_index": candidate_index,
-                    "execution_mode": "live_sandbox",
+                    "execution_mode": "workspace_host",
                 },
             })
             messages.append(_action_message(call_id, action))
@@ -306,7 +316,7 @@ class ProgrammaticTraceRunner:
                 "reward": float(verifier_reward),
                 "outcome": verifier_outcome,
             },
-            "provenance": {"episode_id": episode_id, "execution_mode": "live_sandbox"},
+            "provenance": {"episode_id": episode_id, "execution_mode": "workspace_host"},
         })
 
         passed = bool(verifier_outcome.get("task_success")) and verifier_outcome.get("harness_status") == "healthy"
@@ -340,9 +350,9 @@ class ProgrammaticTraceRunner:
             "environment_id": f"{task['task_id']}:{fingerprint(task['files'])[:12]}",
             "initial_state_hash": initial_state["state_hash"],
             "candidate_index": candidate_index,
-            "execution_mode": "live_sandbox",
+            "execution_mode": "workspace_host",
             "harness_version": task.get("harness_version", "workspace-tool-v1"),
-            "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v1"),
+            "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
             "verifier_version": task.get("verifier_version", "manifest-v1"),
             "actions": deepcopy(actions),
             "events": events,

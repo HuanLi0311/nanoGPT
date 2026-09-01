@@ -9,6 +9,7 @@ test
 NOTICE*.md
 !NOTICE_WARNING.md
 .skill/
+data/
 
 # External checkouts and their local/generated artifacts.
 third_party/G-OPD/

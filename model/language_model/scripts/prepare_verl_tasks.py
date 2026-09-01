@@ -39,6 +39,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
         prompt = item.get("prompt")
         verifier = item.get("verifier")
         verifier_version = str(item.get("verifier_version", "manifest-v1"))
+        tool_schema_version = str(item.get("tool_schema_version", "workspace-tools-v2"))
         files = item.get("files", {})
         if not task_id or not isinstance(prompt, (str, list)) or not _valid_verifier(verifier):
             raise ValueError(f"{source}:{line_number}: task_id, prompt, and verifier are required")
@@ -53,12 +54,14 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "task_id": task_id,
             "verifier": verifier,
             "verifier_version": verifier_version,
+            "tool_schema_version": tool_schema_version,
         }
         create_kwargs = {
             "task_id": task_id,
             "files": files,
             "verifier": verifier,
             "verifier_version": verifier_version,
+            "tool_schema_version": tool_schema_version,
         }
         extra_info = dict(item.get("extra_info", {})) if isinstance(item.get("extra_info", {}), dict) else {}
         extra_info.update({

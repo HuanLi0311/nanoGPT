@@ -22,14 +22,16 @@ from verl.tools.base_tool import BaseTool
 from verl.tools.schemas import OpenAIFunctionToolSchema, ToolResponse
 
 try:
-    from agent.env.workspace import snapshot
+    from agent.workspace.boundary import workspace_path
+    from agent.workspace.snapshot import snapshot
     from agent.verifier.verifier import run_verifier
     from agent.verl_adapter.loop_adapter import record_tool_event
 except ModuleNotFoundError:  # direct `python path/to/verl_workspace_tool.py`
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-    from agent.env.workspace import snapshot
+    from agent.workspace.boundary import workspace_path
+    from agent.workspace.snapshot import snapshot
     from agent.verifier.verifier import run_verifier
     from agent.verl_adapter.loop_adapter import record_tool_event
 
@@ -63,6 +65,7 @@ class WorkspaceTool(BaseTool):
     async def execute(self, instance_id: str, parameters: dict[str, Any], **kwargs) -> tuple[ToolResponse, float, dict]:
         config = self._configs.get(instance_id, {})
         agent_data = kwargs.get("agent_data")
+        parameters = self._canonical_parameters(parameters)
         root: Optional[Path] = None
         try:
             root = self._episode_root(instance_id, config, agent_data)
@@ -135,6 +138,8 @@ class WorkspaceTool(BaseTool):
             agent_data.extra_fields.setdefault("environment_id", f"workspace:{task_id}")
             agent_data.extra_fields.setdefault("initial_state_hash", initial["state_hash"])
             agent_data.extra_fields.setdefault("harness_version", "nanoagent-verl-v1")
+            agent_data.extra_fields.setdefault("execution_mode", "workspace_host")
+            agent_data.extra_fields.setdefault("tool_schema_version", str(config.get("tool_schema_version", "workspace-tools-v2")))
             agent_data.extra_fields.setdefault("verifier_version", str(config.get("verifier_version", "manifest-v1")))
         self._roots[instance_id] = root
         return root
@@ -151,28 +156,28 @@ class WorkspaceTool(BaseTool):
 
     @staticmethod
     def _safe_path(root: Path, relative: Any) -> Path:
-        raw = str(relative or ".")
-        path = Path(raw)
-        # Official instruct models commonly assume a container mounted at
-        # /workspace. Treat that prefix as this episode's virtual root while
-        # keeping every other foreign absolute path outside the sandbox.
-        if path.is_absolute() and (path == Path("/workspace") or Path("/workspace") in path.parents):
-            candidate = (root / path.relative_to("/workspace")).resolve()
-        else:
-            candidate = (path if path.is_absolute() else root / path).resolve()
-        if candidate != root and root not in candidate.parents:
-            raise ValueError(f"path escapes workspace: {relative}")
-        return candidate
+        return workspace_path(root, relative)
+
+    @staticmethod
+    def _canonical_parameters(parameters: Any) -> Any:
+        """Accept old aliases at the adapter edge; record only the Codex ABI."""
+
+        if not isinstance(parameters, dict):
+            return parameters
+        normalized = dict(parameters)
+        if "cmd" not in normalized and "command" in normalized:
+            normalized["cmd"] = normalized.pop("command")
+        if "workdir" not in normalized and "cwd" in normalized:
+            normalized["workdir"] = normalized.pop("cwd")
+        return normalized
 
     def _exec(self, root: Path, parameters: dict[str, Any]) -> tuple[ToolResponse, float, dict]:
-        command = str(parameters.get("command") or parameters.get("cmd") or "").strip()
+        command = str(parameters.get("cmd") or "").strip()
         if not command:
-            return self._error("command/cmd is required")
+            return self._error("cmd is required")
         # ponytail: shell execution is workspace-scoped only; use an OS/container
         # sandbox before running untrusted workloads at scale.
-        cwd_value = parameters.get("cwd")
-        if cwd_value is None:
-            cwd_value = parameters.get("workdir", ".")
+        cwd_value = parameters.get("workdir", ".")
         cwd = self._safe_path(root, cwd_value)
         cwd.mkdir(parents=True, exist_ok=True)
         timeout_value = parameters.get("timeout")
