@@ -38,8 +38,9 @@ export async function workspacePath(root: string, value = ".", mustExist = false
   const base = await realpath(resolve(root));
   const raw = String(value || ".");
   const virtual = raw === "/workspace" || raw.startsWith("/workspace/");
+  const virtualSuffix = raw.slice("/workspace".length).replace(/^[/\\]+/, "");
   const lexical = virtual
-    ? resolve(base, raw.slice("/workspace".length))
+    ? resolve(base, virtualSuffix || ".")
     : isAbsolute(raw) ? resolve(raw) : resolve(base, raw);
   if (!inside(base, lexical)) throw new Error("path escapes workspace");
   await rejectSymlinkComponents(base, lexical);

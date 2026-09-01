@@ -7,3 +7,22 @@
 6. 计算节点ssh air-node-03 环境/home/JJ_Group/lih2511/.conda/envs/nanoagent 若有需补齐的环境 请追加在requirements.txt
 7. 若生成完毕 将生成parquet合并进model/language_model/data/post_train/data/rendered/sft b并执行sft 训练数据是全部model/language_model/data/post_train/data/rendered/sft/*.parquet
 8. sft走verl风格 请无视/model中相关实现
+
+## Workspace harness boundary
+
+`agent/workspace` is the file-level workspace boundary. Each episode owns one
+fresh root, and relative paths plus `/workspace/...` are resolved below that
+root. Absolute paths outside it and symlink components are rejected.
+
+This is `workspace_host`, not an OS sandbox: `exec_command` still starts a
+host shell with the workspace as `cwd`, so network, `/proc`, capabilities, and
+paths embedded in shell text are outside this guarantee.
+
+The model-facing workspace ABI is defined in
+`runtime/src/tools/definitions.ts`: `exec_command` uses `cmd` and `workdir`,
+`apply_patch` keeps the Codex patch payload, and `verify_task` is never exposed
+to the policy. `command`/`cwd` remain adapter-only compatibility aliases.
+
+The interaction loop is `runtime/src/core_loop.ts`; persistence and retries are
+in `runtime/src/runtime.ts`; verifier and reward stay out-of-band. The Python
+Verl adapter records the same call/result IDs and workspace state transitions.
