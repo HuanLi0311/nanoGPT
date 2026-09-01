@@ -11,6 +11,8 @@ export type Event = {
   exitCode?: number;
   toolResult?: unknown;
   timestamp?: string;
+  protocolStatus?: "valid" | "invalid";
+  failureClass?: string;
 };
 
 export type Trajectory = {
@@ -43,3 +45,9 @@ export type CustomToolSpec = {
 };
 
 export type ToolSpec = FunctionToolSpec | CustomToolSpec;
+
+export type ToolResult = {
+  content: string;
+  exitCode: number;
+  data: unknown;
+};
