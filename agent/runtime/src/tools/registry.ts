@@ -105,7 +105,19 @@ const TOOL_NAMES = [
   "shell_command", "exec", "wait",
 ] as const;
 
-const delay = (milliseconds: number) => new Promise<void>((resolveDelay) => setTimeout(resolveDelay, Math.max(0, milliseconds)));
+function waitFor(promise: Promise<unknown>, milliseconds: number): Promise<boolean> {
+  return new Promise((resolveWait) => {
+    let settled = false;
+    const timer = setTimeout(() => { settled = true; resolveWait(false); }, Math.max(0, milliseconds));
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveWait(true);
+    };
+    promise.then(finish, finish);
+  });
+}
 
 function stateFor(context: ToolContext): HarnessState {
   if (!context.state) {
@@ -371,10 +383,9 @@ async function waitAgent(input: unknown, context: ToolContext): Promise<ToolResu
   if (requested !== undefined && requested < 0) throw new Error("timeout_ms must be non-negative");
   const timeout = Math.max(10_000, requested ?? 30_000);
   const agents = [...stateFor(context).agents.values()];
-  const completed = await Promise.race([
-    ...(agents.length ? [Promise.all(agents.map((agent) => agent.promise ?? Promise.resolve())).then(() => true)] : []),
-    delay(timeout).then(() => false),
-  ]);
+  const completed = agents.length
+    ? await waitFor(Promise.all(agents.map((agent) => agent.promise ?? Promise.resolve())), timeout)
+    : false;
   const clamped = requested !== undefined && requested < timeout
     ? `\n\nRequested timeout of ${requested}ms was clamped to the minimum of ${timeout}ms.` : "";
   return response({ message: completed ? `Wait completed.${clamped}` : `Wait timed out.${clamped}`, timed_out: !completed });
@@ -542,7 +553,7 @@ async function execCell(input: unknown, context: ToolContext): Promise<ToolResul
     cell.status = "errored"; cell.exitCode = 1; append(String(error));
     cell.promise = Promise.resolve();
   }
-  await Promise.race([cell.promise, delay(Math.max(0, options.yieldTime))]);
+  await waitFor(cell.promise, Math.max(0, options.yieldTime));
   return cellOutput(cell, outputLimit(options.maxTokens));
 }
 
@@ -553,7 +564,7 @@ async function waitCell(input: unknown, context: ToolContext): Promise<ToolResul
   if (boolean(args.terminate, "terminate")) {
     cell.cancelled = true; cell.status = "terminated"; cell.exitCode = 130;
   } else {
-    await Promise.race([cell.promise, delay(number(args.yield_time_ms, "yield_time_ms") ?? 10_000)]);
+    await waitFor(cell.promise, number(args.yield_time_ms, "yield_time_ms") ?? 10_000);
   }
   return cellOutput(cell, outputLimit(args.max_tokens));
 }

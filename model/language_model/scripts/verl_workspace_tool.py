@@ -427,6 +427,8 @@ if __name__ == "__main__":
             assert "exit_code=0" in (response.text or "")
             response, _, _ = await tool.execute(instance, {"cmd": "true", "workdir": "/outside/workspace"})
             assert "path escapes workspace" in (response.text or "")
+            response, _, _ = await tool.execute(instance, {"cmd": "true", "sandbox_permissions": "require_escalated"})
+            assert "require_escalated is unavailable" in (response.text or "")
             patch_tool = WorkspaceTool(
                 {"operation": "apply_patch", "workspace_root": str(root)},
                 _schema("apply_patch", "apply a patch", {"patch": {"type": "string"}}, ["patch"]),

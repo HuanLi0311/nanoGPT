@@ -44,7 +44,19 @@ const DEFAULT_YIELD_MS = 10_000;
 const MAX_YIELD_MS = 30_000;
 const MAX_CAPTURE_CHARS = 4_000_000;
 
-const delay = (milliseconds: number) => new Promise<void>((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+function waitFor(promise: Promise<unknown>, milliseconds: number): Promise<boolean> {
+  return new Promise((resolveWait) => {
+    let settled = false;
+    const timer = setTimeout(() => { settled = true; resolveWait(false); }, Math.max(0, milliseconds));
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolveWait(true);
+    };
+    promise.then(finish, finish);
+  });
+}
 
 function yieldMilliseconds(value: unknown, fallback = DEFAULT_YIELD_MS): number {
   const parsed = Number(value);
@@ -98,7 +110,7 @@ export class ShellManager {
     child.on("error", (error) => append(`${error.message}\n`));
     child.on("close", (code) => { session.exitCode = code ?? 1; session.finish(); });
     this.sessions.set(session.id, session);
-    await Promise.race([session.done, delay(yieldMilliseconds(input.yield_time_ms))]);
+    await waitFor(session.done, yieldMilliseconds(input.yield_time_ms));
     return this.result(session, input.max_output_tokens, true);
   }
 
@@ -106,7 +118,7 @@ export class ShellManager {
     const session = this.sessions.get(Number(input.session_id));
     if (!session) throw new Error(`unknown or completed session_id: ${input.session_id}`);
     if (session.exitCode === undefined && input.chars) session.child.stdin?.write(input.chars);
-    await Promise.race([session.done, delay(yieldMilliseconds(input.yield_time_ms, input.chars ? 250 : DEFAULT_YIELD_MS))]);
+    await waitFor(session.done, yieldMilliseconds(input.yield_time_ms, input.chars ? 250 : DEFAULT_YIELD_MS));
     return this.result(session, input.max_output_tokens, true);
   }
 
