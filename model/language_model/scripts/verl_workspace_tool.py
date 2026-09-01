@@ -167,8 +167,12 @@ class WorkspaceTool(BaseTool):
         normalized = dict(parameters)
         if "cmd" not in normalized and "command" in normalized:
             normalized["cmd"] = normalized.pop("command")
+        else:
+            normalized.pop("command", None)
         if "workdir" not in normalized and "cwd" in normalized:
             normalized["workdir"] = normalized.pop("cwd")
+        else:
+            normalized.pop("cwd", None)
         return normalized
 
     def _exec(self, root: Path, parameters: dict[str, Any]) -> tuple[ToolResponse, float, dict]:

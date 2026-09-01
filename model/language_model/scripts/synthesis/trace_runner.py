@@ -84,8 +84,12 @@ def _canonical_action(action: dict[str, Any]) -> dict[str, Any]:
     arguments = dict(action["arguments"])
     if "cmd" not in arguments and "command" in arguments:
         arguments["cmd"] = arguments.pop("command")
+    else:
+        arguments.pop("command", None)
     if "workdir" not in arguments and "cwd" in arguments:
         arguments["workdir"] = arguments.pop("cwd")
+    else:
+        arguments.pop("cwd", None)
     return {**action, "arguments": arguments}
 
 
@@ -205,6 +209,7 @@ class ProgrammaticTraceRunner:
             "files": task["files"],
             "verifier": task["verifier"],
             "verifier_version": task.get("verifier_version", "manifest-v1"),
+            "harness_version": task.get("harness_version", "workspace-host-v2"),
             "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
         }
         agent_data = SimpleNamespace(request_id=episode_id, extra_fields={})

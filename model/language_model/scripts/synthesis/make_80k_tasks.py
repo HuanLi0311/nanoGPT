@@ -48,7 +48,7 @@ def padding_patterns(task_id: str, profile: str, count: int) -> list[dict]:
         patterns.append({
             "id": pattern_id,
             "tool": tools[index],
-            "arguments_template": {"command": commands[index]},
+            "arguments_template": {"cmd": commands[index]},
             "preconditions": [previous],
             "effects": [f"trajectory:step:{step:02d}"],
             "novelty": "new_path" if profile != "short" else "known_replay",
