@@ -1,14 +1,14 @@
 __pycache__/
 *.py[cod]
 .venv/
-data/
-models/
 checkpoints/
 logs/
+model/
 .cache/
 test
 NOTICE*.md
 !NOTICE_WARNING.md
+.skill/
 
 # External checkouts and their local/generated artifacts.
 third_party/G-OPD/
