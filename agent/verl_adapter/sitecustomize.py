@@ -34,6 +34,7 @@ for _ in range(2):
         "multiprocessing.context",
         "unittest.mock",
         "unittest.result",
+        "zoneinfo",
         "zoneinfo._common",
         "urllib3.exceptions",
     ):

@@ -31,6 +31,7 @@ def preload_worker() -> None:
     import unittest.mock  # noqa: F401
     import unittest.result  # noqa: F401
     import xml.dom.domreg  # noqa: F401
+    import zoneinfo  # noqa: F401
 
     return
 
