@@ -20,9 +20,9 @@ type Options = { id: string; prompt: string; model: Model; tools: ToolSpec[]; co
 function verify(events: Event[], final: string): Verification {
   const calls = events.filter((event) => event.kind === "tool_call");
   const results = events.filter((event) => event.kind === "tool_result");
-  if (!final.trim()) return { score: 0, passed: false, reason: "empty final answer", harnessStatus: "protocol", failureClass: "empty_final" };
   const protocolError = events.find((event) => event.protocolStatus === "invalid");
   if (protocolError) return { score: 0, passed: false, reason: protocolError.failureClass ?? "invalid tool protocol", harnessStatus: "protocol", failureClass: protocolError.failureClass ?? "protocol" };
+  if (!final.trim()) return { score: 0, passed: false, reason: "empty final answer", harnessStatus: "protocol", failureClass: "empty_final" };
   const callIds = calls.map((event) => event.toolCallId).filter((id): id is string => Boolean(id));
   const resultIds = results.map((event) => event.toolCallId).filter((id): id is string => Boolean(id));
   if (callIds.length !== calls.length || resultIds.length !== results.length) {

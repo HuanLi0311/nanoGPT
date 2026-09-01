@@ -137,7 +137,7 @@ class WorkspaceTool(BaseTool):
             agent_data.extra_fields.setdefault("task_id", task_id)
             agent_data.extra_fields.setdefault("environment_id", f"workspace:{task_id}")
             agent_data.extra_fields.setdefault("initial_state_hash", initial["state_hash"])
-            agent_data.extra_fields.setdefault("harness_version", "nanoagent-verl-v1")
+            agent_data.extra_fields.setdefault("harness_version", str(config.get("harness_version", "workspace-host-v2")))
             agent_data.extra_fields.setdefault("execution_mode", "workspace_host")
             agent_data.extra_fields.setdefault("tool_schema_version", str(config.get("tool_schema_version", "workspace-tools-v2")))
             agent_data.extra_fields.setdefault("verifier_version", str(config.get("verifier_version", "manifest-v1")))

@@ -65,7 +65,7 @@ def command(action_id: str, value: str, *, pre: list[str], effects: list[str]) -
     return {
         "id": action_id,
         "tool": "exec_command",
-        "arguments_template": {"command": value},
+        "arguments_template": {"cmd": value},
         "preconditions": pre,
         "effects": effects,
     }
@@ -92,8 +92,8 @@ def task(
         "files": files,
         "verifier": verifier,
         "verifier_version": "synthesis-semantic-v2",
-        "harness_version": "workspace-tool-v1",
-        "tool_schema_version": "workspace-tools-v1",
+        "harness_version": "workspace-host-v2",
+        "tool_schema_version": "workspace-tools-v2",
         "initial_facts": ["workspace:ready"],
         "target_facts": [],
         "seed_patterns": ids,

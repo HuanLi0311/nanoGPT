@@ -39,6 +39,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
         prompt = item.get("prompt")
         verifier = item.get("verifier")
         verifier_version = str(item.get("verifier_version", "manifest-v1"))
+        harness_version = str(item.get("harness_version", "workspace-host-v2"))
         tool_schema_version = str(item.get("tool_schema_version", "workspace-tools-v2"))
         files = item.get("files", {})
         if not task_id or not isinstance(prompt, (str, list)) or not _valid_verifier(verifier):
@@ -54,6 +55,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "task_id": task_id,
             "verifier": verifier,
             "verifier_version": verifier_version,
+            "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
         }
         create_kwargs = {
@@ -61,12 +63,15 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "files": files,
             "verifier": verifier,
             "verifier_version": verifier_version,
+            "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
         }
         extra_info = dict(item.get("extra_info", {})) if isinstance(item.get("extra_info", {}), dict) else {}
         extra_info.update({
             "task_id": task_id,
             "reward_contract": contract,
+            "harness_version": harness_version,
+            "tool_schema_version": tool_schema_version,
             "need_tools_kwargs": True,
             "tools_kwargs": {name: {"create_kwargs": create_kwargs} for name in TOOL_NAMES},
         })

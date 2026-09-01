@@ -102,7 +102,7 @@ def _write_sft_parquet(episodes: list[dict[str, Any]], rendered_dir: Path, run_i
 def _rl_task(task: dict[str, Any], report: dict[str, Any], run_id: str) -> dict[str, Any]:
     result = {
         key: task[key]
-        for key in ("task_id", "prompt", "files", "verifier", "verifier_version")
+        for key in ("task_id", "prompt", "files", "verifier", "verifier_version", "tool_schema_version")
         if key in task
     }
     result["extra_info"] = {
@@ -113,6 +113,7 @@ def _rl_task(task: dict[str, Any], report: dict[str, Any], run_id: str) -> dict[
         "rollouts": report["rollouts"],
         "generator_version": report["generator_version"],
         "harness_version": report["harness_version"],
+        "tool_schema_version": report["tool_schema_version"],
         "verifier_version": report["verifier_version"],
         "reward_contract": {
             "kind": "environment",
@@ -256,7 +257,8 @@ def run_pipeline(
             "passed_rollouts": passed,
             "pass_at_100": bool(task_rollouts >= 100 and pass_count_100 > 0),
             "generator_version": "graph-synthesis-v1",
-            "harness_version": task.get("harness_version", "workspace-tool-v1"),
+            "harness_version": task.get("harness_version", "workspace-host-v2"),
+            "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
             "verifier_version": task.get("verifier_version", "manifest-v1"),
             "unique_candidate_count": len(seen_fingerprints),
         }

@@ -351,7 +351,7 @@ class ProgrammaticTraceRunner:
             "initial_state_hash": initial_state["state_hash"],
             "candidate_index": candidate_index,
             "execution_mode": "workspace_host",
-            "harness_version": task.get("harness_version", "workspace-tool-v1"),
+            "harness_version": task.get("harness_version", "workspace-host-v2"),
             "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
             "verifier_version": task.get("verifier_version", "manifest-v1"),
             "actions": deepcopy(actions),
