@@ -26,7 +26,7 @@ def main() -> None:
     second = compose(task, pattern_graph, candidate_index=1, required_patterns=["write_answer", "readback"])
     assert first["action_pattern_ids"] == ["write_answer", "readback"]
     assert first["candidate_fingerprint"] != second["candidate_fingerprint"]
-    assert first["actions"][1]["arguments"]["command"] != second["actions"][1]["arguments"]["command"]
+    assert first["actions"][1]["arguments"]["cmd"] != second["actions"][1]["arguments"]["cmd"]
 
     with TemporaryDirectory(prefix="synthesis-test-data-") as temporary:
         temporary_root = Path(temporary)

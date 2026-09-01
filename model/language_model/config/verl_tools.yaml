@@ -28,16 +28,8 @@ tools:
             timeout_ms:
               type: integer
               description: Codex-compatible command timeout in milliseconds.
-            command:
-              type: string
-              description: Alias for cmd.
-            cwd:
-              type: string
-              description: Alias for workdir; relative paths and the virtual /workspace root are accepted.
-            timeout:
-              type: integer
-              description: Optional timeout in seconds; timeout_ms is the Codex millisecond form.
           required: [cmd]
+          additionalProperties: false
   - class_name: model.language_model.scripts.verl_workspace_tool.WorkspaceTool
     config:
       type: native
