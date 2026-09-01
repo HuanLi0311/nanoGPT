@@ -203,6 +203,7 @@ class WorkspaceTool(BaseTool):
             cwd=cwd,
             shell=True,
             capture_output=True,
+            stdin=subprocess.DEVNULL,
             text=True,
             timeout=timeout,
             check=False,
