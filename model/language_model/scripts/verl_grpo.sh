@@ -202,7 +202,8 @@ fi
 # 180 host CPUs. Override for larger experiments with RAY_NUM_CPUS.
 ray_cpus=${RAY_NUM_CPUS:-$((gpus * 4 + 8))}
 
-export PYTHONPATH="$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
+# sitecustomize warms Python 3.11's stdlib before Ray prestarts workers.
+export PYTHONPATH="$root/agent/verl_adapter:$root:$verl${PYTHONPATH:+:$PYTHONPATH}"
 unset PYTHONPYCACHEPREFIX
 export PYTHONDONTWRITEBYTECODE=1
 # This launcher is single-node and Slurm may export ROCr/HIP visibility
