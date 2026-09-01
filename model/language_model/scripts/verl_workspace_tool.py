@@ -179,6 +179,9 @@ class WorkspaceTool(BaseTool):
         command = str(parameters.get("cmd") or "").strip()
         if not command:
             return self._error("cmd is required")
+        permission = parameters.get("sandbox_permissions")
+        if permission not in (None, "use_default"):
+            return self._error("sandbox_permissions=require_escalated is unavailable in workspace_host")
         # ponytail: shell execution is workspace-scoped only; use an OS/container
         # sandbox before running untrusted workloads at scale.
         cwd_value = parameters.get("workdir", ".")

@@ -46,6 +46,12 @@ def _tool_schema(name: str) -> OpenAIFunctionToolSchema:
             "workdir": {"type": "string", "description": "Relative workspace directory."},
             "yield_time_ms": {"type": "integer", "description": "Polling delay in milliseconds."},
             "max_output_tokens": {"type": "integer", "description": "Maximum returned output tokens."},
+            "tty": {"type": "boolean", "description": "Terminal hint."},
+            "shell": {"type": "string", "description": "Shell executable."},
+            "login": {"type": "boolean", "description": "Login-shell hint."},
+            "justification": {"type": "string", "description": "Permission-audit justification."},
+            "prefix_rule": {"type": "array", "items": {"type": "string"}, "description": "Permission-audit prefix rule."},
+            "sandbox_permissions": {"type": "string", "enum": ["use_default", "require_escalated"], "description": "Permission request; escalation is unavailable in workspace_host."},
         }
         required = ["cmd"]
     elif name == "apply_patch":
@@ -59,7 +65,7 @@ def _tool_schema(name: str) -> OpenAIFunctionToolSchema:
         "function": {
             "name": name,
             "description": _TOOL_DESCRIPTIONS[name],
-            "parameters": {"type": "object", "properties": properties, "required": required},
+            "parameters": {"type": "object", "properties": properties, "required": required, "additionalProperties": False},
         },
     })
 

@@ -10,13 +10,21 @@ const functionTool = (name: string, description: string, properties: JsonObject 
 const stringProperty = { type: "string" };
 const numberProperty = { type: "number" };
 const booleanProperty = { type: "boolean" };
+const integerProperty = { type: "integer" };
 const cursorProperty = { type: "string" };
+const stringArrayProperty = { type: "array", items: stringProperty };
 
 const execCommand = functionTool("exec_command", "Run a shell command with the workspace as its working directory.", {
   cmd: stringProperty,
   workdir: stringProperty,
-  yield_time_ms: numberProperty,
-  max_output_tokens: numberProperty,
+  yield_time_ms: integerProperty,
+  max_output_tokens: integerProperty,
+  tty: booleanProperty,
+  shell: stringProperty,
+  login: booleanProperty,
+  justification: stringProperty,
+  prefix_rule: stringArrayProperty,
+  sandbox_permissions: { type: "string", enum: ["use_default", "require_escalated"] },
 }, ["cmd"]);
 
 const writeStdin = functionTool("write_stdin", "Write to or poll an existing exec_command session.", {

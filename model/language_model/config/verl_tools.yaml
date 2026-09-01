@@ -25,9 +25,27 @@ tools:
             max_output_tokens:
               type: integer
               description: Codex-compatible output hint; the workspace tool applies its own output cap.
-            timeout_ms:
-              type: integer
-              description: Codex-compatible command timeout in milliseconds.
+            tty:
+              type: boolean
+              description: Codex-compatible terminal hint; workspace execution remains bounded by the adapter.
+            shell:
+              type: string
+              description: Shell executable requested by the Codex call.
+            login:
+              type: boolean
+              description: Whether the requested shell should use login mode.
+            justification:
+              type: string
+              description: Codex permission-audit justification; it does not grant extra workspace access.
+            prefix_rule:
+              type: array
+              items:
+                type: string
+              description: Codex permission-audit prefix rule; it does not grant extra workspace access.
+            sandbox_permissions:
+              type: string
+              enum: [use_default, require_escalated]
+              description: Codex permission request. require_escalated is rejected by workspace_host.
           required: [cmd]
           additionalProperties: false
   - class_name: model.language_model.scripts.verl_workspace_tool.WorkspaceTool

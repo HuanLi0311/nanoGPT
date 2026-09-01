@@ -29,7 +29,7 @@ SFT 数据
 | SFT 数据 | Parquet 只有 `messages`，没有 Qwen tool template 使用的顶层 `tools`/`enable_thinking` | 能启动 SFT，但训练时没有看到与 GRPO 相同的工具定义 | 增加 schema/template 预检；新 GRPO 先使用官方 Qwen3 后训练模型，旧 4B checkpoint 不再被视为已正确学会当前工具 ABI |
 | SFT 模板 | Verl 按 turn 单独套模板再拼接，serving 按完整 conversation 套 Qwen3 模板 | 空 `<think>`、连续 tool result 的边界 token 不一致 | `preflight_sft_template.py` 显式识别差异；不再把 `ignore_input_ids_mismatch=True` 当成真正修复 |
 | 模型/Checkpoint | 把 NanoGPT 自定义 tokenizer、`.bin` 或 `safetensors` 与 Hugging Face Qwen/vLLM 混为一条链 | checkpoint 不能加载，或 token/template ABI 不一致 | Qwen SFT/GRPO 只使用同一 HF checkpoint 的 tokenizer 和 chat template；NanoGPT 本地训练保持独立 |
-| 工具协议 | Codex 轨迹使用 `cmd/workdir/timeout_ms`，旧 Verl schema 要求 `command/cwd/timeout` | 模型调用语义正确，schema/adapter 仍拒绝 | 保留 Hermes 外层；model-facing schema 改为 Codex 内层字段，adapter 同时接受旧别名 |
+| 工具协议 | Codex 轨迹使用 `cmd/workdir/yield_time_ms/max_output_tokens`，部分调用还带权限审计字段；旧 Verl schema 要求 `command/cwd/timeout` | 模型调用语义正确，schema/adapter 仍拒绝 | 保留 Hermes 外层；model-facing schema 对齐真实 Codex 字段，adapter 同时接受旧别名 |
 | Patch 协议 | Codex `*** Begin Patch` 与标准 unified diff 被当成同一种输入 | 合法 patch 被拒绝 | `WorkspaceTool` 分别支持 Codex patch 和 `git apply` unified diff |
 | Workspace | 官方 instruct 模型习惯使用绝对路径 `/workspace` | 命令被判定为逃逸 workspace | 将虚拟 `/workspace` 映射到每个 episode 的真实隔离目录，其他绝对路径仍拒绝 |
 | Tool parser | `<tool_call>` 中有坏转义、尾部少 closing tag，或 `arguments` 不是合法 JSON | 工具调用无法执行，后续 verifier 必然失败 | 只修复可确定的非法反斜杠和完整尾部 JSON；可识别工具名但参数坏时执行空参数并记模型/tool failure；不猜不完整 JSON |
@@ -137,7 +137,7 @@ Codex 轨迹主要使用下面的内层参数：
 
 没有重写 Verl 或另造一套 parser，而是保留 Hermes 外层，只改最薄的 model-facing schema 和 workspace adapter：
 
-- schema 现在向模型要求 Codex 的 `cmd`，并公开 `workdir/yield_time_ms/max_output_tokens/timeout_ms`；
+- schema 现在向模型要求 Codex 的 `cmd`，并公开 `workdir/yield_time_ms/max_output_tokens` 及 Codex 的终端/权限审计字段；
 - adapter 同时接受 `cmd` 或 `command`、`workdir` 或 `cwd`、毫秒 `timeout_ms` 或秒 `timeout`；
 - `apply_patch` 接受 Codex patch 字符串，也接受标准 unified diff；
 - `/workspace` 被解释为当前 episode 的虚拟根目录；`/etc`、其他用户目录等外部绝对路径仍会被拒绝；
@@ -371,4 +371,3 @@ verifier_version
 - 不在 reward 全相同时讨论学习率、正负梯度或训练步数；
 - 不用一步 eval 波动声称能力随训练提升；
 - 不在没有 held-out validation JSONL 的情况下跑 100-step 长训练。
-

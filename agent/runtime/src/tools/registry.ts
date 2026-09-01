@@ -147,6 +147,12 @@ function boolean(value: unknown, field: string): boolean | undefined {
   return value;
 }
 
+function strings(value: unknown, field: string): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new Error(`${field} must be an array of strings`);
+  return value;
+}
+
 function response(data: unknown, exitCode = 0, content = JSON.stringify(data)): ToolResult {
   return { content, exitCode, data };
 }
@@ -199,6 +205,10 @@ function imageMime(bytes: Buffer): string {
 }
 
 function execInput(input: JsonObject): ExecCommandInput {
+  const permission = string(input.sandbox_permissions, "sandbox_permissions", false);
+  if (permission && permission !== "use_default") throw new Error("sandbox_permissions=require_escalated is unavailable in workspace_host");
+  strings(input.prefix_rule, "prefix_rule");
+  string(input.justification, "justification", false);
   return {
     cmd: string(input.cmd, "cmd")!,
     workdir: string(input.workdir, "workdir", false),
