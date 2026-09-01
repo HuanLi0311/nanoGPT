@@ -184,6 +184,13 @@ class WorkspaceTool(BaseTool):
         if timeout_value is None and parameters.get("timeout_ms") is not None:
             timeout_value = max(1, int(parameters["timeout_ms"]) / 1000)
         timeout = min(self.max_timeout, max(1, int(timeout_value or self.max_timeout)))
+        output_limit = self.max_output
+        max_output_tokens = parameters.get("max_output_tokens")
+        if max_output_tokens is not None:
+            try:
+                output_limit = min(output_limit, max(1, int(max_output_tokens)) * 4)
+            except (TypeError, ValueError):
+                raise ValueError("max_output_tokens must be an integer") from None
         result = subprocess.run(
             command,
             cwd=cwd,
@@ -193,7 +200,7 @@ class WorkspaceTool(BaseTool):
             timeout=timeout,
             check=False,
         )
-        output = (result.stdout + result.stderr)[-self.max_output :]
+        output = (result.stdout + result.stderr)[-output_limit:]
         return ToolResponse(text=f"exit_code={result.returncode}\n{output}"), 0.0, {
             "exit_code": result.returncode,
             "output": output,
