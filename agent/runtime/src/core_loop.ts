@@ -1,7 +1,6 @@
-import type { ChatMessage, Event, ToolSpec } from "../../shared/src/types.ts";
+import type { ChatMessage, Event, ToolResult, ToolSpec } from "../../shared/src/types.ts";
 import { renderEvents } from "../../shared/src/renderer.ts";
 import { eventFromAction, parseAction } from "./parser.ts";
-import type { ToolContext, ToolResult } from "./tools/registry.ts";
 
 export type ModelToolCall = {
   id?: string;
@@ -24,15 +23,16 @@ export type LoopToolCall = {
   id: string;
   name: string;
   arguments: unknown;
+  protocolError?: string;
 };
 
-export type CoreLoopOptions = {
+export type CoreLoopOptions<Context = unknown> = {
   events: Event[];
   model: Model;
   tools: ToolSpec[];
-  context: ToolContext;
+  context: Context;
   maxTurns: number;
-  executeTool: (call: LoopToolCall, context: ToolContext) => Promise<ToolResult>;
+  executeTool: (call: LoopToolCall, context: Context) => Promise<ToolResult>;
   onCheckpoint?: (events: Event[]) => Promise<void>;
 };
 
@@ -43,10 +43,13 @@ export type CoreLoopResult = {
   terminationReason: TerminationReason;
 };
 
-const parseArguments = (value: string): unknown => {
-  try { return JSON.parse(value || "{}"); }
-  catch { return value; }
-};
+function parseArguments(value: unknown, custom: boolean): { value: unknown; error?: string } {
+  if (custom) return { value: typeof value === "string" ? value : String(value ?? "") };
+  if (typeof value !== "string") return { value, error: "tool arguments must be a JSON string" };
+  try { return { value: JSON.parse(value || "{}") }; }
+  catch { return { value, error: "tool arguments are not valid JSON" }; }
+}
+}
 
 const renderArguments = (value: unknown): string => typeof value === "string" ? value : JSON.stringify(value ?? {});
 
@@ -68,17 +71,21 @@ function modelCalls(response: ModelResponse): ModelToolCall[] {
     : [];
 }
 
-function appendCalls(events: Event[], calls: ModelToolCall[], turn: number): LoopToolCall[] {
+function appendCalls(events: Event[], calls: ModelToolCall[], turn: number, tools: ToolSpec[]): LoopToolCall[] {
   const existingCalls = events.filter((event) => event.kind === "tool_call").length;
   return calls.map((call, index) => {
     const id = typeof call.id === "string" && call.id.trim()
       ? call.id
       : `call_${turn}_${existingCalls + index}`;
-    const parsed = parseArguments(call.function.arguments);
-    const event = eventFromAction({ kind: "tool_call", tool: call.function.name, arguments: parsed });
+    const name = call.function.name;
+    const spec = tools.find((tool) => (tool.type === "function" ? tool.function.name : tool.name) === name);
+    const parsed = parseArguments(call.function.arguments, spec?.type === "custom");
+    const event = eventFromAction({ kind: "tool_call", tool: name, arguments: parsed.value });
     event.toolCallId = id;
+    event.protocolStatus = parsed.error ? "invalid" : "valid";
+    if (parsed.error) event.failureClass = "invalid_tool_arguments";
     events.push(event);
-    return { id, name: call.function.name, arguments: parsed };
+    return { id, name, arguments: parsed.value, ...(parsed.error ? { protocolError: parsed.error } : {}) };
   });
 }
 
@@ -89,7 +96,7 @@ function appendCalls(events: Event[], calls: ModelToolCall[], turn: number): Loo
  * stay outside this function.  A Verl adapter can reuse this state-machine
  * contract while adding token-level rollout bookkeeping around `Model`.
  */
-export async function runCoreLoop(options: CoreLoopOptions): Promise<CoreLoopResult> {
+export async function runCoreLoop<Context>(options: CoreLoopOptions<Context>): Promise<CoreLoopResult> {
   const events = options.events;
   let phase: LoopPhase = "PENDING";
   let pendingCalls: LoopToolCall[] = [];
@@ -112,7 +119,7 @@ export async function runCoreLoop(options: CoreLoopOptions): Promise<CoreLoopRes
       const response = await options.model.complete(renderEvents(events), options.tools);
       const calls = modelCalls(response);
       if (calls.length) {
-        pendingCalls = appendCalls(events, calls, turns);
+        pendingCalls = appendCalls(events, calls, turns, options.tools);
         phase = "PROCESSING_TOOLS";
         continue;
       }
@@ -130,7 +137,13 @@ export async function runCoreLoop(options: CoreLoopOptions): Promise<CoreLoopRes
     if (phase === "PROCESSING_TOOLS") {
       for (const call of pendingCalls) {
         try {
-          const result = await options.executeTool(call, options.context);
+          const result = call.protocolError
+            ? {
+                content: `ERROR: ${call.protocolError}`,
+                exitCode: 1,
+                data: { protocol_status: "invalid", failure_class: "invalid_tool_arguments" },
+              }
+            : await options.executeTool(call, options.context);
           events.push({
             role: "tool",
             kind: "tool_result",
@@ -138,6 +151,8 @@ export async function runCoreLoop(options: CoreLoopOptions): Promise<CoreLoopRes
             content: result.content,
             toolResult: result.data,
             exitCode: result.exitCode,
+            protocolStatus: call.protocolError ? "invalid" : "valid",
+            ...(call.protocolError ? { failureClass: "invalid_tool_arguments" } : {}),
           });
         } catch (error) {
           events.push({

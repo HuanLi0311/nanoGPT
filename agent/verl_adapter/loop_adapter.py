@@ -7,13 +7,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 try:
-    from agent.env.workspace import snapshot, state_delta
+    from agent.workspace.snapshot import snapshot, state_delta
 except ModuleNotFoundError:  # direct script execution
     import sys
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from agent.env.workspace import snapshot, state_delta
+    from agent.workspace.snapshot import snapshot, state_delta
 
 
 def preload_worker() -> None:

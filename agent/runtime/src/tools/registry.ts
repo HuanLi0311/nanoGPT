@@ -4,7 +4,6 @@ import type { ToolResult } from "../../../shared/src/types.ts";
 import { workspacePath } from "../../../workspace/boundary.ts";
 import { applyPatch as applyPatchFile } from "./apply-patch.ts";
 import { ShellManager, type ExecCommandInput, type ExecResult, type WriteStdinInput } from "./exec-command.ts";
-import { toolSchemas } from "./definitions.ts";
 
 export { harnessToolSchemas, rlToolSchemas, toolSchemas, workspaceToolSchemas } from "./definitions.ts";
 export type { ToolResult } from "../../../shared/src/types.ts";

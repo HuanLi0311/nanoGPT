@@ -6,6 +6,7 @@ commands still run as host processes with the workspace as their cwd.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -45,10 +46,13 @@ def workspace_path(root: str | Path, value: Any = ".", *, must_exist: bool = Fal
         candidate = base / path.relative_to("/workspace")
     else:
         candidate = path if path.is_absolute() else base / path
-    candidate = candidate.resolve(strict=False)
+    lexical = Path(os.path.abspath(candidate))
+    if not _inside(base, lexical):
+        raise ValueError(f"path escapes workspace: {value}")
+    _reject_symlink_components(base, lexical)
+    candidate = lexical.resolve(strict=False)
     if not _inside(base, candidate):
         raise ValueError(f"path escapes workspace: {value}")
-    _reject_symlink_components(base, candidate)
     if must_exist and not candidate.exists():
         raise FileNotFoundError(candidate)
     return candidate
