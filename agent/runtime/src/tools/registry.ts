@@ -1,9 +1,13 @@
-import { readFile, realpath } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { Script, createContext } from "node:vm";
-import type { ToolSpec } from "../../../shared/src/types.ts";
+import type { ToolResult } from "../../../shared/src/types.ts";
+import { workspacePath } from "../../../workspace/boundary.ts";
 import { applyPatch as applyPatchFile } from "./apply-patch.ts";
 import { ShellManager, type ExecCommandInput, type ExecResult, type WriteStdinInput } from "./exec-command.ts";
+import { toolSchemas } from "./definitions.ts";
+
+export { harnessToolSchemas, rlToolSchemas, toolSchemas, workspaceToolSchemas } from "./definitions.ts";
+export type { ToolResult } from "../../../shared/src/types.ts";
 
 type JsonObject = Record<string, unknown>;
 type AgentStatus = "pending_init" | "running" | "interrupted" | "completed" | "errored";
@@ -50,8 +54,6 @@ export type ToolContext = {
     eligible?: boolean;
   }>;
 };
-
-export type ToolResult = { content: string; exitCode: number; data: unknown };
 
 type Agent = {
   taskName: string;
@@ -186,13 +188,7 @@ function legacyShellOutput(result: ExecResult): string {
 }
 
 async function workspaceFile(root: string, value: string): Promise<string> {
-  const base = await realpath(resolve(root));
-  const file = await realpath(resolve(base, value));
-  const distance = relative(base, file);
-  if (distance === ".." || distance.startsWith("../") || distance.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`)) {
-    throw new Error("path escapes workspace");
-  }
-  return file;
+  return workspacePath(root, value, true);
 }
 
 function imageMime(bytes: Buffer): string {
@@ -578,40 +574,3 @@ export async function callTool(name: string, input: unknown, context: ToolContex
     default: throw new Error(`unknown tool: ${name}`);
   }
 }
-
-const functionTool = (name: string, description: string, properties: JsonObject = {}, required: string[] = []): ToolSpec => ({
-  type: "function", function: { name, description, parameters: { type: "object", properties, required, additionalProperties: false } },
-});
-
-const stringProperty = { type: "string" };
-const numberProperty = { type: "number" };
-const booleanProperty = { type: "boolean" };
-
-export const toolSchemas: ToolSpec[] = [
-  functionTool("exec_command", "Run a shell command and return output or a live session.", {
-    cmd: stringProperty, workdir: stringProperty, tty: booleanProperty, yield_time_ms: numberProperty,
-    max_output_tokens: numberProperty, shell: stringProperty, login: booleanProperty,
-    sandbox_permissions: stringProperty, justification: stringProperty, prefix_rule: { type: "array", items: stringProperty },
-  }, ["cmd"]),
-  functionTool("write_stdin", "Write to or poll an existing exec_command session.", {
-    session_id: numberProperty, chars: stringProperty, yield_time_ms: numberProperty, max_output_tokens: numberProperty,
-  }, ["session_id"]),
-  { type: "custom", name: "apply_patch", description: "Apply a FREEFORM Codex Begin Patch or unified git diff. Do not wrap the patch in JSON.", input: { type: "string" } },
-  functionTool("view_image", "Read a local image and return a data URL for model inspection.", { path: stringProperty, detail: { type: "string", enum: ["high", "original"] } }, ["path"]),
-  functionTool("update_plan", "Update the task plan.", { explanation: stringProperty, plan: { type: "array", items: { type: "object" } } }, ["plan"]),
-  functionTool("request_user_input", "Request one to three user questions and wait for a response.", { questions: { type: "array", items: { type: "object" } } }, ["questions"]),
-  functionTool("spawn_agent", "Spawn a subagent for a named task.", { task_name: stringProperty, message: stringProperty, fork_turns: stringProperty }, ["task_name", "message"]),
-  functionTool("list_agents", "List live subagents.", { path_prefix: stringProperty }),
-  functionTool("send_message", "Queue a message for a subagent.", { target: stringProperty, message: stringProperty }, ["target", "message"]),
-  functionTool("followup_task", "Send a follow-up task to a subagent.", { target: stringProperty, message: stringProperty }, ["target", "message"]),
-  functionTool("wait_agent", "Wait for mailbox activity from a subagent.", { timeout_ms: numberProperty }),
-  functionTool("interrupt_agent", "Interrupt a subagent.", { target: stringProperty }, ["target"]),
-  functionTool("list_mcp_resources", "List resources provided by configured MCP servers.", { server: stringProperty, cursor: stringProperty }),
-  functionTool("list_mcp_resource_templates", "List templates provided by configured MCP servers.", { server: stringProperty, cursor: stringProperty }),
-  functionTool("get_goal", "Get the current thread goal.", {}),
-  functionTool("create_goal", "Create a thread goal.", { objective: stringProperty, token_budget: { type: "integer" } }, ["objective"]),
-  functionTool("update_goal", "Mark the current goal complete or blocked.", { status: { type: "string", enum: ["complete", "blocked"] } }, ["status"]),
-  functionTool("shell_command", "Run a command using the legacy shell_command fields.", { command: stringProperty, workdir: stringProperty, timeout_ms: numberProperty, sandbox_permissions: stringProperty, justification: stringProperty }, ["command"]),
-  { type: "custom", name: "exec", description: "Run a raw JavaScript tool-orchestration cell. The cell can call tools.<name>(...) and text(...).", input: { type: "string" } },
-  functionTool("wait", "Wait for or terminate an exec cell.", { cell_id: stringProperty, yield_time_ms: numberProperty, max_tokens: numberProperty, terminate: booleanProperty }, ["cell_id"]),
-];

@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { realpath } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { workspacePath } from "../../../workspace/boundary.ts";
 
 export type ExecCommandInput = {
   cmd: string;
@@ -61,16 +60,6 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
-async function workspacePath(root: string, cwd?: string): Promise<string> {
-  const base = await realpath(resolve(root));
-  const work = await realpath(resolve(base, cwd || "."));
-  const distance = relative(base, work);
-  if (distance === ".." || distance.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || distance.startsWith("../")) {
-    throw new Error("workdir escapes workspace");
-  }
-  return work;
-}
-
 function commandProcess(input: ExecCommandInput, cwd: string): ChildProcess {
   const shell = input.shell || process.env.SHELL || "/bin/bash";
   const login = input.login !== false;
@@ -89,7 +78,7 @@ export class ShellManager {
 
   async exec(input: ExecCommandInput, root: string, defaultCwd?: string): Promise<ExecResult> {
     if (!input.cmd?.trim()) throw new Error("cmd is required");
-    const cwd = await workspacePath(root, input.workdir ?? defaultCwd);
+    const cwd = await workspacePath(root, input.workdir ?? defaultCwd, true);
     const child = commandProcess(input, cwd);
     let finish = () => {};
     const done = new Promise<void>((resolveDone) => { finish = resolveDone; });
