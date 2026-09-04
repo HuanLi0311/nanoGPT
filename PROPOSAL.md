@@ -26,7 +26,8 @@ domain -> subdomain -> atomic concept
 
 每个 concept 绑定一个来源和一个声明式 task recipe。采样器按 profile 中的目标分布使用 largest-remainder allocation 分配精确配额，再以固定 seed 选择 concept。当前支持：
 
-- `web`：HTTP(S) 页面，记录最终 URL、ETag/Last-Modified、内容 hash 和抓取时间；
+- `web_search`：不需要页面 URL；默认用 `domain + subdomain + concept` 生成查询，搜索 top-K 候选，按 allow/block domain 过滤并去重，不同采样实例优先选择不同页面；
+- `web`：已知 HTTP(S) 页面，适合固定语料和可复现实验；
 - `repo`：本地 repository 文件或 glob，记录 commit（若可取得）；
 - `document`：本地文本或 PDF；PDF 使用系统 `pdftotext`；
 - `inline`：仅用于固定 fixture、单元测试和完全程序化材料。
@@ -35,11 +36,14 @@ domain -> subdomain -> atomic concept
 
 ```text
 stage1/domain_graph.json
+stage1/discovery.jsonl
 stage1/materials.jsonl
 stage1/materials/*.txt
 ```
 
-`materials.jsonl` 保存 domain、subdomain、concept、material ID、SHA-256、license、resolved URI、revision 和 task recipe。相同来源只抓取一次；不同采样实例保留独立 material ID。
+`discovery.jsonl` 保存 query、provider、搜索请求及完整候选 URL/rank；`materials.jsonl` 保存最终选中的 URL、domain、subdomain、concept、material ID、SHA-256、license、revision 和 task recipe。相同查询只搜索一次、相同页面只抓取一次；同一 concept 的重复采样会先耗尽未使用候选，再明确标记 URL 复用。
+
+无配置时 `web_search` 使用无密钥的 DuckDuckGo HTML endpoint。规模化运行建议将 `search_endpoint` 指向自建 SearXNG 或有 SLA 的 JSON 搜索 API，并用 `search_params`、`api_key_env`、`api_key_header` 配置；代码同时解析 SearXNG 风格 `results` 和 Brave 风格 `web.results`。搜索只做 shallow discovery 并抓取被选页面，不递归跟随站内链接。
 
 ### Stage 2：Task/Environment Construction
 
@@ -140,7 +144,12 @@ stage4/training_data_report.json
       "name": "repair",
       "concepts": [{
         "name": "parser-regression",
-        "source": {"kind": "repo", "uri": "./corpus/repo", "glob": "**/*.py", "license": "MIT"},
+        "source": {
+          "kind": "web_search",
+          "max_results": 20,
+          "blocked_domains": ["example-spam.invalid"],
+          "license": "unknown"
+        },
         "task": {
           "id": "record-material-hash",
           "prompt": "Compute the SHA-256 of context.txt and save it in digest.txt.",

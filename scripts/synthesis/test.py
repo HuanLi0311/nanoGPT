@@ -22,7 +22,11 @@ else:
     from schema import read_json, read_jsonl, write_json, write_jsonl
 
 
-def _plan() -> dict:
+def _plan(search_endpoint: str | None = None) -> dict:
+    coding_source = ({"kind": "web_search", "search_endpoint": search_endpoint,
+                      "provider": "test-search", "max_results": 2, "license": "test-only"}
+                     if search_endpoint else
+                     {"kind": "document", "uri": "alpha.txt", "license": "test-only"})
     return {
         "profiles": {
             "narrow": {"count": 2, "distribution": {"coding.transform": 1, "artifact.create": 0}},
@@ -30,7 +34,7 @@ def _plan() -> dict:
         },
         "domains": [
             {"name": "coding", "subdomains": [{"name": "transform", "concepts": [{
-                "name": "uppercase", "source": {"kind": "document", "uri": "alpha.txt", "license": "test-only"},
+                "name": "uppercase", "source": coding_source,
                 "task": {
                     "id": "uppercase", "prompt": "Read input.txt and save its uppercase value in answer.txt.",
                     "files": {"input.txt": "{{material}}"},
@@ -68,7 +72,13 @@ def main() -> None:
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
-                body = b"<html><body>web material</body></html>"
+                if self.path.startswith("/search"):
+                    body = (b'<a class="result__a" href="/alpha-a">Alpha A</a>'
+                            b'<a class="result__a" href="/alpha-b">Alpha B</a>')
+                elif self.path.startswith(("/alpha-a", "/alpha-b")):
+                    body = b"<html><body>alpha</body></html>"
+                else:
+                    body = b"<html><body>web material</body></html>"
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
@@ -78,24 +88,20 @@ def main() -> None:
                 pass
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        thread = Thread(target=server.serve_forever)
+        thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        try:
-            web, provenance = _retrieve({"kind": "web", "uri": f"http://127.0.0.1:{server.server_port}/"}, root)
-            assert web.strip() == "web material" and provenance["resolved_uri"].startswith("http://127.0.0.1:")
-        finally:
-            server.shutdown()
-            thread.join()
-            server.server_close()
+        base_url = f"http://127.0.0.1:{server.server_port}"
+        web, provenance = _retrieve({"kind": "web", "uri": f"{base_url}/"}, root)
+        assert web.strip() == "web material" and provenance["resolved_uri"].startswith(base_url)
 
-        (root / "alpha.txt").write_text("alpha\n", encoding="utf-8")
         (root / "repo").mkdir()
         (root / "repo/context.txt").write_text("beta\n", encoding="utf-8")
         plan = root / "plan.json"
-        write_json(plan, _plan())
+        write_json(plan, _plan(f"{base_url}/search"))
         report = prepare(plan, root / "run", profile="diverse", seed=7, count=None, path_policy="goal")
         assert report["stage1"]["realized_distribution"] == {"artifact.create": 1, "coding.transform": 1}
         assert report["stage1"]["unique_domains"] == report["stage1"]["unique_subdomains"] == 2
+        assert report["stage1"]["search_queries"] == 1 and report["stage1"]["discovered_urls"] == 2
         assert report["stage3"]["validated"] == 2 and report["stage3"]["rejected"] == 0
         assert report["stage4"]["sft_status"].startswith("awaiting")
 
@@ -103,6 +109,9 @@ def main() -> None:
                           path_policy="uniform")
         assert control["stage1"]["realized_distribution"] == {"coding.transform": 2}
         assert control["stage3"]["validated"] == 2 and control["path_policy"] == "uniform"
+        narrow_materials = read_jsonl(root / "run-narrow/stage1/materials.jsonl")
+        assert len({row["provenance"]["discovered_url"] for row in narrow_materials}) == 2
+        assert not any(row["provenance"]["reused_candidate"] for row in narrow_materials)
 
         tasks = read_jsonl(root / "run/stage3/validated_tasks.jsonl")
         episodes = read_jsonl(root / "run/stage3/oracle_episodes.jsonl")
@@ -176,6 +185,9 @@ def main() -> None:
         passed_family = next(task["task_family"] for task in tasks if task["task_id"] == tasks[0]["task_id"])
         assert diagnosed["distribution"][failed_family] > diagnosed["distribution"][passed_family]
         assert read_json(weights)["version"] == "diagnostic-distribution-v1"
+        server.shutdown()
+        thread.join()
+        server.server_close()
     print("four-stage synthesis self-check passed")
 
 
