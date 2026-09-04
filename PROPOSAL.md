@@ -197,10 +197,10 @@ $PY scripts/synthesis/runner.py finalize runs/base-diverse \
   --policy-kind teacher --model MODEL_ID
 ```
 
-从 current-policy 失败生成下一轮领域分配：
+从 current-policy 失败生成下一轮领域分配。`runs/diagnostic-arena` 必须使用同一 taxonomy，且是所有实验条件共用的、领域覆盖完整并与训练材料隔离的 arena；不能直接用 narrow base 自己的任务诊断，否则它永远看不到 base 缺失的领域：
 
 ```bash
-$PY scripts/synthesis/runner.py diagnose runs/base-diverse POLICY_ROLLOUTS.jsonl \
+$PY scripts/synthesis/runner.py diagnose runs/diagnostic-arena POLICY_ROLLOUTS.jsonl \
   --output runs/diagnostic-weights.json
 
 $PY scripts/synthesis/runner.py prepare PLAN.json runs/base-diverse-diagnosed \
@@ -265,7 +265,7 @@ primary = min(score_A, score_B)
 constraint: score_A_after - score_A_before >= -epsilon
 ```
 
-Diagnosis 只能读取独立 dev/diagnostic environments，不能查看最终 benchmark test item、实体、workspace 或 verifier。若使用 benchmark dev split，应明确把结论限定为 benchmark-aware adaptation，不能声称一般能力发现。
+Diagnosis 只能读取所有 condition 共用的、覆盖完整的独立 dev/diagnostic environments，不能查看最终 benchmark test item、实体、workspace 或 verifier。诊断集合不能由各自训练 base 决定，否则 narrow condition 会出现结构性盲区。若使用 benchmark dev split，应明确把结论限定为 benchmark-aware adaptation，不能声称一般能力发现。
 
 ## 当前安全边界
 

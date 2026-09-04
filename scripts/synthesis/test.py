@@ -98,6 +98,12 @@ def main() -> None:
         policy_report = run_policy_tasks(root / "run/stage3/validated_tasks.jsonl", policy_rollouts,
                                          complete=scripted, policy_kind="teacher", model="scripted-policy")
         assert policy_report["passed"] == 2
+        for row in read_jsonl(policy_rollouts):
+            calls = {event["tool_call_id"] for event in row["agent_events"] if event["kind"] == "tool_call"}
+            results = {event["tool_call_id"] for event in row["agent_events"] if event["kind"] == "tool_result"}
+            assert calls == results and calls
+            assert all(event.get("state_before", {}).get("state_hash") for event in row["agent_events"] if event["kind"] == "tool_call")
+            assert all(event.get("state_after", {}).get("state_hash") for event in row["agent_events"] if event["kind"] == "tool_result")
         assert finalize(root / "run", [policy_rollouts], policy_kind="teacher",
                         model="scripted-policy")["accepted_sft"] == 2
 
