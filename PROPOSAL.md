@@ -131,8 +131,7 @@ stage4/training_data_report.json
 ```json
 {
   "profiles": {
-    "narrow": {"count": 100, "distribution": {"coding.repair": 1, "data.analysis": 0}},
-    "diverse": {"count": 100, "distribution": {"coding.repair": 1, "data.analysis": 1}}
+    "diverse": {"count": 1, "distribution": {"coding.repair": 1}}
   },
   "domains": [{
     "name": "coding",

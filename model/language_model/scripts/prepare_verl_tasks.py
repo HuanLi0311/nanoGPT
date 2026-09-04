@@ -75,6 +75,8 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "reward_contract": contract,
             "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
+            "verifier_version": verifier_version,
+            "tool_selection": list(tool_names),
             "need_tools_kwargs": True,
             "tools_kwargs": {name: {"create_kwargs": create_kwargs} for name in tool_names},
         })

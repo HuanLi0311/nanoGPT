@@ -10,9 +10,9 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 if __package__:
-    from .schema import fingerprint, read_jsonl, relative_path, render, validate_task, write_json, write_jsonl
+    from .schema import fingerprint, read_jsonl, relative_path, render, stable_json, validate_task, write_json, write_jsonl
 else:
-    from schema import fingerprint, read_jsonl, relative_path, render, validate_task, write_json, write_jsonl
+    from schema import fingerprint, read_jsonl, relative_path, render, stable_json, validate_task, write_json, write_jsonl
 
 
 OUTPUT_REF = re.compile(r"\{\{output:([^}]+)\}\}")
@@ -22,12 +22,17 @@ def construct_tasks(materials_path: Path, output: Path) -> list[dict[str, Any]]:
     tasks = []
     for index, material in enumerate(read_jsonl(materials_path)):
         content_path = materials_path.parent / material["content_path"]
+        template = deepcopy(material["task_template"])
+        executable = stable_json({"verifier": template.get("verifier"),
+                                  "actions": template.get("actions", template.get("action_patterns"))})
+        if "{{material}}" in executable or "{{source_uri}}" in executable:
+            raise ValueError(f"{material['material_id']}: untrusted material may only enter prompts or initial files")
         values = {"material": content_path.read_text(encoding="utf-8"), "material_id": material["material_id"],
                   "domain": material["domain"], "subdomain": material["subdomain"],
                   "concept": material["concept"], "index": f"{index:04d}",
                   "source_uri": material["provenance"]["uri"],
                   "material_sha256": material["provenance"]["sha256"]}
-        recipe = render(deepcopy(material["task_template"]), values)
+        recipe = render(template, values)
         actions = recipe.get("actions", recipe.get("action_patterns", []))
         tools = recipe.get("available_tools") or sorted({action.get("tool") for action in actions})
         files = {relative_path(render(path, values)): render(value, values) for path, value in recipe.get("files", {}).items()}
@@ -77,8 +82,13 @@ def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
 
 def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candidate_index: int = 0) -> list[dict[str, Any]]:
     graph = trajectory_graph(task)
-    actions = {item["id"]: item for item in graph["nodes"]}
     values = {"candidate_index": f"{candidate_index:04d}"}
+    if policy not in {"goal", "uniform"}:
+        raise ValueError(f"unknown path policy: {policy}")
+    actions = {item["id"]: {**item,
+                            "preconditions": render(item.get("preconditions", []), values),
+                            "effects": render(item.get("effects", []), values)}
+               for item in graph["nodes"]}
     target = set(render(graph["target_facts"], values))
     initial = set(render(graph["initial_facts"], values))
     required = set(task.get("required_actions", []))
@@ -116,9 +126,8 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
     if selected is None:
         raise ValueError(f"{task['task_id']}: no path reaches the declared goal")
     return [{**deepcopy(actions[action_id]),
-             "arguments": render(actions[action_id].get("arguments", actions[action_id].get("arguments_template", {})), values),
-             "preconditions": render(actions[action_id].get("preconditions", []), values),
-             "effects": render(actions[action_id].get("effects", []), values)} for action_id in selected]
+             "arguments": render(actions[action_id].get("arguments", actions[action_id].get("arguments_template", {})), values)}
+            for action_id in selected]
 
 
 def _initial_verifier(task: dict[str, Any]) -> dict[str, Any]:
@@ -162,5 +171,10 @@ def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: s
     write_jsonl(output / "validated_tasks.jsonl", accepted)
     write_jsonl(output / "rejected_tasks.jsonl", rejected)
     write_json(output / "trajectory_graph.json", {"version": "trajectory-graph-v1", "policy": policy, "tasks": graphs})
+    lengths = [len(episode["actions"]) for episode in episodes if episode["outcome"]["task_success"]]
     return {"tasks": len(tasks), "validated": len(accepted), "rejected": len(rejected),
-            "validated_tasks": str(output / "validated_tasks.jsonl"), "oracle_episodes": str(output / "oracle_episodes.jsonl")}
+            "path_lengths": lengths,
+            "unique_tool_combinations": len({tuple(action["tool"] for action in episode["actions"])
+                                             for episode in episodes if episode["outcome"]["task_success"]}),
+            "validated_tasks": str(output / "validated_tasks.jsonl"),
+            "oracle_episodes": str(output / "oracle_episodes.jsonl")}

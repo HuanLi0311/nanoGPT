@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import random
 import subprocess
 from datetime import datetime, timezone
@@ -160,14 +161,24 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                                     **extra, "sha256": digest, "bytes": len(content.encode()),
                                     "license": leaf["source"].get("license"), "retrieved_at": datetime.now(timezone.utc).isoformat()}})
     counts = {family: sum(row["family"] == family for row in rows) for family in sorted({row["family"] for row in rows})}
-    nodes, edges = [], []
+    probabilities = [value / len(rows) for value in counts.values() if value]
+    nodes, edges = {}, []
     for leaf in _leaves(plan):
-        nodes.extend([leaf["domain"], leaf["subdomain"], leaf["concept"]])
-        edges.extend([{"from": leaf["domain"], "to": leaf["subdomain"], "relation": "has_subdomain"},
-                      {"from": leaf["subdomain"], "to": leaf["concept"], "relation": "has_concept"}])
+        domain_id = f"domain:{leaf['domain']}"
+        subdomain_id = f"subdomain:{leaf['family']}"
+        concept_id = f"concept:{leaf['family']}.{leaf['concept']}"
+        nodes.update({domain_id: {"id": domain_id, "kind": "domain", "name": leaf["domain"]},
+                      subdomain_id: {"id": subdomain_id, "kind": "subdomain", "name": leaf["subdomain"]},
+                      concept_id: {"id": concept_id, "kind": "concept", "name": leaf["concept"]}})
+        edges.extend([{"from": domain_id, "to": subdomain_id, "relation": "has_subdomain"},
+                      {"from": subdomain_id, "to": concept_id, "relation": "has_concept"}])
     write_jsonl(output / "materials.jsonl", rows)
-    graph = {"version": "domain-material-v1", "profile": profile, "seed": seed, "nodes": sorted(set(nodes)),
-             "edges": edges, "target_count": len(rows), "realized_distribution": counts,
-             "unique_sources": len(cache), "materials": str(output / "materials.jsonl")}
+    graph = {"version": "domain-material-v1", "profile": profile, "seed": seed,
+             "nodes": sorted(nodes.values(), key=lambda item: item["id"]),
+             "edges": list({stable_json(edge): edge for edge in edges}.values()),
+             "target_count": len(rows), "realized_distribution": counts,
+             "effective_family_count": math.exp(-sum(value * math.log(value) for value in probabilities)),
+             "unique_sources": len(cache), "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
+             "materials": str(output / "materials.jsonl")}
     write_json(output / "domain_graph.json", graph)
     return graph

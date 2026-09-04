@@ -24,9 +24,23 @@ else:
 EXCHANGE = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>\s*(?:user\n)?<tool_response>\s*(.*?)\s*</tool_response>\s*(?:assistant\n)?", re.S)
 
 
+def _normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = deepcopy(messages)
+    for message in normalized:
+        message["content"] = str(message.get("content") or "")
+        for call in message.get("tool_calls", []):
+            function = call.get("function", {})
+            arguments = function.get("arguments", "{}")
+            if isinstance(arguments, dict):
+                function["arguments"] = json.dumps(arguments, ensure_ascii=False)
+            elif not isinstance(arguments, str) or not isinstance(json.loads(arguments), dict):
+                raise ValueError("tool arguments must encode a JSON object")
+    return normalized
+
+
 def _policy_messages(row: dict[str, Any], task: dict[str, Any]) -> list[dict[str, Any]]:
     if isinstance(row.get("messages"), list):
-        return deepcopy(row["messages"])
+        return _normalize_messages(row["messages"])
     output = row.get("output")
     if not isinstance(output, str):
         raise ValueError("rollout has neither messages nor serialized model output")
@@ -45,14 +59,17 @@ def _policy_messages(row: dict[str, Any], task: dict[str, Any]) -> list[dict[str
     tail = output[cursor:].strip().removeprefix("assistant\n").strip()
     if tail:
         messages.append({"role": "assistant", "content": tail})
-    return messages
+    return _normalize_messages(messages)
 
 
-def _valid_messages(messages: list[dict[str, Any]]) -> bool:
+def _valid_messages(messages: list[dict[str, Any]], allowed_tools: list[str]) -> bool:
     calls, results = [], []
     for message in messages:
         if message.get("role") == "assistant":
-            calls.extend(call.get("id") for call in message.get("tool_calls", []) if isinstance(call, dict))
+            for call in message.get("tool_calls", []):
+                if not isinstance(call, dict) or call.get("function", {}).get("name") not in allowed_tools:
+                    return False
+                calls.append(call.get("id"))
         elif message.get("role") == "tool":
             results.append(message.get("tool_call_id"))
     return bool(calls) and all(calls) and all(results) and len(calls) == len(results) and len(set(calls)) == len(calls) and set(calls) == set(results)
@@ -144,7 +161,7 @@ def finalize(prepared: Path, rollout_paths: list[Path], *, policy_kind: str, mod
             if ground_truth.get("task_id", task_id) != task_id or ground_truth.get("verifier_version", tasks[task_id]["verifier_version"]) != tasks[task_id]["verifier_version"]:
                 raise ValueError("rollout verifier contract does not match the prepared task")
             messages = _policy_messages(row, tasks[task_id])
-            if not _valid_messages(messages):
+            if not _valid_messages(messages, tasks[task_id]["available_tools"]):
                 raise ValueError("incomplete tool call/result protocol")
             item = _sft_row(messages, task_id, model, row["_source"])
             if item["trajectory_id"] in seen:
@@ -164,6 +181,8 @@ def finalize(prepared: Path, rollout_paths: list[Path], *, policy_kind: str, mod
 
 
 def diagnose(prepared: Path, rollout_paths: list[Path], output: Path, floor: float = 0.05) -> dict[str, Any]:
+    if not 0 <= floor <= 1:
+        raise ValueError("floor must be between 0 and 1")
     tasks = {task["task_id"]: task for task in read_jsonl(prepared / "stage3/validated_tasks.jsonl")}
     scores: dict[str, list[float]] = {task["task_family"]: [] for task in tasks.values()}
     for row in _rollout_rows(rollout_paths):
@@ -173,11 +192,12 @@ def diagnose(prepared: Path, rollout_paths: list[Path], output: Path, floor: flo
         task = tasks.get(str(row.get("task_id", "")))
         outcome = row.get("outcome") if isinstance(row.get("outcome"), dict) else row
         if task and outcome.get("harness_status") == "healthy":
-            scores.setdefault(task["task_family"], []).append(float(outcome.get("task_success", outcome.get("score", 0))))
+            score = max(0.0, min(1.0, float(outcome.get("task_success", outcome.get("score", 0)))))
+            scores.setdefault(task["task_family"], []).append(score)
+    if not any(scores.values()):
+        raise ValueError("no healthy diagnostic rollouts matched prepared tasks")
     distribution = {family: max(floor, 1 - sum(values) / len(values)) if values else 1.0
                     for family, values in scores.items()}
-    if not distribution:
-        raise ValueError("no healthy diagnostic rollouts matched prepared tasks")
     result = {"version": "diagnostic-distribution-v1", "distribution": distribution,
               "counts": {family: len(values) for family, values in scores.items()}}
     write_json(output, result)
