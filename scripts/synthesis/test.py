@@ -11,13 +11,13 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 
 if __package__:
-    from .graph import _discover, _retrieve
+    from .graph import _discover, _retrieve, expand_knowledge_graph
     from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
     from .schema import read_json, read_jsonl, write_json, write_jsonl
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from graph import _discover, _retrieve
+    from graph import _discover, _retrieve, expand_knowledge_graph
     from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
     from schema import read_json, read_jsonl, write_json, write_jsonl
@@ -111,6 +111,20 @@ def main() -> None:
         (root / "repo/context.txt").write_text("beta\n", encoding="utf-8")
         plan = root / "plan.json"
         write_json(plan, _plan(f"{base_url}/search"))
+        expanded_plan = root / "expanded-plan.json"
+
+        def expand_one(messages, tools):
+            assert not tools and "search_results" in messages[0]["content"]
+            return {"content": json.dumps({"atomic": False, "children": [{
+                "name": "checksum workflow", "atomic": True, "related_to": ["report"]}]})}
+
+        expansion = expand_knowledge_graph(plan, expanded_plan, complete=expand_one,
+                                            max_nodes=3, max_depth=1, children_per_node=2)
+        assert expansion["nodes"] == 3 and expansion["expanded"] == 1
+        expanded = read_json(expanded_plan)
+        child = expanded["domains"][0]["subdomains"][0]["concepts"][-1]
+        assert child["parent_ids"] and child["related_ids"]
+
         report = prepare(plan, root / "run", profile="diverse", seed=7, count=None,
                          path_policy="agentworld", tasks_per_material=2, trajectories_per_task=2)
         assert report["stage1"]["realized_distribution"] == {"artifact.create": 1, "coding.transform": 1}

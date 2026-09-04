@@ -77,6 +77,7 @@ def _leaves(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "concept": concept["name"], "family": f"{domain['name']}.{subdomain['name']}",
                     "concept_id": node_id, "parent_ids": concept.get("parent_ids", []),
                     "related_ids": concept.get("related_ids", []),
+                    "ancestor_concepts": concept.get("ancestor_concepts", []),
                     "related_concepts": concept.get("related_concepts", []),
                     "source": concept["source"], "task_templates": templates,
                 })
@@ -267,6 +268,7 @@ def _search_query(source: dict[str, Any], leaf: dict[str, Any]) -> str:
     template = (templates[leaf["sample_index"] % len(templates)] if templates else source.get("query"))
     query = (str(render(template, leaf)).strip() if template else
              " ".join([leaf["concept"], *leaf.get("related_concepts", []),
+                       *reversed(leaf.get("ancestor_concepts", [])),
                        leaf["subdomain"], leaf["domain"]]))
     if not query:
         raise ValueError("web_search query is empty")
@@ -382,6 +384,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
             continue
         leaf = {"domain": domain["name"], "subdomain": subdomain["name"],
                 "concept": concept["name"], "related_concepts": concept.get("related_concepts", []),
+                "ancestor_concepts": concept.get("ancestor_concepts", []),
                 "sample_index": 0}
         try:
             query = _search_query(source, leaf)
@@ -425,6 +428,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
                 new = {"name": name,
                        "node_id": f"concept:{fingerprint([name, concept['node_id']])[:16]}",
                        "parent_ids": [concept["node_id"]], "depth": depth + 1,
+                       "ancestor_concepts": [*concept.get("ancestor_concepts", []), concept["name"]],
                        "atomic": bool(child.get("atomic", False)),
                        "related_concepts": [str(item) for item in child.get("related_to", [])
                                             if isinstance(item, str)],

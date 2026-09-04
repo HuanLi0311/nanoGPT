@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import Any
 
 if __package__:
-    from .graph import build_material_graph
+    from .graph import build_material_graph, expand_knowledge_graph
     from .schema import fingerprint, iter_jsonl, read_json, read_jsonl, write_json, write_jsonl
     from .traj_synth import construct_tasks, validate_oracles
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from graph import build_material_graph
+    from graph import build_material_graph, expand_knowledge_graph
     from schema import fingerprint, iter_jsonl, read_json, read_jsonl, write_json, write_jsonl
     from traj_synth import construct_tasks, validate_oracles
 
@@ -254,6 +254,15 @@ def main() -> None:
     build.add_argument("--trajectories-per-task", type=int)
     build.add_argument("--path-policy", choices=("agentworld", "goal", "uniform"), default="agentworld")
     build.add_argument("--weights", type=Path)
+    expand = commands.add_parser("expand-graph")
+    expand.add_argument("plan", type=Path)
+    expand.add_argument("output", type=Path)
+    expand.add_argument("--base-url", required=True)
+    expand.add_argument("--model", required=True)
+    expand.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    expand.add_argument("--max-nodes", type=int, default=2000)
+    expand.add_argument("--max-depth", type=int, default=4)
+    expand.add_argument("--children-per-node", type=int, default=8)
     finish = commands.add_parser("finalize")
     finish.add_argument("prepared", type=Path)
     finish.add_argument("rollouts", nargs="+", type=Path)
@@ -265,7 +274,15 @@ def main() -> None:
     diagnostic.add_argument("--output", type=Path, required=True)
     diagnostic.add_argument("--floor", type=float, default=0.05)
     args = parser.parse_args()
-    if args.command == "prepare":
+    if args.command == "expand-graph":
+        import os
+        from scripts.synthesis.policy_rollout import openai_client
+
+        client = openai_client(args.base_url, args.model, os.environ.get(args.api_key_env, ""))
+        result = expand_knowledge_graph(args.plan, args.output, complete=client,
+                                        max_nodes=args.max_nodes, max_depth=args.max_depth,
+                                        children_per_node=args.children_per_node)
+    elif args.command == "prepare":
         weights = read_json(args.weights).get("distribution") if args.weights else None
         result = prepare(args.plan, args.output, profile=args.profile, seed=args.seed, count=args.count,
                          path_policy=args.path_policy, weights=weights,
