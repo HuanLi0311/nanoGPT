@@ -16,7 +16,7 @@ def bubblewrap_command(root: str | Path, command: str, workdir: Any = ".") -> li
     root = Path(root).resolve()
     relative = workspace_path(root, workdir).relative_to(root)
     inside = (Path("/workspace") / relative).as_posix()
-    argv = [executable, "--die-with-parent", "--unshare-all", "--new-session", "--clearenv",
+    argv = [executable, "--die-with-parent", "--unshare-all", "--new-session",
             "--setenv", "PATH", "/usr/bin:/bin", "--setenv", "HOME", "/workspace",
             "--setenv", "TMPDIR", "/tmp", "--setenv", "LANG", "C.UTF-8"]
     # ponytail: bind only the platform runtime. Add explicit read-only mounts

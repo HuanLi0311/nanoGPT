@@ -85,11 +85,14 @@ def run_verifier(
             invocation,
             cwd=cwd,
             shell=shell,
+            env={} if sandbox_backend == "bwrap" else None,
             capture_output=True,
             text=True,
             timeout=max(1, int(timeout)),
             check=False,
         )
+        if sandbox_backend == "bwrap" and result.returncode and result.stderr.startswith("bwrap:"):
+            raise RuntimeError(result.stderr.strip())
     except subprocess.TimeoutExpired as error:
         return VerificationResult(
             0.0,

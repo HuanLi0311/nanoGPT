@@ -209,12 +209,15 @@ class WorkspaceTool(BaseTool):
             invocation,
             cwd=host_cwd,
             shell=shell,
+            env={} if backend == "bwrap" else None,
             capture_output=True,
             stdin=subprocess.DEVNULL,
             text=True,
             timeout=timeout,
             check=False,
         )
+        if backend == "bwrap" and result.returncode and result.stderr.startswith("bwrap:"):
+            raise RuntimeError(result.stderr.strip())
         output = (result.stdout + result.stderr)[-output_limit:]
         return ToolResponse(text=f"exit_code={result.returncode}\n{output}"), 0.0, {
             "exit_code": result.returncode,
