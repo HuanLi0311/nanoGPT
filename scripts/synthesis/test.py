@@ -195,7 +195,7 @@ def main() -> None:
                     "preconditions": ["workspace:ready"], "effects": ["file:done.txt:exists"]}],
                 "min_steps": 1, "max_steps": 1}]})}
 
-        generated_materials = root / "generated/materials.jsonl"
+        generated_materials = root / "run/stage1/generated_materials.jsonl"
         generated = synthesize_environment_templates(
             root / "run/stage1/materials.jsonl", generated_materials, complete=synthesize_one,
             variants_per_material=1, model="scripted-synthesis")
@@ -203,6 +203,21 @@ def main() -> None:
         assert generated["materials_generated"] == generated_tasks["tasks"] == 2
         assert all(task["sandbox_backend"] == "bwrap"
                    for task in read_jsonl(root / "generated/tasks.jsonl"))
+
+        taskless = _plan(f"{base_url}/search")
+        for domain in taskless["domains"]:
+            for subdomain in domain["subdomains"]:
+                for concept in subdomain["concepts"]:
+                    concept.pop("task")
+        taskless["profiles"]["single"] = {"count": 1, "distribution": {"coding": 1}}
+        taskless_plan = root / "taskless-plan.json"
+        write_json(taskless_plan, taskless)
+        generated_run = prepare(
+            taskless_plan, root / "run-generated", profile="single", seed=7, count=None,
+            path_policy="agentworld", tasks_per_material=1, trajectories_per_task=1,
+            environment_complete=synthesize_one, synthesis_model="scripted-synthesis")
+        assert generated_run["counts_before_verifier"]["stage3_candidate_trajectories"] == 1
+        assert generated_run["stage2"]["environment_synthesis"]["materials_generated"] == 1
 
         control = prepare(plan, root / "run-narrow", profile="narrow", seed=7, count=None,
                           path_policy="uniform")

@@ -166,7 +166,7 @@ def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | N
     materials_path = Path(stage1["materials"])
     environment_synthesis = None
     if environment_complete is not None:
-        generated_materials = output / "stage2/materials_with_task_templates.jsonl"
+        generated_materials = output / "stage1/materials_with_task_templates.jsonl"
         environment_synthesis = synthesize_environment_templates(
             materials_path, generated_materials, complete=environment_complete,
             variants_per_material=tasks_per_material, model=synthesis_model,
@@ -181,7 +181,9 @@ def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | N
     rl_environments = write_jsonl(rl_path, iter_jsonl(Path(stage3["validated_tasks"])))
     counts = {"stage1_materials": stage1["material_count"],
               "stage1_unique_materials": stage1["unique_normalized_materials"],
+              "stage2_requested_tasks": stage1["material_count"] * tasks_per_material,
               "stage2_candidate_tasks": stage2["tasks"],
+              "stage3_requested_trajectories": stage2["tasks"] * trajectories_per_task,
               "stage3_candidate_trajectories": stage3["candidate_trajectories"],
               "gross_artifacts": stage1["material_count"] + stage2["tasks"] + stage3["candidate_trajectories"],
               "verifier_filtered_counts_excluded": True}

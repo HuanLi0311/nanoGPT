@@ -28,6 +28,8 @@ def synthesize_environment_templates(materials_path: Path, output: Path, *, comp
 
     if variants_per_material < 1 or max_material_chars < 1 or retries < 1:
         raise ValueError("environment synthesis limits must be positive")
+    if output.parent.resolve() != materials_path.parent.resolve():
+        raise ValueError("generated material manifest must stay beside its source manifest")
     generated = attempted = 0
     rejected: list[dict[str, Any]] = []
 
@@ -156,7 +158,8 @@ def construct_tasks(materials_path: Path, output: Path, *, variants_per_material
                 yield task
 
     write_jsonl(output, rows())
-    return {"materials": material_count, "tasks": task_count,
+    return {"materials": material_count, "requested_tasks": material_count * variants_per_material,
+            "tasks": task_count,
             "variants_per_material": variants_per_material,
             "unique_task_signatures": len(signatures),
             "domain_distribution": dict(sorted(domain_counts.items())),

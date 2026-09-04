@@ -112,9 +112,9 @@ exec_command, apply_patch
 输出：
 
 ```text
-stage2/materials_with_task_templates.jsonl
+stage1/materials_with_task_templates.jsonl  # 保持与 material files 同一相对路径根
 stage2/tasks.jsonl
-stage2/rejected_environment_generation.jsonl
+stage1/rejected_environment_generation.jsonl
 ```
 
 ### Stage 3：Agent-World Weighted Tool Graph
