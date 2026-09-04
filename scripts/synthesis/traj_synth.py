@@ -98,12 +98,21 @@ def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
         dependencies = set(action.get("depends_on", [])) | refs
         if not dependencies.issubset(ids):
             raise ValueError(f"{task['task_id']}:{action['id']}: unknown dependencies {sorted(dependencies - ids)}")
-        edges.extend({"from": dependency, "to": action["id"], "relation": "parameter_dependency"}
-                     for dependency in sorted(dependencies))
         for previous in actions:
-            shared = set(previous.get("effects", [])) & set(action.get("preconditions", []))
-            edges.extend({"from": previous["id"], "to": action["id"], "relation": "fact_dependency", "fact": fact}
-                         for fact in sorted(shared) if previous["id"] != action["id"])
+            if previous["id"] == action["id"]:
+                continue
+            shared = sorted(set(previous.get("effects", [])) & set(action.get("preconditions", [])))
+            if previous["id"] in dependencies:
+                relation, weight = "strong_dependency", 3
+            elif shared:
+                relation, weight = "weak_dependency", 2
+            else:
+                relation, weight = "independent", 1
+            edge = {"from": previous["id"], "to": action["id"],
+                    "relation": relation, "weight": weight}
+            if shared:
+                edge["facts"] = shared
+            edges.append(edge)
     return {"task_id": task["task_id"], "nodes": actions, "edges": edges,
             "initial_facts": task["initial_facts"], "target_facts": task["target_facts"]}
 
@@ -111,7 +120,7 @@ def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
 def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candidate_index: int = 0) -> list[dict[str, Any]]:
     graph = trajectory_graph(task)
     values = {"candidate_index": f"{candidate_index:04d}"}
-    if policy not in {"goal", "uniform"}:
+    if policy not in {"agentworld", "goal", "uniform"}:
         raise ValueError(f"unknown path policy: {policy}")
     actions = {item["id"]: {**item,
                             "preconditions": render(item.get("preconditions", []), values),
@@ -130,6 +139,8 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
                 needed.update(action.get("preconditions", []))
                 needed.update(f"action:{item}" for item in action.get("depends_on", []))
     rng = random.Random(seed)
+    weights = {(edge["from"], edge["to"]): int(edge["weight"]) for edge in graph["edges"]}
+    strong_predecessors = {edge["to"] for edge in graph["edges"] if edge["weight"] == 3}
 
     # ponytail: exhaustive DFS is fine for the intended small recipes; switch
     # to beam/A* search if action graphs grow enough for this to become slow.
@@ -144,7 +155,16 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
             if action["id"] in used or not dependencies.issubset(used) or not set(action.get("preconditions", [])).issubset(facts):
                 continue
             gain = len(set(action.get("effects", [])) & (target - facts))
-            score = 100 * gain + 10 * (action["id"] in relevant) + rng.random() if policy == "goal" else rng.random()
+            if policy == "goal":
+                score = 100 * gain + 10 * (action["id"] in relevant) + rng.random()
+            elif policy == "agentworld":
+                weight = weights.get((used[-1], action["id"]), 1) if used else (
+                    3 if action["id"] not in strong_predecessors else 1)
+                # Weighted random ordering followed by backtracking keeps the
+                # Agent-World walk bias while guaranteeing a solvable path.
+                score = rng.random() ** (1 / weight)
+            else:
+                score = rng.random()
             possible.append((score, action))
         for _, action in sorted(possible, key=lambda item: item[0], reverse=True):
             found = search(facts | set(action.get("effects", [])), (*used, action["id"]))
@@ -174,40 +194,150 @@ def _initial_verifier(task: dict[str, Any]) -> dict[str, Any]:
                             sandbox_backend=task["sandbox_backend"])
 
 
-def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: str = "goal") -> dict[str, Any]:
+def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: str = "agentworld",
+                     trajectories_per_task: int = 1) -> dict[str, Any]:
     from model.language_model.scripts.synthesis.trace_runner import ProgrammaticTraceRunner
+    from itertools import groupby
 
-    tasks, accepted, rejected, episodes, graphs = read_jsonl(tasks_path), [], [], [], []
+    if trajectories_per_task < 1:
+        raise ValueError("trajectories_per_task must be positive")
+    output.mkdir(parents=True, exist_ok=True)
+    candidate_path = output / "candidate_trajectories.jsonl"
+    graph_path = output / "trajectory_graphs.jsonl"
+    generation_rejected: list[dict[str, Any]] = []
+    task_count = candidate_count = 0
+    path_signatures: set[str] = set()
+    structure_signatures: set[str] = set()
+    tool_sequences: set[tuple[str, ...]] = set()
+
+    write_jsonl(graph_path, (trajectory_graph(task) for task in iter_jsonl(tasks_path)))
+
+    def candidates():
+        nonlocal task_count, candidate_count
+        for task_index, task in enumerate(iter_jsonl(tasks_path)):
+            task_count += 1
+            for candidate_index in range(trajectories_per_task):
+                try:
+                    actions = sample_path(task, seed=seed + task_index * trajectories_per_task + candidate_index,
+                                          policy=policy, candidate_index=candidate_index)
+                    path_signature = fingerprint(actions)
+                    structure_signature = fingerprint([(action["id"], action["tool"]) for action in actions])
+                    tools = tuple(action["tool"] for action in actions)
+                    path_signatures.add(path_signature)
+                    structure_signatures.add(structure_signature)
+                    tool_sequences.add(tools)
+                    candidate_count += 1
+                    yield {"candidate_id": f"candidate-{task_index:06d}-{candidate_index:03d}",
+                           "task_id": task["task_id"], "candidate_index": candidate_index,
+                           "path_policy": policy, "actions": actions, "path_signature": path_signature,
+                           "structure_signature": structure_signature, "tool_sequence": list(tools)}
+                except Exception as error:
+                    generation_rejected.append({"task_id": task.get("task_id"),
+                                                "candidate_index": candidate_index,
+                                                "reason": str(error)})
+
+    write_jsonl(candidate_path, candidates())
+    write_jsonl(output / "rejected_candidate_generation.jsonl", generation_rejected)
+
     runner = ProgrammaticTraceRunner(output / "workspaces")
-    for index, task in enumerate(tasks):
-        try:
-            initial = _initial_verifier(task)
-            if initial["harness_status"] != "healthy" or initial["task_success"]:
-                raise ValueError("verifier is unhealthy or task already passes in the initial state")
-            actions = sample_path(task, seed=seed + index, policy=policy, candidate_index=index)
-            episode = runner.run(task, actions, f"oracle:{task['task_id']}:{index:04d}", candidate_index=index)
-            episode["policy"] = {"kind": "programmatic_oracle", "model": "deterministic_action_graph"}
-            episodes.append(episode)
-            outcome = episode["outcome"]
-            passed = (outcome["task_success"] and outcome["independent_verifier_passed"]
-                      and outcome["harness_status"] == "healthy"
-                      and outcome["call_result_linkage_complete"] and outcome["trace_fidelity"])
-            if not passed:
-                raise ValueError(f"oracle failed: {outcome.get('failure_class')}")
-            proof = {"episode_id": episode["episode_id"], "path": [action["id"] for action in actions],
-                     "path_policy": policy, "episode_sha256": fingerprint(episode)}
-            accepted.append({**task, "oracle_proof": proof})
-            graphs.append(trajectory_graph(task))
-        except Exception as error:
-            rejected.append({"task_id": task.get("task_id"), "reason": str(error)})
-    write_jsonl(output / "oracle_episodes.jsonl", episodes)
-    write_jsonl(output / "validated_tasks.jsonl", accepted)
-    write_jsonl(output / "rejected_tasks.jsonl", rejected)
-    write_json(output / "trajectory_graph.json", {"version": "trajectory-graph-v1", "policy": policy, "tasks": graphs})
-    lengths = [len(episode["actions"]) for episode in episodes if episode["outcome"]["task_success"]]
-    return {"tasks": len(tasks), "validated": len(accepted), "rejected": len(rejected),
-            "path_lengths": lengths,
-            "unique_tool_combinations": len({tuple(action["tool"] for action in episode["actions"])
-                                             for episode in episodes if episode["outcome"]["task_success"]}),
+    destinations = [output / name for name in ("oracle_episodes.jsonl", "validated_tasks.jsonl",
+                                                "rejected_tasks.jsonl", "rejected_trajectories.jsonl")]
+    temporary = [path.with_suffix(path.suffix + ".tmp") for path in destinations]
+    handles = [path.open("w", encoding="utf-8") for path in temporary]
+    episodes_count = validated = rejected = passed_trajectories = rejected_trajectories = 0
+    lengths: list[int] = []
+    groups = iter(groupby(iter_jsonl(candidate_path), key=lambda row: row["task_id"]))
+    current = next(groups, None)
+    try:
+        for task in iter_jsonl(tasks_path):
+            rows = []
+            if current and current[0] == task["task_id"]:
+                rows = list(current[1])
+                current = next(groups, None)
+            proofs = []
+            if not rows:
+                handles[2].write(stable_json({"task_id": task.get("task_id"),
+                                              "reason": "no candidate trajectory was generated"}) + "\n")
+                rejected += 1
+                continue
+            try:
+                initial = _initial_verifier(task)
+                if initial["harness_status"] != "healthy" or initial["task_success"]:
+                    raise ValueError("verifier is unhealthy or task already passes in the initial state")
+            except Exception as error:
+                reason = str(error)
+                handles[2].write(stable_json({"task_id": task.get("task_id"), "reason": reason}) + "\n")
+                for row in rows:
+                    handles[3].write(stable_json({"candidate_id": row["candidate_id"],
+                                                  "task_id": task["task_id"], "reason": reason}) + "\n")
+                    rejected_trajectories += 1
+                rejected += 1
+                continue
+            for row in rows:
+                episode_id = f"oracle:{task['task_id']}:{row['candidate_index']:04d}"
+                try:
+                    episode = runner.run(task, row["actions"], episode_id,
+                                         candidate_index=row["candidate_index"])
+                except Exception as error:
+                    handles[3].write(stable_json({"candidate_id": row["candidate_id"],
+                                                  "task_id": task["task_id"],
+                                                  "reason": f"oracle execution error: {error}"}) + "\n")
+                    rejected_trajectories += 1
+                    continue
+                episode["policy"] = {"kind": "programmatic_oracle", "model": "agentworld-weighted-graph"}
+                handles[0].write(stable_json(episode) + "\n")
+                episodes_count += 1
+                outcome = episode["outcome"]
+                passed = (outcome["task_success"] and outcome["independent_verifier_passed"]
+                          and outcome["harness_status"] == "healthy"
+                          and outcome["call_result_linkage_complete"] and outcome["trace_fidelity"])
+                if passed:
+                    proof = {"episode_id": episode["episode_id"],
+                             "candidate_id": row["candidate_id"],
+                             "path": [action["id"] for action in row["actions"]],
+                             "path_policy": policy, "episode_sha256": fingerprint(episode)}
+                    proofs.append(proof)
+                    lengths.append(len(row["actions"]))
+                    passed_trajectories += 1
+                else:
+                    handles[3].write(stable_json({"candidate_id": row["candidate_id"],
+                                                  "task_id": task["task_id"],
+                                                  "reason": f"oracle failed: {outcome.get('failure_class')}"}) + "\n")
+                    rejected_trajectories += 1
+            if proofs:
+                handles[1].write(stable_json({**task, "oracle_proof": proofs[0],
+                                              "oracle_proofs": proofs}) + "\n")
+                validated += 1
+            else:
+                handles[2].write(stable_json({"task_id": task.get("task_id"),
+                                              "reason": "all candidate trajectories failed"}) + "\n")
+                rejected += 1
+    except Exception:
+        for handle in handles:
+            handle.close()
+        for path in temporary:
+            path.unlink(missing_ok=True)
+        raise
+    else:
+        for handle in handles:
+            handle.close()
+        for source, destination in zip(temporary, destinations, strict=True):
+            source.replace(destination)
+
+    path_lengths = ({"count": len(lengths), "min": min(lengths), "max": max(lengths),
+                     "mean": sum(lengths) / len(lengths)} if lengths else
+                    {"count": 0, "min": None, "max": None, "mean": None})
+    return {"tasks": task_count, "requested_trajectories": task_count * trajectories_per_task,
+            "candidate_trajectories": candidate_count,
+            "candidate_generation_rejected": len(generation_rejected),
+            "trajectories_per_task": trajectories_per_task,
+            "unique_path_signatures": len(path_signatures),
+            "unique_path_structures": len(structure_signatures),
+            "unique_tool_combinations": len(tool_sequences),
+            "validated": validated, "rejected": rejected,
+            "passed_trajectories": passed_trajectories,
+            "rejected_trajectories": rejected_trajectories,
+            "executed_trajectories": episodes_count, "path_lengths": path_lengths,
+            "candidate_manifest": str(candidate_path), "trajectory_graphs": str(graph_path),
             "validated_tasks": str(output / "validated_tasks.jsonl"),
             "oracle_episodes": str(output / "oracle_episodes.jsonl")}
