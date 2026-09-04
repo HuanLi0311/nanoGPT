@@ -8,10 +8,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 if __package__:
+    from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
     from .schema import read_json, read_jsonl, write_json, write_jsonl
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
     from schema import read_json, read_jsonl, write_json, write_jsonl
 
@@ -24,7 +26,7 @@ def _plan() -> dict:
         },
         "domains": [
             {"name": "coding", "subdomains": [{"name": "transform", "concepts": [{
-                "name": "uppercase", "source": {"kind": "inline", "content": "alpha\n", "license": "test-only"},
+                "name": "uppercase", "source": {"kind": "document", "uri": "alpha.txt", "license": "test-only"},
                 "task": {
                     "id": "uppercase", "prompt": "Read input.txt and save its uppercase value in answer.txt.",
                     "files": {"input.txt": "{{material}}"},
@@ -41,7 +43,7 @@ def _plan() -> dict:
                 },
             }]}]},
             {"name": "artifact", "subdomains": [{"name": "create", "concepts": [{
-                "name": "report", "source": {"kind": "inline", "content": "beta\n", "license": "test-only"},
+                "name": "report", "source": {"kind": "repo", "uri": "repo", "glob": "*.txt", "license": "test-only"},
                 "task": {
                     "id": "report", "prompt": "Create report.txt containing BETA.", "files": {},
                     "available_tools": ["apply_patch"], "verifier": "test \"$(cat report.txt)\" = BETA",
@@ -58,6 +60,9 @@ def _plan() -> dict:
 def main() -> None:
     with TemporaryDirectory(prefix="four-stage-synthesis-") as temporary:
         root = Path(temporary)
+        (root / "alpha.txt").write_text("alpha\n", encoding="utf-8")
+        (root / "repo").mkdir()
+        (root / "repo/context.txt").write_text("beta\n", encoding="utf-8")
         plan = root / "plan.json"
         write_json(plan, _plan())
         report = prepare(plan, root / "run", profile="diverse", seed=7, count=None, path_policy="goal")
@@ -77,6 +82,25 @@ def main() -> None:
         oracle_result = finalize(root / "run", [root / "run/stage3/oracle_episodes.jsonl"],
                                  policy_kind="teacher", model="test-teacher")
         assert oracle_result["accepted_sft"] == 0 and oracle_result["rejected"] == 2
+
+        def scripted(messages, _tools):
+            if messages[-1]["role"] == "tool":
+                return {"content": "DONE"}
+            prompt = next(message["content"] for message in messages if message["role"] == "user")
+            if "uppercase" in prompt:
+                name, arguments = "exec_command", {"cmd": "tr '[:lower:]' '[:upper:]' < input.txt > answer.txt"}
+            else:
+                name, arguments = "apply_patch", {"patch": "*** Begin Patch\n*** Add File: report.txt\n+BETA\n*** End Patch"}
+            return {"tool_calls": [{"id": "policy_call", "type": "function",
+                                    "function": {"name": name, "arguments": json.dumps(arguments)}}]}
+
+        policy_rollouts = root / "policy-rollouts.jsonl"
+        policy_report = run_policy_tasks(root / "run/stage3/validated_tasks.jsonl", policy_rollouts,
+                                         complete=scripted, policy_kind="teacher", model="scripted-policy")
+        assert policy_report["passed"] == 2
+        assert finalize(root / "run", [policy_rollouts], policy_kind="teacher",
+                        model="scripted-policy")["accepted_sft"] == 2
+
         serialized_action = by_task[tasks[0]["task_id"]]["actions"][0]
         serialized = ("<tool_call>\n" + json.dumps({"name": serialized_action["tool"],
                       "arguments": serialized_action["arguments"]}) +

@@ -115,6 +115,7 @@ Programmatic oracle 只证明存在一条可执行解，不能代表目标模型
 
 ```text
 stage4/rl_tasks.jsonl
+stage4/teacher-or-current-rollouts.jsonl
 stage4/sft.jsonl
 stage4/train_sft-four-stage.parquet
 stage4/test_sft-four-stage.parquet
@@ -179,10 +180,20 @@ $PY scripts/synthesis/runner.py prepare PLAN.json runs/base-diverse \
   --profile diverse --seed 7 --path-policy goal
 ```
 
-teacher/current-policy 的 rollout JSONL 可以是带 `messages` 与 `outcome` 的 canonical episode，也可以是现有 Verl validation JSONL（`input/output/task_success/harness_status`）。将通过轨迹制作成 SFT：
+使用任意 OpenAI-compatible vLLM/API endpoint 运行真实 teacher/current policy。策略只得到 prompt 和该任务的 `available_tools`，不会得到 oracle path：
 
 ```bash
-$PY scripts/synthesis/runner.py finalize runs/base-diverse TEACHER_ROLLOUTS.jsonl \
+$PY scripts/synthesis/policy_rollout.py \
+  runs/base-diverse/stage3/validated_tasks.jsonl \
+  runs/base-diverse/stage4/teacher-rollouts.jsonl \
+  --base-url http://127.0.0.1:8000/v1 --model MODEL_ID --policy-kind teacher
+```
+
+policy-rollout JSONL 带有完整 `messages`、tool events、policy provenance 和 out-of-band outcome。Stage 4 也可以导入现有 Verl validation JSONL（`input/output/task_success/harness_status`）。将通过轨迹制作成 SFT：
+
+```bash
+$PY scripts/synthesis/runner.py finalize runs/base-diverse \
+  runs/base-diverse/stage4/teacher-rollouts.jsonl \
   --policy-kind teacher --model MODEL_ID
 ```
 

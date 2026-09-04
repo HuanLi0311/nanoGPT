@@ -94,7 +94,7 @@ def _decode(data: bytes, content_type: str = "") -> str:
 
 def _local(source: dict[str, Any], base: Path, limit: int) -> tuple[str, dict[str, Any]]:
     path = Path(str(source.get("uri", "")))
-    path = path if path.is_absolute() else (base / path).resolve()
+    path = path.resolve() if path.is_absolute() else (base / path).resolve()
     if source["kind"] == "repo" and path.is_dir():
         paths = [item for item in sorted(path.glob(source.get("glob", "**/*"))) if item.is_file() and ".git" not in item.parts]
         paths = paths[: int(source.get("max_files", 32))]
@@ -109,7 +109,11 @@ def _local(source: dict[str, Any], base: Path, limit: int) -> tuple[str, dict[st
             text = result.stdout.decode("utf-8", errors="replace")
         else:
             text = path.read_text(encoding="utf-8", errors="replace")
-        revision, resolved = source.get("revision"), str(path)
+        revision = source.get("revision")
+        if source["kind"] == "repo" and not revision:
+            revision = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "HEAD"],
+                                      capture_output=True, text=True).stdout.strip() or None
+        resolved = str(path)
     if len(text.encode()) > limit:
         raise ValueError(f"retrieved material exceeds max_bytes={limit}: {path}")
     return text, {"resolved_uri": resolved, "revision": revision}
