@@ -136,10 +136,14 @@ def run_policy_tasks(tasks_path: Path, output: Path, *, complete: Complete, poli
     tasks = read_jsonl(tasks_path)[:limit]
     if any(not isinstance(task.get("oracle_proof"), dict) for task in tasks):
         raise ValueError("policy rollout only accepts oracle-validated tasks")
+    if not tasks:
+        raise ValueError("no oracle-validated tasks to roll out")
     workspace_base = workspace_root or output.parent / "policy_workspaces"
     workspace_base.mkdir(parents=True, exist_ok=True)
     root = Path(mkdtemp(prefix="run-", dir=workspace_base))
     rows = []
+    # ponytail: run sequentially so one workspace maps to one trace; batch
+    # endpoint requests only when policy-rollout throughput is the bottleneck.
     for index, task in enumerate(tasks):
         try:
             rows.append(asyncio.run(_one(task, complete, policy_kind, model, index, max_turns, root)))

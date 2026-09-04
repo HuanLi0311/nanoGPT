@@ -21,7 +21,7 @@ OUTPUT_REF = re.compile(r"\{\{output:([^}]+)\}\}")
 def construct_tasks(materials_path: Path, output: Path) -> list[dict[str, Any]]:
     tasks = []
     for index, material in enumerate(read_jsonl(materials_path)):
-        content_path = materials_path.parent / material["content_path"]
+        content_path = materials_path.parent / relative_path(material["content_path"])
         template = deepcopy(material["task_template"])
         executable = stable_json({"verifier": template.get("verifier"),
                                   "actions": template.get("actions", template.get("action_patterns"))})
@@ -103,6 +103,8 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
                 needed.update(f"action:{item}" for item in action.get("depends_on", []))
     rng = random.Random(seed)
 
+    # ponytail: exhaustive DFS is fine for the intended small recipes; switch
+    # to beam/A* search if action graphs grow enough for this to become slow.
     def search(facts: set[str], used: tuple[str, ...]) -> list[str] | None:
         if target.issubset(facts) and required.issubset(used):
             return list(used)

@@ -78,6 +78,8 @@ def main() -> None:
                    for row, task in zip(verl_rows, tasks, strict=True))
         assert all(set(row["extra_info"]["tool_selection"]) == set(task["available_tools"])
                    for row, task in zip(verl_rows, tasks, strict=True))
+        legacy = list(task_rows(Path("agent/tasks/synthesis_seed.jsonl"), limit=1))[0]
+        assert set(legacy["extra_info"]["tool_selection"]) == {"exec_command", "apply_patch"}
         by_task = {episode["task_id"]: episode for episode in episodes}
         oracle_result = finalize(root / "run", [root / "run/stage3/oracle_episodes.jsonl"],
                                  policy_kind="teacher", model="test-teacher")

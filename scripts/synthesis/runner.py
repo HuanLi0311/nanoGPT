@@ -105,6 +105,8 @@ def _sft_row(messages: list[dict[str, Any]], task_id: str, model: str, source: s
 
 
 def _parquet(rows: list[dict[str, Any]], output: Path) -> dict[str, str]:
+    for split in ("train", "test"):
+        (output / f"{split}_sft-four-stage.parquet").unlink(missing_ok=True)
     if not rows:
         return {}
     import pyarrow as pa
@@ -196,6 +198,8 @@ def diagnose(prepared: Path, rollout_paths: list[Path], output: Path, floor: flo
             scores.setdefault(task["task_family"], []).append(score)
     if not any(scores.values()):
         raise ValueError("no healthy diagnostic rollouts matched prepared tasks")
+    # ponytail: error-rate allocation is deliberately transparent; replace it
+    # with a calibrated learning-progress model only when this baseline fails.
     distribution = {family: max(floor, 1 - sum(values) / len(values)) if values else 1.0
                     for family, values in scores.items()}
     result = {"version": "diagnostic-distribution-v1", "distribution": distribution,

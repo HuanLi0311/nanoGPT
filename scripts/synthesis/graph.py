@@ -59,7 +59,7 @@ def _sample(plan: dict[str, Any], profile_name: str, seed: int, count: int | Non
     profile = profiles.get(profile_name, {}) if isinstance(profiles, dict) else {}
     if profiles and profile_name not in profiles:
         raise ValueError(f"unknown profile: {profile_name}")
-    total = int(count or profile.get("count") or plan.get("sample_count") or len(leaves))
+    total = int(count if count is not None else profile.get("count") or plan.get("sample_count") or len(leaves))
     distribution = weights or profile.get("distribution") or plan.get("target_distribution")
     families = sorted({leaf["family"] for leaf in leaves})
     distribution = {name: 1.0 for name in families} if distribution is None else {
@@ -86,6 +86,8 @@ def _decode(data: bytes, content_type: str = "") -> str:
         charset = content_type.split("charset=", 1)[1].split(";", 1)[0].strip()
     text = data.decode(charset, errors="replace")
     if "html" in content_type.lower() or "<html" in text[:500].lower():
+        # ponytail: tag stripping is enough for material discovery; add a
+        # readability extractor only if measured retrieval quality needs it.
         parser = _Text()
         parser.feed(text)
         return "\n".join(parser.parts) + "\n"
