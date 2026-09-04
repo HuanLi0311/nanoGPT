@@ -25,9 +25,18 @@ class _Text(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.parts: list[str] = []
+        self.ignored = 0
+
+    def handle_starttag(self, tag: str, _attrs: list[tuple[str, str | None]]) -> None:
+        if tag in {"script", "style", "svg", "noscript"}:
+            self.ignored += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style", "svg", "noscript"} and self.ignored:
+            self.ignored -= 1
 
     def handle_data(self, data: str) -> None:
-        if data.strip():
+        if not self.ignored and data.strip():
             self.parts.append(data.strip())
 
 
@@ -323,10 +332,11 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
         if source.get("kind") == "web_search":
             query = _search_query(source, leaf)
             discovery_key = stable_json([source, query])
+            discovery_id = f"search-{fingerprint(discovery_key)[:16]}"
             if discovery_key not in search_cache:
                 candidates, search_info = _discover(source, query)
                 search_cache[discovery_key] = candidates, search_info
-                discoveries.append({"discovery_id": f"search-{fingerprint(discovery_key)[:16]}",
+                discoveries.append({"discovery_id": discovery_id,
                                     "domain": leaf["domain"], "subdomain": leaf["subdomain"],
                                     "concept": leaf["concept"], **search_info, "candidates": candidates})
             candidates, search_info = search_cache[discovery_key]
@@ -334,6 +344,9 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
             rotated = candidates[start:] + candidates[:start]
             used = claimed.setdefault(discovery_key, set())
             ordered = [item for item in rotated if item["url"] not in used] + [item for item in rotated if item["url"] in used]
+            min_chars = int(source.get("min_chars", 200))
+            if min_chars < 1:
+                raise ValueError("web_search.min_chars must be positive")
             errors = []
             for candidate in ordered:
                 page_source = {"kind": "web", "uri": candidate["url"],
@@ -343,12 +356,15 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                     if source_key not in cache:
                         cache[source_key] = _retrieve(page_source, plan_path.parent)
                     content, extra = cache[source_key]
+                    if len(content.strip()) < min_chars:
+                        raise ValueError(f"page has fewer than min_chars={min_chars}")
                 except Exception as error:
                     errors.append(f"{candidate['url']}: {error}")
                     continue
                 reused = candidate["url"] in used
                 used.add(candidate["url"])
-                extra_search = {"search_query": query, "search_provider": search_info["provider"],
+                extra_search = {"discovery_id": discovery_id, "search_query": query,
+                                "search_provider": search_info["provider"],
                                 "search_rank": candidate["rank"], "discovered_url": candidate["url"],
                                 "reused_candidate": reused}
                 break

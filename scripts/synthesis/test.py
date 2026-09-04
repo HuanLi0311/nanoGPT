@@ -10,13 +10,13 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 
 if __package__:
-    from .graph import _retrieve
+    from .graph import _discover, _retrieve
     from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
     from .schema import read_json, read_jsonl, write_json, write_jsonl
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from graph import _retrieve
+    from graph import _discover, _retrieve
     from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
     from schema import read_json, read_jsonl, write_json, write_jsonl
@@ -24,7 +24,8 @@ else:
 
 def _plan(search_endpoint: str | None = None) -> dict:
     coding_source = ({"kind": "web_search", "search_endpoint": search_endpoint,
-                      "provider": "test-search", "max_results": 2, "license": "test-only"}
+                      "provider": "test-search", "max_results": 2, "min_chars": 1,
+                      "license": "test-only"}
                      if search_endpoint else
                      {"kind": "document", "uri": "alpha.txt", "license": "test-only"})
     return {
@@ -73,8 +74,11 @@ def main() -> None:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 if self.path.startswith("/search"):
-                    body = (b'<a class="result__a" href="/alpha-a">Alpha A</a>'
-                            b'<a class="result__a" href="/alpha-b">Alpha B</a>')
+                    if self.path.startswith("/search-json"):
+                        body = json.dumps({"web": {"results": [{"url": "/json-page", "title": "JSON"}]}}).encode()
+                    else:
+                        body = (b'<a class="result__a" href="/alpha-a">Alpha A</a>'
+                                b'<a class="result__a" href="/alpha-b">Alpha B</a>')
                 elif self.path.startswith(("/alpha-a", "/alpha-b")):
                     body = b"<html><body>alpha</body></html>"
                 else:
@@ -93,6 +97,9 @@ def main() -> None:
         base_url = f"http://127.0.0.1:{server.server_port}"
         web, provenance = _retrieve({"kind": "web", "uri": f"{base_url}/"}, root)
         assert web.strip() == "web material" and provenance["resolved_uri"].startswith(base_url)
+        json_results, _ = _discover({"kind": "web_search", "provider": "test-json",
+                                     "search_endpoint": f"{base_url}/search-json"}, "fixture")
+        assert json_results[0]["url"] == f"{base_url}/json-page"
 
         (root / "repo").mkdir()
         (root / "repo/context.txt").write_text("beta\n", encoding="utf-8")
@@ -116,6 +123,8 @@ def main() -> None:
         tasks = read_jsonl(root / "run/stage3/validated_tasks.jsonl")
         episodes = read_jsonl(root / "run/stage3/oracle_episodes.jsonl")
         assert all(task["sandbox_backend"] == "bwrap" for task in tasks)
+        assert all(row["provenance"].get("discovery_id") for row in
+                   read_jsonl(root / "run/stage1/materials.jsonl") if row["provenance"]["kind"] == "web_search")
         assert all(episode["execution_mode"] == "bwrap" for episode in episodes)
         assert all(episode["outcome"]["call_result_linkage_complete"]
                    and episode["outcome"]["trace_fidelity"] for episode in episodes)
