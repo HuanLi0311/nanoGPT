@@ -54,7 +54,7 @@ material package
   -> action patterns
 ```
 
-模板只替换明确 token，例如 `{{material}}`、`{{material_id}}`、`{{source_uri}}`。任务必须声明非空 verifier、workspace 内相对路径和已实现的工具。当前真实 adapter 只有：
+模板只替换明确 token，例如 `{{material}}`、`{{material_id}}`、`{{material_sha256}}`、`{{source_uri}}`。原始材料和来源 URL 只允许进入 prompt 或初始文件，不能插入 action/verifier 命令。任务必须声明非空 verifier、workspace 内相对路径和已实现的工具。当前真实 adapter 只有：
 
 ```text
 exec_command, apply_patch

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -76,6 +77,10 @@ def main() -> None:
         oracle_result = finalize(root / "run", [root / "run/stage3/oracle_episodes.jsonl"],
                                  policy_kind="teacher", model="test-teacher")
         assert oracle_result["accepted_sft"] == 0 and oracle_result["rejected"] == 2
+        serialized_action = by_task[tasks[0]["task_id"]]["actions"][0]
+        serialized = ("<tool_call>\n" + json.dumps({"name": serialized_action["tool"],
+                      "arguments": serialized_action["arguments"]}) +
+                      "\n</tool_call>\nuser\n<tool_response>\nexit_code=0\nok\n</tool_response>\nassistant\nDONE")
         rollouts = root / "rollouts.jsonl"
         write_jsonl(rollouts, [
             {"task_id": tasks[0]["task_id"], "policy": {"kind": "teacher"}, "messages": by_task[tasks[0]["task_id"]]["messages"],
@@ -84,9 +89,12 @@ def main() -> None:
              "outcome": {"task_success": 0, "harness_status": "healthy", "eligible": True}},
             {"task_id": tasks[0]["task_id"], "policy": {"kind": "programmatic_oracle"},
              "messages": by_task[tasks[0]["task_id"]]["messages"], "outcome": {"task_success": 1, "harness_status": "healthy"}},
+            {"task_id": tasks[0]["task_id"], "policy": {"kind": "teacher"}, "output": serialized,
+             "gts": {"task_id": tasks[0]["task_id"], "verifier_version": tasks[0]["verifier_version"]},
+             "task_success": 1, "harness_status": "healthy", "eligible": True},
         ])
         result = finalize(root / "run", [rollouts], policy_kind="teacher", model="test-teacher")
-        assert result["accepted_sft"] == 1 and result["rejected"] == 2
+        assert result["accepted_sft"] == 2 and result["rejected"] == 2
         assert read_jsonl(root / "run/stage4/sft.jsonl")[0]["metadata"]["model_provider"] == "test-teacher"
 
         weights = root / "weights.json"
