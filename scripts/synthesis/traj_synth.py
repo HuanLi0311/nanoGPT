@@ -25,7 +25,8 @@ def construct_tasks(materials_path: Path, output: Path) -> list[dict[str, Any]]:
         values = {"material": content_path.read_text(encoding="utf-8"), "material_id": material["material_id"],
                   "domain": material["domain"], "subdomain": material["subdomain"],
                   "concept": material["concept"], "index": f"{index:04d}",
-                  "source_uri": material["provenance"]["uri"]}
+                  "source_uri": material["provenance"]["uri"],
+                  "material_sha256": material["provenance"]["sha256"]}
         recipe = render(deepcopy(material["task_template"]), values)
         actions = recipe.get("actions", recipe.get("action_patterns", []))
         tools = recipe.get("available_tools") or sorted({action.get("tool") for action in actions})

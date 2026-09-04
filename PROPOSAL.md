@@ -142,19 +142,19 @@ stage4/training_data_report.json
         "name": "parser-regression",
         "source": {"kind": "repo", "uri": "./corpus/repo", "glob": "**/*.py", "license": "MIT"},
         "task": {
-          "id": "repair-parser",
-          "prompt": "Repair the parser and leave the tests passing.",
+          "id": "record-material-hash",
+          "prompt": "Compute the SHA-256 of context.txt and save it in digest.txt.",
           "files": {"context.txt": "{{material}}"},
-          "available_tools": ["exec_command", "apply_patch"],
-          "verifier": {"command": "python3 -m unittest -q"},
+          "available_tools": ["exec_command"],
+          "verifier": {"command": "test \"$(cat digest.txt)\" = {{material_sha256}}"},
           "initial_facts": ["workspace:ready"],
-          "target_facts": ["tests:pass"],
+          "target_facts": ["file:digest.txt:exists"],
           "actions": [{
-            "id": "run_tests",
+            "id": "write_digest",
             "tool": "exec_command",
-            "arguments": {"cmd": "python3 -m unittest -q"},
-            "preconditions": ["workspace:ready"],
-            "effects": ["tests:observed"]
+            "arguments": {"cmd": "sha256sum context.txt | awk '{print $1}' > digest.txt"},
+            "preconditions": ["file:context.txt:exists"],
+            "effects": ["file:digest.txt:exists"]
           }]
         }
       }]
