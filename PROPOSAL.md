@@ -114,6 +114,7 @@ exec_command, apply_patch
 ```text
 stage1/materials_with_task_templates.jsonl  # 保持与 material files 同一相对路径根
 stage2/tasks.jsonl
+stage2/rejected_task_construction.jsonl
 stage1/rejected_environment_generation.jsonl
 ```
 
