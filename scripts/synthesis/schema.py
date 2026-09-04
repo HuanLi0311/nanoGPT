@@ -96,6 +96,10 @@ def validate_plan(plan: dict[str, Any]) -> None:
                 if (key in seen or not concept.get("source") or not isinstance(tasks, list)
                         or not tasks or any(not isinstance(task, dict) for task in tasks)):
                     raise ValueError(f"duplicate or incomplete concept: {key}")
+                for field in ("parent_ids", "related_ids"):
+                    if not isinstance(concept.get(field, []), list) or not all(
+                            isinstance(item, str) for item in concept.get(field, [])):
+                        raise ValueError(f"{key}.{field} must be a list of node ids")
                 seen.add(key)
 
 

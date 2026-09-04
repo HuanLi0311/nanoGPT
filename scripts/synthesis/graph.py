@@ -8,10 +8,11 @@ import math
 import os
 import random
 import subprocess
+from copy import deepcopy
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
@@ -69,9 +70,14 @@ def _leaves(plan: dict[str, Any]) -> list[dict[str, Any]]:
         for subdomain in domain["subdomains"]:
             for concept in subdomain["concepts"]:
                 templates = concept.get("tasks", [concept.get("task")])
+                node_id = str(concept.get("node_id") or
+                              f"concept:{fingerprint([domain['name'], subdomain['name'], concept['name']])[:16]}")
                 output.append({
                     "domain": domain["name"], "subdomain": subdomain["name"],
                     "concept": concept["name"], "family": f"{domain['name']}.{subdomain['name']}",
+                    "concept_id": node_id, "parent_ids": concept.get("parent_ids", []),
+                    "related_ids": concept.get("related_ids", []),
+                    "related_concepts": concept.get("related_concepts", []),
                     "source": concept["source"], "task_templates": templates,
                 })
     return output
@@ -258,9 +264,10 @@ def _search_query(source: dict[str, Any], leaf: dict[str, Any]) -> str:
     templates = source.get("queries")
     if templates is not None and (not isinstance(templates, list) or not templates):
         raise ValueError("web_search.queries must be a non-empty list")
-    template = (templates[leaf["sample_index"] % len(templates)] if templates else
-                source.get("query", "{{concept}} {{subdomain}} {{domain}}"))
-    query = str(render(template, leaf)).strip()
+    template = (templates[leaf["sample_index"] % len(templates)] if templates else source.get("query"))
+    query = (str(render(template, leaf)).strip() if template else
+             " ".join([leaf["concept"], *leaf.get("related_concepts", []),
+                       leaf["subdomain"], leaf["domain"]]))
     if not query:
         raise ValueError("web_search query is empty")
     return query
@@ -316,6 +323,145 @@ def _retrieve(source: dict[str, Any], base: Path) -> tuple[str, dict[str, Any]]:
     if not text.strip():
         raise ValueError("retrieved material is empty")
     return text, extra
+
+
+def _completion_json(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict) and isinstance(value.get("choices"), list):
+        value = value["choices"][0]["message"]
+    content = value.get("content") if isinstance(value, dict) else value
+    if isinstance(content, list):
+        content = "".join(str(item.get("text", "")) for item in content if isinstance(item, dict))
+    text = str(content or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError("graph-expansion model did not return one JSON object")
+    result = json.loads(text[start:end + 1])
+    if not isinstance(result, dict):
+        raise ValueError("graph-expansion response must be an object")
+    return result
+
+
+def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
+                           max_nodes: int = 2000, max_depth: int = 4,
+                           children_per_node: int = 8) -> dict[str, Any]:
+    """Kimi-K3-style recursive, web-grounded coarse-to-fine DAG expansion."""
+
+    if output.exists():
+        raise FileExistsError(f"refusing to overwrite graph plan: {output}")
+    if max_nodes < 1 or max_depth < 0 or children_per_node < 1:
+        raise ValueError("graph expansion limits must be positive")
+    plan = deepcopy(read_json(plan_path))
+    validate_plan(plan)
+    records = []
+    by_name: dict[str, dict[str, Any]] = {}
+
+    def normalized(value: str) -> str:
+        return "".join(character for character in value.casefold() if character.isalnum())
+
+    for domain in plan["domains"]:
+        for subdomain in domain["subdomains"]:
+            for concept in subdomain["concepts"]:
+                concept.setdefault("node_id", f"concept:{fingerprint([domain['name'], subdomain['name'], concept['name']])[:16]}")
+                concept.setdefault("depth", 0)
+                record = {"domain": domain, "subdomain": subdomain, "concept": concept}
+                records.append(record)
+                by_name.setdefault(normalized(concept["name"]), record)
+    queue, cursor, events = list(records), 0, []
+    while cursor < len(queue) and len(records) < max_nodes:
+        record, cursor = queue[cursor], cursor + 1
+        domain, subdomain, concept = record["domain"], record["subdomain"], record["concept"]
+        depth = int(concept.get("depth", 0))
+        if concept.get("atomic") or depth >= max_depth:
+            continue
+        source = concept["source"]
+        if source.get("kind") != "web_search":
+            events.append({"node_id": concept["node_id"], "status": "skipped",
+                           "reason": "recursive expansion requires web_search source"})
+            continue
+        leaf = {"domain": domain["name"], "subdomain": subdomain["name"],
+                "concept": concept["name"], "related_concepts": concept.get("related_concepts", []),
+                "sample_index": 0}
+        try:
+            query = _search_query(source, leaf)
+            candidates, search = _discover(source, query)
+            existing = [item["concept"]["name"] for item in records[-200:]]
+            prompt = {
+                "role": "user",
+                "content": (
+                    "Expand one concept in a coarse-to-fine knowledge DAG. Use the web-search evidence below. "
+                    "Reuse an existing concept when equivalent; children must be strictly finer than the parent. "
+                    f"Return only JSON: {{\"atomic\":bool,\"children\":[{{\"name\":str,\"atomic\":bool,"
+                    f"\"related_to\":[str]}}]}} with at most {children_per_node} children.\n"
+                    + stable_json({"domain": domain["name"], "subdomain": subdomain["name"],
+                                   "parent": concept["name"], "existing_concepts": existing,
+                                   "search_results": candidates}))}
+            result = _completion_json(complete([prompt], []))
+            children = result.get("children", [])
+            if not isinstance(result.get("atomic", False), bool) or not isinstance(children, list):
+                raise ValueError("graph-expansion response has invalid atomic/children fields")
+            concept["atomic"] = bool(result["atomic"])
+            added, reused = [], []
+            for child in children[:children_per_node]:
+                if len(records) >= max_nodes:
+                    break
+                if not isinstance(child, dict) or not isinstance(child.get("name"), str):
+                    raise ValueError("each graph child needs a string name")
+                name = " ".join(child["name"].split()).strip()
+                if not name or normalized(name) == normalized(concept["name"]):
+                    continue
+                key = normalized(name)
+                if key in by_name:
+                    target = by_name[key]["concept"]
+                    if int(target.get("depth", 0)) > depth:
+                        parents = target.setdefault("parent_ids", [])
+                        if concept["node_id"] not in parents and target["node_id"] != concept["node_id"]:
+                            parents.append(concept["node_id"])
+                    elif target["node_id"] != concept["node_id"]:
+                        concept.setdefault("related_ids", []).append(target["node_id"])
+                    reused.append(target["node_id"])
+                    continue
+                new = {"name": name,
+                       "node_id": f"concept:{fingerprint([name, concept['node_id']])[:16]}",
+                       "parent_ids": [concept["node_id"]], "depth": depth + 1,
+                       "atomic": bool(child.get("atomic", False)),
+                       "related_concepts": [str(item) for item in child.get("related_to", [])
+                                            if isinstance(item, str)],
+                       "source": deepcopy(source)}
+                if "tasks" in concept:
+                    new["tasks"] = deepcopy(concept["tasks"])
+                else:
+                    new["task"] = deepcopy(concept["task"])
+                subdomain["concepts"].append(new)
+                child_record = {"domain": domain, "subdomain": subdomain, "concept": new}
+                records.append(child_record)
+                by_name[key] = child_record
+                queue.append(child_record)
+                added.append(new["node_id"])
+            events.append({"node_id": concept["node_id"], "status": "expanded", "query": query,
+                           "provider": search["provider"], "added": added, "reused": reused})
+        except Exception as error:
+            events.append({"node_id": concept["node_id"], "status": "failed",
+                           "reason": f"{type(error).__name__}: {error}"})
+
+    for record in records:
+        concept = record["concept"]
+        related_ids = concept.setdefault("related_ids", [])
+        for name in concept.get("related_concepts", []):
+            target = by_name.get(normalized(name))
+            if target and target["concept"]["node_id"] != concept["node_id"]:
+                related_ids.append(target["concept"]["node_id"])
+        concept["related_ids"] = sorted(set(related_ids))
+    plan["knowledge_graph_expansion"] = {"method": "Kimi-K3 §4.2.2", "nodes": len(records),
+                                         "max_nodes": max_nodes, "max_depth": max_depth}
+    validate_plan(plan)
+    write_json(output, plan)
+    event_path = output.with_suffix(".expansion.jsonl")
+    write_jsonl(event_path, events)
+    return {"nodes": len(records), "expanded": sum(event["status"] == "expanded" for event in events),
+            "failed": sum(event["status"] == "failed" for event in events),
+            "plan": str(output), "events": str(event_path)}
 
 
 def _radar(target: dict[str, int], realized: dict[str, int], output: Path) -> dict[str, str]:
@@ -439,15 +585,24 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
     domain_counts = {name: sum(row["domain"] == name for row in rows) for name in target_domains}
     probabilities = [value / len(rows) for value in counts.values() if value]
     nodes, edges = {}, []
-    for leaf in _leaves(plan):
+    leaves = _leaves(plan)
+    concept_ids = {leaf["concept_id"] for leaf in leaves}
+    for leaf in leaves:
         domain_id = f"domain:{leaf['domain']}"
         subdomain_id = f"subdomain:{leaf['family']}"
-        concept_id = f"concept:{leaf['family']}.{leaf['concept']}"
+        concept_id = leaf["concept_id"]
         nodes.update({domain_id: {"id": domain_id, "kind": "domain", "name": leaf["domain"]},
                       subdomain_id: {"id": subdomain_id, "kind": "subdomain", "name": leaf["subdomain"]},
                       concept_id: {"id": concept_id, "kind": "concept", "name": leaf["concept"]}})
-        edges.extend([{"from": domain_id, "to": subdomain_id, "relation": "has_subdomain"},
-                      {"from": subdomain_id, "to": concept_id, "relation": "has_concept"}])
+        edges.append({"from": domain_id, "to": subdomain_id, "relation": "has_subdomain"})
+        parents = [parent for parent in leaf["parent_ids"] if parent in concept_ids]
+        if parents:
+            edges.extend({"from": parent, "to": concept_id, "relation": "coarse_to_fine"}
+                         for parent in parents)
+        else:
+            edges.append({"from": subdomain_id, "to": concept_id, "relation": "has_concept"})
+        edges.extend({"from": concept_id, "to": related, "relation": "related_to"}
+                     for related in leaf["related_ids"] if related in concept_ids and related != concept_id)
     write_jsonl(output / "materials.jsonl", rows)
     write_jsonl(output / "discovery.jsonl", discoveries)
     radar = _radar(target_domains, domain_counts, output)
