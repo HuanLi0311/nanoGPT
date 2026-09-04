@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 if __package__:
@@ -131,7 +131,61 @@ def _result_url(value: str, endpoint: str) -> str | None:
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", parsed.query, ""))
 
 
+def _domain_sets(source: dict[str, Any]) -> tuple[set[str], set[str]]:
+    allowed, blocked = source.get("allowed_domains", []), source.get("blocked_domains", [])
+    if not isinstance(allowed, list) or not isinstance(blocked, list):
+        raise ValueError("web_search domain filters must be lists")
+    return ({str(item).lower().removeprefix("www.") for item in allowed if str(item).strip()},
+            {str(item).lower().removeprefix("www.") for item in blocked if str(item).strip()})
+
+
+def _wikipedia(source: dict[str, Any], query: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    language = str(source.get("wikipedia_language", "en")).lower()
+    if not language.replace("-", "").isalnum():
+        raise ValueError(f"invalid wikipedia_language: {language!r}")
+    endpoint = f"https://{language}.wikipedia.org/w/rest.php/v1/search/page"
+    limit = int(source.get("max_results", 10))
+    byte_limit = int(source.get("max_search_bytes", 2_000_000))
+    if limit < 1 or byte_limit < 1:
+        raise ValueError("web_search limits must be positive")
+    host = f"{language}.wikipedia.org"
+    allowed, blocked = _domain_sets(source)
+    if ((allowed and not any(host == name or host.endswith(f".{name}") for name in allowed))
+            or any(host == name or host.endswith(f".{name}") for name in blocked)):
+        raise ValueError("Wikipedia fallback is excluded by the configured domain filters")
+    request_url = endpoint + "?" + urlencode({"q": query, "limit": limit})
+    request = Request(request_url, headers={"User-Agent": str(source.get("user_agent", "NanoAgent-Synthesis/1.0")),
+                                            "Accept": "application/json"})
+    with urlopen(request, timeout=int(source.get("timeout", 30))) as response:
+        data, resolved = response.read(byte_limit + 1), response.geturl()
+    if len(data) > byte_limit:
+        raise ValueError(f"search response exceeds max_search_bytes={byte_limit}")
+    payload = json.loads(data)
+    pages = payload.get("pages", []) if isinstance(payload, dict) else []
+    results = [{"url": f"https://{language}.wikipedia.org/wiki/{quote(str(item['key']))}",
+                "title": str(item.get("title", item["key"])), "rank": index}
+               for index, item in enumerate(pages) if isinstance(item, dict) and item.get("key")]
+    if not results:
+        raise ValueError(f"Wikipedia search returned no usable URLs for {query!r}")
+    return results, {"provider": "wikipedia", "query": query, "request_url": request_url,
+                     "resolved_search_url": resolved}
+
+
 def _discover(source: dict[str, Any], query: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    provider = str(source.get("provider", "auto"))
+    if provider == "wikipedia":
+        return _wikipedia(source, query)
+    if provider == "auto" and not source.get("search_endpoint"):
+        try:
+            return _discover({**source, "provider": "duckduckgo_html",
+                              "search_endpoint": "https://html.duckduckgo.com/html/"}, query)
+        except Exception as error:
+            results, info = _wikipedia(source, query)
+            info["fallback_from"] = "duckduckgo_html"
+            info["fallback_reason"] = f"{type(error).__name__}: {error}"
+            return results, info
+    if provider not in {"auto", "duckduckgo_html"} and not source.get("search_endpoint"):
+        raise ValueError(f"search provider {provider!r} requires search_endpoint")
     endpoint = str(source.get("search_endpoint") or "https://html.duckduckgo.com/html/")
     if urlsplit(endpoint).scheme not in {"http", "https"}:
         raise ValueError(f"unsupported search endpoint: {endpoint}")
@@ -166,11 +220,7 @@ def _discover(source: dict[str, Any], query: str) -> tuple[list[dict[str, Any]],
         parser = _SearchLinks()
         parser.feed(data.decode("utf-8", errors="replace"))
         raw = parser.results
-    allowed_values, blocked_values = source.get("allowed_domains", []), source.get("blocked_domains", [])
-    if not isinstance(allowed_values, list) or not isinstance(blocked_values, list):
-        raise ValueError("web_search domain filters must be lists")
-    allowed = {str(item).lower().removeprefix("www.") for item in allowed_values}
-    blocked = {str(item).lower().removeprefix("www.") for item in blocked_values}
+    allowed, blocked = _domain_sets(source)
     max_results = int(source.get("max_results", 10))
     if max_results < 1:
         raise ValueError("web_search.max_results must be positive")

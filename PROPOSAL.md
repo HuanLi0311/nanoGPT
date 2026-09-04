@@ -43,7 +43,7 @@ stage1/materials/*.txt
 
 `discovery.jsonl` 保存 query、provider、搜索请求及完整候选 URL/rank；`materials.jsonl` 保存最终选中的 URL、domain、subdomain、concept、material ID、SHA-256、license、revision 和 task recipe。相同查询只搜索一次、相同页面只抓取一次；同一 concept 的重复采样会先耗尽未使用候选，再明确标记 URL 复用。
 
-无配置时 `web_search` 使用无密钥的 DuckDuckGo HTML endpoint。规模化运行建议将 `search_endpoint` 指向自建 SearXNG 或有 SLA 的 JSON 搜索 API，并用 `search_params`、`api_key_env`、`api_key_header` 配置；代码同时解析 SearXNG 风格 `results` 和 Brave 风格 `web.results`。搜索只做 shallow discovery 并抓取被选页面，不递归跟随站内链接。
+无配置时 `web_search` 先尝试无密钥的 DuckDuckGo HTML endpoint；遇到反自动化页面或网络错误时回退到 Wikipedia 官方搜索 API，并在 provenance 中记录原因。规模化运行建议将 `search_endpoint` 指向自建 SearXNG 或有 SLA 的 JSON 搜索 API，并用 `search_params`、`api_key_env`、`api_key_header` 配置；代码同时解析 SearXNG 风格 `results` 和 Brave 风格 `web.results`。搜索只做 shallow discovery 并抓取被选页面，不递归跟随站内链接。
 
 ### Stage 2：Task/Environment Construction
 
