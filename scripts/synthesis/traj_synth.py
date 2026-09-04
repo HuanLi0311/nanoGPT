@@ -160,7 +160,9 @@ def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: s
             episode["policy"] = {"kind": "programmatic_oracle", "model": "deterministic_action_graph"}
             episodes.append(episode)
             outcome = episode["outcome"]
-            passed = outcome["task_success"] and outcome["independent_verifier_passed"] and outcome["harness_status"] == "healthy"
+            passed = (outcome["task_success"] and outcome["independent_verifier_passed"]
+                      and outcome["harness_status"] == "healthy"
+                      and outcome["call_result_linkage_complete"] and outcome["trace_fidelity"])
             if not passed:
                 raise ValueError(f"oracle failed: {outcome.get('failure_class')}")
             proof = {"episode_id": episode["episode_id"], "path": [action["id"] for action in actions],

@@ -99,6 +99,8 @@ def main() -> None:
 
         tasks = read_jsonl(root / "run/stage3/validated_tasks.jsonl")
         episodes = read_jsonl(root / "run/stage3/oracle_episodes.jsonl")
+        assert all(episode["outcome"]["call_result_linkage_complete"]
+                   and episode["outcome"]["trace_fidelity"] for episode in episodes)
         from model.language_model.scripts.prepare_verl_tasks import task_rows
         verl_rows = list(task_rows(root / "run/stage4/rl_tasks.jsonl"))
         assert all(set(row["extra_info"]["tools_kwargs"]) == set(task["available_tools"])
