@@ -7,8 +7,11 @@ and the Python/Verl adapter.
 - Relative paths and `/workspace/...` are resolved below `root`.
 - Absolute paths outside the root and symlink components are rejected.
 - `snapshot` records evidence; it does not provide isolation.
-- `exec_command` runs a host process with the workspace as `cwd`. It does not
-  restrict network, `/proc`, capabilities, or arbitrary paths inside shell text.
+- `workspace_host` runs a host process with the workspace as `cwd`; it does not
+  restrict network, `/proc`, capabilities, or shell paths.
+- `sandbox_backend=bwrap` runs commands and verifiers with only the workspace
+  writable, read-only platform binaries/libraries, a cleared environment, and
+  isolated network/PID namespaces.
 
-The current execution mode is therefore `workspace_host`. An OS/container
-sandbox may be added behind the executor later without changing the tool ABI.
+Legacy manifests default to `workspace_host`; the four-stage synthesis pipeline
+defaults to `bwrap`. Neither mode changes the tool ABI.

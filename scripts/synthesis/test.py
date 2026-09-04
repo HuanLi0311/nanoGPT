@@ -38,7 +38,8 @@ def _plan() -> dict:
                     "verifier": {"command": "test \"$(cat answer.txt)\" = ALPHA"},
                     "initial_facts": ["workspace:ready"], "target_facts": ["file:answer.txt:exists"],
                     "actions": [
-                        {"id": "read_upper", "tool": "exec_command", "arguments": {"cmd": "tr '[:lower:]' '[:upper:]' < input.txt"},
+                        {"id": "read_upper", "tool": "exec_command",
+                         "arguments": {"cmd": "test ! -e /home && tr '[:lower:]' '[:upper:]' < input.txt"},
                          "preconditions": ["file:input.txt:exists"], "effects": ["value:upper"]},
                         {"id": "write_answer", "tool": "exec_command",
                          "arguments_template": {"cmd": "printf '%s\\n' {{output:read_upper}} > answer.txt"},
@@ -105,6 +106,8 @@ def main() -> None:
 
         tasks = read_jsonl(root / "run/stage3/validated_tasks.jsonl")
         episodes = read_jsonl(root / "run/stage3/oracle_episodes.jsonl")
+        assert all(task["sandbox_backend"] == "bwrap" for task in tasks)
+        assert all(episode["execution_mode"] == "bwrap" for episode in episodes)
         assert all(episode["outcome"]["call_result_linkage_complete"]
                    and episode["outcome"]["trace_fidelity"] for episode in episodes)
         from model.language_model.scripts.prepare_verl_tasks import task_rows
@@ -113,8 +116,10 @@ def main() -> None:
                    for row, task in zip(verl_rows, tasks, strict=True))
         assert all(set(row["extra_info"]["tool_selection"]) == set(task["available_tools"])
                    for row, task in zip(verl_rows, tasks, strict=True))
+        assert all(row["extra_info"]["sandbox_backend"] == "bwrap" for row in verl_rows)
         legacy = list(task_rows(Path("agent/tasks/synthesis_seed.jsonl"), limit=1))[0]
         assert set(legacy["extra_info"]["tool_selection"]) == {"exec_command", "apply_patch"}
+        assert legacy["extra_info"]["sandbox_backend"] == "workspace_host"
         by_task = {episode["task_id"]: episode for episode in episodes}
         oracle_result = finalize(root / "run", [root / "run/stage3/oracle_episodes.jsonl"],
                                  policy_kind="teacher", model="test-teacher")
@@ -125,7 +130,8 @@ def main() -> None:
                 return {"content": "DONE"}
             prompt = next(message["content"] for message in messages if message["role"] == "user")
             if "uppercase" in prompt:
-                name, arguments = "exec_command", {"cmd": "tr '[:lower:]' '[:upper:]' < input.txt > answer.txt"}
+                name, arguments = "exec_command", {
+                    "cmd": "test ! -e /home && tr '[:lower:]' '[:upper:]' < input.txt > answer.txt"}
             else:
                 name, arguments = "apply_patch", {"patch": "*** Begin Patch\n*** Add File: report.txt\n+BETA\n*** End Patch"}
             return {"tool_calls": [{"id": "policy_call", "type": "function",

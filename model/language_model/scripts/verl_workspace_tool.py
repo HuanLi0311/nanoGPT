@@ -389,7 +389,6 @@ class WorkspaceTool(BaseTool):
             "verifier_output": message,
             "reward_source": "unscored",
             "eligible": False,
-            "protocol_status": "valid",
         }
         self._publish_outcome(agent_data, outcome)
         return ToolResponse(text=f"ERROR: {message}"), 0.0, {"harness_status": "fault"}

@@ -20,7 +20,6 @@ try:
     from .types import VerificationResult
 except ImportError:  # direct script execution
     import sys
-    from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from agent.verifier.types import VerificationResult
@@ -46,9 +45,8 @@ def run_verifier(
 ) -> dict[str, Any]:
     """Run a trusted manifest verifier and return a traceable result.
 
-    ponytail: manifest commands intentionally use the platform shell because
-    existing task files already specify shell snippets; put untrusted tasks in
-    a container before scaling this runner.
+    New synthesis tasks use Bubblewrap; legacy manifests retain the host-shell
+    backend for compatibility.
     """
 
     command = _command(verifier)

@@ -14,9 +14,10 @@
 fresh root, and relative paths plus `/workspace/...` are resolved below that
 root. Absolute paths outside it and symlink components are rejected.
 
-This is `workspace_host`, not an OS sandbox: `exec_command` still starts a
-host shell with the workspace as `cwd`, so network, `/proc`, capabilities, and
-paths embedded in shell text are outside this guarantee.
+Legacy tasks use `workspace_host`, which is not an OS sandbox. New synthesis
+tasks set `sandbox_backend=bwrap`: only the workspace is writable, platform
+runtime paths are read-only, the host environment is cleared, and network/PID
+namespaces are isolated. Bubblewrap availability is required for those tasks.
 
 The model-facing workspace ABI is defined in
 `runtime/src/tools/definitions.ts`: `exec_command` uses `cmd` and `workdir`,

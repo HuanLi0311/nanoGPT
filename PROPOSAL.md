@@ -60,7 +60,7 @@ material package
 exec_command, apply_patch
 ```
 
-Stage 3 会先在初始状态运行 verifier；初始状态已经通过、verifier 自身故障或路径逃逸的任务一律拒绝。这样 verifier 检查的是 agent 带来的状态变化，而不是天然成立的断言。
+新合成任务默认声明 `sandbox_backend: bwrap`。Stage 3 会先在隔离后的初始状态运行 verifier；初始状态已经通过、verifier 自身故障或路径逃逸的任务一律拒绝。这样 verifier 检查的是 agent 带来的状态变化，而不是天然成立的断言。
 
 输出：
 
@@ -81,7 +81,7 @@ stage2/tasks.jsonl
 - `goal`：优先选择能缩短目标距离的节点；
 - `uniform`：对当前可执行节点均匀随机排序，作为 composition ablation。
 
-参数依赖在真实执行时实例化；插入 `exec_command` 的上游输出会先 shell-quote。候选路径随后使用与 Verl 相同的 `WorkspaceTool` 在 fresh workspace 中执行，并由 out-of-band verifier 判定。抽象路径不能充当 gold。
+参数依赖在真实执行时实例化；插入 `exec_command` 的上游输出会先 shell-quote。候选路径随后使用与 Verl 相同的 `WorkspaceTool` 在 fresh workspace 中执行：Bubblewrap 只挂载只读系统运行库与可写 `/workspace`，清空宿主环境变量并隔离 network/PID 等 namespace；out-of-band verifier 使用同一 sandbox。抽象路径不能充当 gold。
 
 接受条件为：
 
@@ -146,6 +146,7 @@ stage4/training_data_report.json
           "prompt": "Compute the SHA-256 of context.txt and save it in digest.txt.",
           "files": {"context.txt": "{{material}}"},
           "available_tools": ["exec_command"],
+          "sandbox_backend": "bwrap",
           "verifier": {"command": "test \"$(cat digest.txt)\" = {{material_sha256}}"},
           "initial_facts": ["workspace:ready"],
           "target_facts": ["file:digest.txt:exists"],
@@ -269,4 +270,6 @@ Diagnosis 只能读取所有 condition 共用的、覆盖完整的独立 dev/dia
 
 ## 当前安全边界
 
-`WorkspaceTool` 是 file-level workspace boundary，不是 OS/container sandbox。Task recipe、action command 和 verifier 当前都必须是可信输入；从 Web 抓取的材料只作为文件内容，不应直接插值进 shell command。规模化运行不可信任务前，需要把 Stage 3/4 的 workspace host 换成容器执行，数据契约和上述 gates 不变。
+本流水线生成的新任务默认使用系统已有的 Bubblewrap：workspace 是唯一可写的持久挂载，`/usr`、`/bin`、`/lib*` 只读，`/tmp` 为临时内存文件系统，宿主环境变量被清空，network/PID 等 namespace 被隔离。Web 材料仍只允许进入 prompt 或初始文件，不能插值进 action/verifier 命令。
+
+为复现既有数据，缺少 `sandbox_backend` 的旧 manifest 仍默认为 `workspace_host`，它不是 OS sandbox，只能运行可信任务。Bubblewrap 路径也没有 cgroup/配额级资源治理；当任务需要额外编译器依赖或面对完全不可信 workload 时，应增加显式只读挂载并在生产容器中设置 CPU、内存和进程上限，现有任务与训练数据契约无需改变。
