@@ -172,6 +172,11 @@ def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | N
               "path_policy": path_policy, "seed": seed, "counts_before_verifier": counts,
               "stage1_method": "Kimi-K3 §4.2.2 knowledge-graph-guided synthesis",
               "stage2_3_method": "Agent-World §3.1/§3.1.1 environment and graph-based task synthesis",
+              "reproduction_scope": {
+                  "implemented": ["recursive web-grounded concept DAG", "controlled material sampling",
+                                  "workspace task variants", "weighted strong/weak/independent graph walk"],
+                  "not_claimed": ["private prompts or data", "arbitrary generated Verl tool ABI",
+                                  "Agent-World database complexification and 2-of-5 ReAct consistency gate"]},
               "stage1": stage1, "stage2": stage2, "stage3": stage3,
               "stage4": {"rl_environments": rl_environments, "rl_tasks": str(rl_path),
                          "sft_status": "awaiting verified teacher/current-policy rollouts"}}

@@ -15,12 +15,14 @@ if __package__:
     from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
     from .schema import read_json, read_jsonl, write_json, write_jsonl
+    from .traj_synth import trajectory_graph
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from graph import _discover, _retrieve, expand_knowledge_graph
     from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
     from schema import read_json, read_jsonl, write_json, write_jsonl
+    from traj_synth import trajectory_graph
 
 
 def _plan(search_endpoint: str | None = None) -> dict:
@@ -72,6 +74,22 @@ def _plan(search_endpoint: str | None = None) -> dict:
 
 
 def main() -> None:
+    weighted = trajectory_graph({
+        "task_id": "weighted-edges", "prompt": "fixture", "files": {}, "verifier": "false",
+        "available_tools": ["exec_command"], "sandbox_backend": "workspace_host",
+        "initial_facts": ["workspace:ready"], "target_facts": ["done"], "max_steps": 4,
+        "action_patterns": [
+            {"id": "source", "tool": "exec_command", "arguments": {"cmd": "true"},
+             "preconditions": ["workspace:ready"], "effects": ["value:id"]},
+            {"id": "strong", "tool": "exec_command", "arguments": {"cmd": "echo {{output:source}}"},
+             "depends_on": ["source"], "preconditions": ["value:id"], "effects": ["done"]},
+            {"id": "weak", "tool": "exec_command", "arguments": {"cmd": "true"},
+             "preconditions": ["value:id"], "effects": ["optional"]},
+            {"id": "independent", "tool": "exec_command", "arguments": {"cmd": "true"},
+             "preconditions": ["workspace:ready"], "effects": ["other"]},
+        ]})
+    assert {edge["weight"] for edge in weighted["edges"]} == {1, 2, 3}
+
     with TemporaryDirectory(prefix="four-stage-synthesis-") as temporary:
         root = Path(temporary)
 

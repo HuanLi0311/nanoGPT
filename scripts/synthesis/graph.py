@@ -611,6 +611,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
     write_jsonl(output / "discovery.jsonl", discoveries)
     radar = _radar(target_domains, domain_counts, output)
     graph = {"version": "domain-material-v1", "profile": profile, "seed": seed,
+             "knowledge_graph_expanded": isinstance(plan.get("knowledge_graph_expansion"), dict),
              "nodes": sorted(nodes.values(), key=lambda item: item["id"]),
              "edges": list({stable_json(edge): edge for edge in edges}.values()),
              "target_count": len(selected), "material_count": len(rows),

@@ -63,6 +63,24 @@ stage1/domain_distribution.pdf
 
 第一轮使用 15 个 coarse domains：软件工程、系统与 DevOps、网络安全、数据与数据库、Web 与信息检索、办公与文档、商业与金融、电商与物流、数学与自然科学、工程与制造、医疗与生命科学、法律与公共管理、教育与人文、媒体与通信、旅行与地理服务。初始 profile 在顶层近似均匀分配 20,000 条，每类 1,333 或 1,334 条；后续 diagnosis 才改变分配。
 
+| Coarse domain | Seed subdomains |
+|---|---|
+| Software Engineering | repair, testing, refactoring, build/package, code review |
+| Systems & DevOps | shell, process, container, deployment, observability |
+| Cybersecurity | access control, configuration audit, log analysis, vulnerability triage |
+| Data & Databases | SQL, schema, ETL, cleaning, analytics |
+| Web & Retrieval | search, browsing, extraction, evidence comparison |
+| Office & Documents | text, PDF, spreadsheet, slides, calendar |
+| Business & Finance | accounting, markets, operations, reporting |
+| Commerce & Logistics | catalog, order, inventory, shipping, supply chain |
+| Math & Natural Science | mathematics, statistics, physics, chemistry, earth science |
+| Engineering & Manufacturing | specification, BOM, quality control, maintenance |
+| Health & Life Science | biomedicine, public health, clinical administration |
+| Law & Public Administration | regulation, contracts, forms, public records |
+| Education & Humanities | teaching, history, literature, language |
+| Media & Communication | email, publishing, social content, media metadata |
+| Travel & Geospatial | maps, itinerary, weather, places, local services |
+
 每条材料还记录正交的 `capability` 与 `interface` 标签。benchmark weakness 映射到 `domain × capability × interface` 后再增配，不能围绕 benchmark 测试题本身生成。
 
 ### Stage 2：Agent-World Environment/Task Construction
