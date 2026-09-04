@@ -1,0 +1,180 @@
+{
+  "version": "k3-15domain-seeds-v1",
+  "require_unique_materials": true,
+  "profiles": {
+    "pilot": {
+      "count": 200,
+      "distribution": {
+        "software_engineering": 1,
+        "systems_devops": 1,
+        "cybersecurity": 1,
+        "data_databases": 1,
+        "web_retrieval": 1,
+        "office_documents": 1,
+        "business_finance": 1,
+        "commerce_logistics": 1,
+        "math_science": 1,
+        "engineering_manufacturing": 1,
+        "health_life_science": 1,
+        "law_public_administration": 1,
+        "education_humanities": 1,
+        "media_communication": 1,
+        "travel_geospatial": 1
+      }
+    },
+    "full": {
+      "count": 20000,
+      "distribution": {
+        "software_engineering": 1,
+        "systems_devops": 1,
+        "cybersecurity": 1,
+        "data_databases": 1,
+        "web_retrieval": 1,
+        "office_documents": 1,
+        "business_finance": 1,
+        "commerce_logistics": 1,
+        "math_science": 1,
+        "engineering_manufacturing": 1,
+        "health_life_science": 1,
+        "law_public_administration": 1,
+        "education_humanities": 1,
+        "media_communication": 1,
+        "travel_geospatial": 1
+      }
+    }
+  },
+  "source": {
+    "kind": "web_search",
+    "max_results": 50,
+    "min_chars": 500,
+    "max_bytes": 1000000,
+    "queries": [
+      "{{concept}} {{ancestor_keywords}} {{subdomain}} {{domain}}",
+      "{{concept}} {{domain}} workflow documentation",
+      "{{concept}} {{domain}} datasets tools case study"
+    ],
+    "license": "unknown"
+  },
+  "domains": [
+    {
+      "name": "software_engineering",
+      "subdomains": [
+        {"name": "code_maintenance", "concepts": [{"name": "software maintenance workflows", "atomic": false}]},
+        {"name": "software_quality", "concepts": [{"name": "software quality assurance", "atomic": false}]},
+        {"name": "developer_tooling", "concepts": [{"name": "developer tools and build systems", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "systems_devops",
+      "subdomains": [
+        {"name": "operating_systems", "concepts": [{"name": "operating system administration", "atomic": false}]},
+        {"name": "cloud_deployment", "concepts": [{"name": "cloud deployment workflows", "atomic": false}]},
+        {"name": "observability", "concepts": [{"name": "systems observability and incident response", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "cybersecurity",
+      "subdomains": [
+        {"name": "access_control", "concepts": [{"name": "identity and access management", "atomic": false}]},
+        {"name": "security_operations", "concepts": [{"name": "security operations and log analysis", "atomic": false}]},
+        {"name": "vulnerability_management", "concepts": [{"name": "defensive vulnerability management", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "data_databases",
+      "subdomains": [
+        {"name": "relational_data", "concepts": [{"name": "relational database workflows", "atomic": false}]},
+        {"name": "data_engineering", "concepts": [{"name": "data ingestion transformation and quality", "atomic": false}]},
+        {"name": "analytics", "concepts": [{"name": "statistical data analysis workflows", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "web_retrieval",
+      "subdomains": [
+        {"name": "search", "concepts": [{"name": "web search and query formulation", "atomic": false}]},
+        {"name": "information_extraction", "concepts": [{"name": "web information extraction", "atomic": false}]},
+        {"name": "evidence_synthesis", "concepts": [{"name": "multi-source evidence comparison", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "office_documents",
+      "subdomains": [
+        {"name": "text_documents", "concepts": [{"name": "professional text document workflows", "atomic": false}]},
+        {"name": "spreadsheets", "concepts": [{"name": "spreadsheet analysis and editing", "atomic": false}]},
+        {"name": "presentations_calendars", "concepts": [{"name": "presentation and calendar workflows", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "business_finance",
+      "subdomains": [
+        {"name": "accounting", "concepts": [{"name": "accounting and financial reporting", "atomic": false}]},
+        {"name": "markets", "concepts": [{"name": "financial market analysis", "atomic": false}]},
+        {"name": "business_operations", "concepts": [{"name": "business operations and planning", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "commerce_logistics",
+      "subdomains": [
+        {"name": "catalog_orders", "concepts": [{"name": "product catalog and order management", "atomic": false}]},
+        {"name": "inventory", "concepts": [{"name": "inventory management workflows", "atomic": false}]},
+        {"name": "shipping_supply_chain", "concepts": [{"name": "shipping and supply chain operations", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "math_science",
+      "subdomains": [
+        {"name": "mathematics_statistics", "concepts": [{"name": "mathematical and statistical problem solving", "atomic": false}]},
+        {"name": "physical_science", "concepts": [{"name": "physics and chemistry research workflows", "atomic": false}]},
+        {"name": "earth_environment", "concepts": [{"name": "earth and environmental science data", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "engineering_manufacturing",
+      "subdomains": [
+        {"name": "technical_specifications", "concepts": [{"name": "engineering specifications and standards", "atomic": false}]},
+        {"name": "manufacturing_quality", "concepts": [{"name": "manufacturing quality control", "atomic": false}]},
+        {"name": "maintenance", "concepts": [{"name": "equipment maintenance workflows", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "health_life_science",
+      "subdomains": [
+        {"name": "biomedicine", "concepts": [{"name": "biomedical research data", "atomic": false}]},
+        {"name": "public_health", "concepts": [{"name": "public health analysis", "atomic": false}]},
+        {"name": "clinical_administration", "concepts": [{"name": "clinical administrative workflows", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "law_public_administration",
+      "subdomains": [
+        {"name": "regulation", "concepts": [{"name": "regulatory research and compliance", "atomic": false}]},
+        {"name": "contracts", "concepts": [{"name": "contract document workflows", "atomic": false}]},
+        {"name": "public_services", "concepts": [{"name": "public records and government services", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "education_humanities",
+      "subdomains": [
+        {"name": "education", "concepts": [{"name": "teaching and learning workflows", "atomic": false}]},
+        {"name": "history_literature", "concepts": [{"name": "history and literature research", "atomic": false}]},
+        {"name": "language", "concepts": [{"name": "language analysis and translation", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "media_communication",
+      "subdomains": [
+        {"name": "professional_communication", "concepts": [{"name": "email and professional communication", "atomic": false}]},
+        {"name": "publishing", "concepts": [{"name": "digital publishing workflows", "atomic": false}]},
+        {"name": "media_metadata", "concepts": [{"name": "image audio and video metadata", "atomic": false}]}
+      ]
+    },
+    {
+      "name": "travel_geospatial",
+      "subdomains": [
+        {"name": "maps_navigation", "concepts": [{"name": "maps routing and navigation", "atomic": false}]},
+        {"name": "travel_planning", "concepts": [{"name": "travel planning workflows", "atomic": false}]},
+        {"name": "local_services", "concepts": [{"name": "places weather and local services", "atomic": false}]}
+      ]
+    }
+  ]
+}

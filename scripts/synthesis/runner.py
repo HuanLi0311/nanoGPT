@@ -13,12 +13,12 @@ from typing import Any
 if __package__:
     from .graph import build_material_graph, expand_knowledge_graph
     from .schema import fingerprint, iter_jsonl, read_json, read_jsonl, validate_plan, write_json, write_jsonl
-    from .traj_synth import construct_tasks, validate_oracles
+    from .traj_synth import construct_tasks, synthesize_environment_templates, validate_oracles
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from graph import build_material_graph, expand_knowledge_graph
     from schema import fingerprint, iter_jsonl, read_json, read_jsonl, validate_plan, write_json, write_jsonl
-    from traj_synth import construct_tasks, validate_oracles
+    from traj_synth import construct_tasks, synthesize_environment_templates, validate_oracles
 
 
 EXCHANGE = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>\s*(?:user\n)?<tool_response>\s*(.*?)\s*</tool_response>\s*(?:assistant\n)?", re.S)
@@ -148,12 +148,14 @@ def _write_run_report(output: Path, report: dict[str, Any]) -> None:
 def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | None,
             path_policy: str, weights: dict[str, float] | None = None,
             tasks_per_material: int | None = None,
-            trajectories_per_task: int | None = None) -> dict[str, Any]:
+            trajectories_per_task: int | None = None, environment_complete=None,
+            synthesis_model: str = "", max_material_chars: int = 16000,
+            synthesis_retries: int = 2) -> dict[str, Any]:
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise FileExistsError(f"refusing to overwrite non-empty run directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
     plan_value = read_json(plan)
-    validate_plan(plan_value)
+    validate_plan(plan_value, require_tasks=environment_complete is None)
     expansion = plan_value.get("expansion", {})
     tasks_per_material = int(expansion.get("tasks_per_material", 1)
                              if tasks_per_material is None else tasks_per_material)
@@ -161,8 +163,18 @@ def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | N
                                 if trajectories_per_task is None else trajectories_per_task)
     stage1 = build_material_graph(plan, output / "stage1", profile=profile, seed=seed, count=count, weights=weights)
     tasks_path = output / "stage2/tasks.jsonl"
-    stage2 = construct_tasks(Path(stage1["materials"]), tasks_path,
+    materials_path = Path(stage1["materials"])
+    environment_synthesis = None
+    if environment_complete is not None:
+        generated_materials = output / "stage2/materials_with_task_templates.jsonl"
+        environment_synthesis = synthesize_environment_templates(
+            materials_path, generated_materials, complete=environment_complete,
+            variants_per_material=tasks_per_material, model=synthesis_model,
+            max_material_chars=max_material_chars, retries=synthesis_retries)
+        materials_path = generated_materials
+    stage2 = construct_tasks(materials_path, tasks_path,
                              variants_per_material=tasks_per_material)
+    stage2["environment_synthesis"] = environment_synthesis or {"method": "declared task recipes"}
     stage3 = validate_oracles(tasks_path, output / "stage3", seed=seed, policy=path_policy,
                               trajectories_per_task=trajectories_per_task)
     rl_path = output / "stage4/rl_tasks.jsonl"
@@ -272,6 +284,11 @@ def main() -> None:
     build.add_argument("--trajectories-per-task", type=int)
     build.add_argument("--path-policy", choices=("agentworld", "goal", "uniform"), default="agentworld")
     build.add_argument("--weights", type=Path)
+    build.add_argument("--base-url")
+    build.add_argument("--model")
+    build.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    build.add_argument("--max-material-chars", type=int, default=16000)
+    build.add_argument("--synthesis-retries", type=int, default=2)
     expand = commands.add_parser("expand-graph")
     expand.add_argument("plan", type=Path)
     expand.add_argument("output", type=Path)
@@ -308,10 +325,22 @@ def main() -> None:
                                         searches_per_node=args.searches_per_node)
     elif args.command == "prepare":
         weights = read_json(args.weights).get("distribution") if args.weights else None
+        if bool(args.base_url) != bool(args.model):
+            parser.error("prepare requires --base-url and --model together")
+        environment_complete = None
+        if args.base_url:
+            import os
+            from scripts.synthesis.policy_rollout import openai_client
+
+            environment_complete = openai_client(args.base_url, args.model,
+                                                 os.environ.get(args.api_key_env, ""))
         result = prepare(args.plan, args.output, profile=args.profile, seed=args.seed, count=args.count,
                          path_policy=args.path_policy, weights=weights,
                          tasks_per_material=args.tasks_per_material,
-                         trajectories_per_task=args.trajectories_per_task)
+                         trajectories_per_task=args.trajectories_per_task,
+                         environment_complete=environment_complete,
+                         synthesis_model=args.model or "", max_material_chars=args.max_material_chars,
+                         synthesis_retries=args.synthesis_retries)
     elif args.command == "finalize":
         result = finalize(args.prepared, args.rollouts, policy_kind=args.policy_kind, model=args.model)
     else:
