@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 
 TOOLS = {"exec_command", "apply_patch"}
@@ -28,16 +28,18 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows = []
+def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
         value = json.loads(line)
         if not isinstance(value, dict):
             raise ValueError(f"{path}:{number}: expected a JSON object")
-        rows.append(value)
-    return rows
+        yield value
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    return list(iter_jsonl(path))
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -89,7 +91,9 @@ def validate_plan(plan: dict[str, Any]) -> None:
                 raise ValueError("each subdomain needs name and concepts")
             for concept in subdomain["concepts"]:
                 key = f"{domain['name']}.{subdomain['name']}.{concept.get('name', '')}"
-                if key in seen or not concept.get("source") or not concept.get("task"):
+                tasks = concept.get("tasks", [concept.get("task")])
+                if (key in seen or not concept.get("source") or not isinstance(tasks, list)
+                        or not tasks or any(not isinstance(task, dict) for task in tasks)):
                     raise ValueError(f"duplicate or incomplete concept: {key}")
                 seen.add(key)
 
