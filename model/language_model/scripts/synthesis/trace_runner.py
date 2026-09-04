@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import shlex
 import shutil
 from copy import deepcopy
 from pathlib import Path
@@ -25,6 +26,7 @@ from .schema import fingerprint, task_prompt, task_verifier, validate_action, va
 
 
 _SAFE_PART = re.compile(r"[^A-Za-z0-9._-]+")
+_OUTPUT_REF = re.compile(r"\{\{output:([^}]+)\}\}")
 _TOOL_DESCRIPTIONS = {
     "exec_command": "Run a shell command inside the episode workspace.",
     "apply_patch": "Apply a patch inside the episode workspace.",
@@ -97,6 +99,34 @@ def _canonical_action(action: dict[str, Any]) -> dict[str, Any]:
     else:
         arguments.pop("cwd", None)
     return {**action, "arguments": arguments}
+
+
+def _resolve_action(action: dict[str, Any], outputs: dict[str, str]) -> dict[str, Any]:
+    """Instantiate parameters that explicitly depend on an earlier tool output."""
+
+    concrete = deepcopy(action)
+    arguments = concrete.get("arguments", {})
+
+    def replace(value: Any, *, shell: bool = False) -> Any:
+        if isinstance(value, str):
+            def one(match: re.Match[str]) -> str:
+                action_id = match.group(1)
+                if action_id not in outputs:
+                    raise ValueError(f"missing output dependency: {action_id}")
+                return shlex.quote(outputs[action_id]) if shell else outputs[action_id]
+            return _OUTPUT_REF.sub(one, value)
+        if isinstance(value, list):
+            return [replace(item) for item in value]
+        if isinstance(value, dict):
+            return {key: replace(item) for key, item in value.items()}
+        return value
+
+    if concrete.get("tool") == "exec_command" and isinstance(arguments, dict):
+        arguments = {key: replace(value, shell=key in {"cmd", "command"}) for key, value in arguments.items()}
+    else:
+        arguments = replace(arguments)
+    concrete["arguments"] = arguments
+    return concrete
 
 
 def snapshot_environment(root: Path) -> dict[str, Any]:
@@ -202,7 +232,7 @@ class ProgrammaticTraceRunner:
         validate_task(task)
         for action in actions:
             validate_action(action)
-        actions = [_canonical_action(action) for action in actions]
+        actions = [deepcopy(action) for action in actions]
 
         task_id = safe_part(task["task_id"], "task")
         episode_key = safe_part(episode_id, "episode")
@@ -225,11 +255,15 @@ class ProgrammaticTraceRunner:
         observations: list[str] = []
         call_ids: list[str] = []
         events: list[dict[str, Any]] = []
+        executed_actions: list[dict[str, Any]] = []
+        outputs: dict[str, str] = {}
         messages = deepcopy(task_prompt(task))
         initial_state = _state_view(workspace, task, observations, call_ids, "pending")
         harness_fault: str | None = None
 
-        for index, action in enumerate(actions):
+        for index, action_template in enumerate(actions):
+            action = _canonical_action(_resolve_action(action_template, outputs))
+            executed_actions.append(deepcopy(action))
             call_id = f"call_{index:04d}"
             call_ids.append(call_id)
             before = _state_view(workspace, task, observations, call_ids, "pending")
@@ -253,6 +287,8 @@ class ProgrammaticTraceRunner:
                 result_text = f"ERROR: {error}"
                 metrics = {"harness_status": "fault", "failure_class": "tool_runtime"}
                 harness_fault = "tool_runtime"
+
+            outputs[str(action.get("id", index))] = str(metrics.get("output", result_text)).strip()
 
             observations.append(result_text)
             after = _state_view(workspace, task, observations, call_ids, "pending")
@@ -365,7 +401,7 @@ class ProgrammaticTraceRunner:
             "harness_version": task.get("harness_version", "workspace-host-v2"),
             "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
             "verifier_version": task.get("verifier_version", "manifest-v1"),
-            "actions": deepcopy(actions),
+            "actions": executed_actions,
             "events": events,
             "messages": messages,
             "outcome": outcome,
