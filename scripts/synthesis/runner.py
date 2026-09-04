@@ -12,12 +12,12 @@ from typing import Any
 
 if __package__:
     from .graph import build_material_graph
-    from .schema import fingerprint, read_json, read_jsonl, write_json, write_jsonl
+    from .schema import fingerprint, iter_jsonl, read_json, read_jsonl, write_json, write_jsonl
     from .traj_synth import construct_tasks, validate_oracles
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from graph import build_material_graph
-    from schema import fingerprint, read_json, read_jsonl, write_json, write_jsonl
+    from schema import fingerprint, iter_jsonl, read_json, read_jsonl, write_json, write_jsonl
     from traj_synth import construct_tasks, validate_oracles
 
 
@@ -126,23 +126,56 @@ def _parquet(rows: list[dict[str, Any]], output: Path) -> dict[str, str]:
     return paths
 
 
+def _write_run_report(output: Path, report: dict[str, Any]) -> None:
+    counts = report["counts_before_verifier"]
+    lines = ["# Kimi K3 → Agent-World synthesis report", "",
+             "Counts below are generated candidates before verifier filtering.", "",
+             "| Stage | Method | Count |", "|---|---|---:|",
+             f"| 1 | Kimi K3 domain/material graph | {counts['stage1_unique_materials']:,} |",
+             f"| 2 | Agent-World task/environment construction | {counts['stage2_candidate_tasks']:,} |",
+             f"| 3 | Agent-World graph trajectories | {counts['stage3_candidate_trajectories']:,} |",
+             "", f"Terminal candidate trajectories: **{counts['stage3_candidate_trajectories']:,}**", "",
+             "## Stage 1 domains", "", "| Domain | Target | Realized |", "|---|---:|---:|"]
+    target = report["stage1"]["target_domain_distribution"]
+    realized = report["stage1"]["domain_distribution"]
+    lines.extend(f"| {domain} | {target[domain]:,} | {realized.get(domain, 0):,} |" for domain in target)
+    (output / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | None,
-            path_policy: str, weights: dict[str, float] | None = None) -> dict[str, Any]:
+            path_policy: str, weights: dict[str, float] | None = None,
+            tasks_per_material: int | None = None,
+            trajectories_per_task: int | None = None) -> dict[str, Any]:
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise FileExistsError(f"refusing to overwrite non-empty run directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
+    expansion = read_json(plan).get("expansion", {})
+    tasks_per_material = int(expansion.get("tasks_per_material", 1)
+                             if tasks_per_material is None else tasks_per_material)
+    trajectories_per_task = int(expansion.get("trajectories_per_task", 1)
+                                if trajectories_per_task is None else trajectories_per_task)
     stage1 = build_material_graph(plan, output / "stage1", profile=profile, seed=seed, count=count, weights=weights)
     tasks_path = output / "stage2/tasks.jsonl"
-    tasks = construct_tasks(Path(stage1["materials"]), tasks_path)
-    stage3 = validate_oracles(tasks_path, output / "stage3", seed=seed, policy=path_policy)
-    validated = read_jsonl(Path(stage3["validated_tasks"]))
+    stage2 = construct_tasks(Path(stage1["materials"]), tasks_path,
+                             variants_per_material=tasks_per_material)
+    stage3 = validate_oracles(tasks_path, output / "stage3", seed=seed, policy=path_policy,
+                              trajectories_per_task=trajectories_per_task)
     rl_path = output / "stage4/rl_tasks.jsonl"
-    write_jsonl(rl_path, validated)
-    report = {"version": "four-stage-synthesis-v1", "profile": profile, "path_policy": path_policy, "seed": seed,
-              "stage1": stage1, "stage2": {"tasks": len(tasks), "manifest": str(tasks_path)}, "stage3": stage3,
-              "stage4": {"rl_environments": len(validated), "rl_tasks": str(rl_path),
+    rl_environments = write_jsonl(rl_path, iter_jsonl(Path(stage3["validated_tasks"])))
+    counts = {"stage1_unique_materials": stage1["material_count"],
+              "stage2_candidate_tasks": stage2["tasks"],
+              "stage3_candidate_trajectories": stage3["candidate_trajectories"],
+              "gross_artifacts": stage1["material_count"] + stage2["tasks"] + stage3["candidate_trajectories"],
+              "verifier_filtered_counts_excluded": True}
+    report = {"version": "k3-agentworld-synthesis-v1", "profile": profile,
+              "path_policy": path_policy, "seed": seed, "counts_before_verifier": counts,
+              "stage1_method": "Kimi-K3 §4.2.2 knowledge-graph-guided synthesis",
+              "stage2_3_method": "Agent-World §3.1/§3.1.1 environment and graph-based task synthesis",
+              "stage1": stage1, "stage2": stage2, "stage3": stage3,
+              "stage4": {"rl_environments": rl_environments, "rl_tasks": str(rl_path),
                          "sft_status": "awaiting verified teacher/current-policy rollouts"}}
     write_json(output / "report.json", report)
+    _write_run_report(output, report)
     return report
 
 
@@ -217,7 +250,9 @@ def main() -> None:
     build.add_argument("--profile", default="default")
     build.add_argument("--seed", type=int, default=0)
     build.add_argument("--count", type=int)
-    build.add_argument("--path-policy", choices=("goal", "uniform"), default="goal")
+    build.add_argument("--tasks-per-material", type=int)
+    build.add_argument("--trajectories-per-task", type=int)
+    build.add_argument("--path-policy", choices=("agentworld", "goal", "uniform"), default="agentworld")
     build.add_argument("--weights", type=Path)
     finish = commands.add_parser("finalize")
     finish.add_argument("prepared", type=Path)
@@ -233,7 +268,9 @@ def main() -> None:
     if args.command == "prepare":
         weights = read_json(args.weights).get("distribution") if args.weights else None
         result = prepare(args.plan, args.output, profile=args.profile, seed=args.seed, count=args.count,
-                         path_policy=args.path_policy, weights=weights)
+                         path_policy=args.path_policy, weights=weights,
+                         tasks_per_material=args.tasks_per_material,
+                         trajectories_per_task=args.trajectories_per_task)
     elif args.command == "finalize":
         result = finalize(args.prepared, args.rollouts, policy_kind=args.policy_kind, model=args.model)
     else:

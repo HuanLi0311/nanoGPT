@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -37,30 +38,33 @@ def _plan(search_endpoint: str | None = None) -> dict:
             {"name": "coding", "subdomains": [{"name": "transform", "concepts": [{
                 "name": "uppercase", "source": coding_source,
                 "task": {
-                    "id": "uppercase", "prompt": "Read input.txt and save its uppercase value in answer.txt.",
+                    "id": "digest-{{variant_index}}",
+                    "prompt": "Compute input.txt's SHA-256 and save it in answer-{{variant_index}}.txt.",
                     "files": {"input.txt": "{{material}}"},
                     "available_tools": ["exec_command"],
-                    "verifier": {"command": "test \"$(cat answer.txt)\" = ALPHA"},
-                    "initial_facts": ["workspace:ready"], "target_facts": ["file:answer.txt:exists"],
+                    "verifier": {"command": "test \"$(cat answer-{{variant_index}}.txt)\" = {{material_sha256}}"},
+                    "initial_facts": ["workspace:ready"],
+                    "target_facts": ["file:answer-{{variant_index}}.txt:exists"],
                     "actions": [
-                        {"id": "read_upper", "tool": "exec_command",
-                         "arguments": {"cmd": "test ! -e /home && tr '[:lower:]' '[:upper:]' < input.txt"},
-                         "preconditions": ["file:input.txt:exists"], "effects": ["value:upper"]},
-                        {"id": "write_answer", "tool": "exec_command",
-                         "arguments_template": {"cmd": "printf '%s\\n' {{output:read_upper}} > answer.txt"},
-                         "depends_on": ["read_upper"], "preconditions": ["value:upper"], "effects": ["file:answer.txt:exists"]},
+                        {"id": "write_digest", "tool": "exec_command",
+                         "arguments": {"cmd": "test ! -e /home && sha256sum input.txt | awk '{print $1}' > answer-{{variant_index}}.txt"},
+                         "preconditions": ["file:input.txt:exists"],
+                         "effects": ["file:answer-{{variant_index}}.txt:exists"]},
                     ],
                 },
             }]}]},
             {"name": "artifact", "subdomains": [{"name": "create", "concepts": [{
                 "name": "report", "source": {"kind": "repo", "uri": "repo", "glob": "*.txt", "license": "test-only"},
                 "task": {
-                    "id": "report", "prompt": "Create report.txt containing BETA.", "files": {},
-                    "available_tools": ["apply_patch"], "verifier": "test \"$(cat report.txt)\" = BETA",
-                    "target_facts": ["file:report.txt:exists"],
+                    "id": "report-{{variant_index}}",
+                    "prompt": "Create report-{{variant_index}}.txt containing BETA.", "files": {},
+                    "available_tools": ["apply_patch"],
+                    "verifier": "test \"$(cat report-{{variant_index}}.txt)\" = BETA",
+                    "target_facts": ["file:report-{{variant_index}}.txt:exists"],
                     "actions": [{"id": "write_report", "tool": "apply_patch",
-                                 "arguments": {"patch": "*** Begin Patch\n*** Add File: report.txt\n+BETA\n*** End Patch"},
-                                 "preconditions": ["workspace:ready"], "effects": ["file:report.txt:exists"]}],
+                                 "arguments": {"patch": "*** Begin Patch\n*** Add File: report-{{variant_index}}.txt\n+BETA\n*** End Patch"},
+                                 "preconditions": ["workspace:ready"],
+                                 "effects": ["file:report-{{variant_index}}.txt:exists"]}],
                 },
             }]}]},
         ],
@@ -79,8 +83,10 @@ def main() -> None:
                     else:
                         body = (b'<a class="result__a" href="/alpha-a">Alpha A</a>'
                                 b'<a class="result__a" href="/alpha-b">Alpha B</a>')
-                elif self.path.startswith(("/alpha-a", "/alpha-b")):
-                    body = b"<html><body>alpha</body></html>"
+                elif self.path.startswith("/alpha-a"):
+                    body = b"<html><body>alpha a</body></html>"
+                elif self.path.startswith("/alpha-b"):
+                    body = b"<html><body>alpha b</body></html>"
                 else:
                     body = b"<html><body>web material</body></html>"
                 self.send_response(200)
@@ -105,11 +111,21 @@ def main() -> None:
         (root / "repo/context.txt").write_text("beta\n", encoding="utf-8")
         plan = root / "plan.json"
         write_json(plan, _plan(f"{base_url}/search"))
-        report = prepare(plan, root / "run", profile="diverse", seed=7, count=None, path_policy="goal")
+        report = prepare(plan, root / "run", profile="diverse", seed=7, count=None,
+                         path_policy="agentworld", tasks_per_material=2, trajectories_per_task=2)
         assert report["stage1"]["realized_distribution"] == {"artifact.create": 1, "coding.transform": 1}
         assert report["stage1"]["unique_domains"] == report["stage1"]["unique_subdomains"] == 2
         assert report["stage1"]["search_queries"] == 1 and report["stage1"]["discovered_urls"] == 2
-        assert report["stage3"]["validated"] == 2 and report["stage3"]["rejected"] == 0
+        assert report["counts_before_verifier"] == {
+            "stage1_unique_materials": 2, "stage2_candidate_tasks": 4,
+            "stage3_candidate_trajectories": 8, "gross_artifacts": 14,
+            "verifier_filtered_counts_excluded": True}
+        assert report["stage2"]["unique_task_signatures"] == 4
+        assert report["stage3"]["validated"] == 4 and report["stage3"]["rejected"] == 0
+        assert report["stage3"]["candidate_trajectories"] == 8
+        assert (root / "run/stage1/domain_distribution.png").is_file()
+        assert (root / "run/stage1/domain_distribution.pdf").is_file()
+        assert (root / "run/REPORT.md").is_file()
         assert report["stage4"]["sft_status"].startswith("awaiting")
 
         control = prepare(plan, root / "run-narrow", profile="narrow", seed=7, count=None,
@@ -139,26 +155,31 @@ def main() -> None:
         assert set(legacy["extra_info"]["tool_selection"]) == {"exec_command", "apply_patch"}
         assert legacy["extra_info"]["sandbox_backend"] == "workspace_host"
         by_task = {episode["task_id"]: episode for episode in episodes}
+        passed_task = tasks[0]
+        failed_task = next(task for task in tasks if task["task_family"] != passed_task["task_family"])
         oracle_result = finalize(root / "run", [root / "run/stage3/oracle_episodes.jsonl"],
                                  policy_kind="teacher", model="test-teacher")
-        assert oracle_result["accepted_sft"] == 0 and oracle_result["rejected"] == 2
+        assert oracle_result["accepted_sft"] == 0 and oracle_result["rejected"] == 8
 
         def scripted(messages, _tools):
             if messages[-1]["role"] == "tool":
                 return {"content": "DONE"}
             prompt = next(message["content"] for message in messages if message["role"] == "user")
-            if "uppercase" in prompt:
+            output = re.search(r"answer-\d+\.txt", prompt)
+            if output:
                 name, arguments = "exec_command", {
-                    "cmd": "test ! -e /home && tr '[:lower:]' '[:upper:]' < input.txt > answer.txt"}
+                    "cmd": f"test ! -e /home && sha256sum input.txt | awk '{{print $1}}' > {output.group()}"}
             else:
-                name, arguments = "apply_patch", {"patch": "*** Begin Patch\n*** Add File: report.txt\n+BETA\n*** End Patch"}
+                output = re.search(r"report-\d+\.txt", prompt)
+                name, arguments = "apply_patch", {"patch":
+                    f"*** Begin Patch\n*** Add File: {output.group()}\n+BETA\n*** End Patch"}
             return {"tool_calls": [{"id": "policy_call", "type": "function",
                                     "function": {"name": name, "arguments": json.dumps(arguments)}}]}
 
         policy_rollouts = root / "policy-rollouts.jsonl"
         policy_report = run_policy_tasks(root / "run/stage3/validated_tasks.jsonl", policy_rollouts,
                                          complete=scripted, policy_kind="teacher", model="scripted-policy")
-        assert policy_report["passed"] == 2
+        assert policy_report["passed"] == 4
         for row in read_jsonl(policy_rollouts):
             calls = {event["tool_call_id"] for event in row["agent_events"] if event["kind"] == "tool_call"}
             results = {event["tool_call_id"] for event in row["agent_events"] if event["kind"] == "tool_result"}
@@ -166,22 +187,26 @@ def main() -> None:
             assert all(event.get("state_before", {}).get("state_hash") for event in row["agent_events"] if event["kind"] == "tool_call")
             assert all(event.get("state_after", {}).get("state_hash") for event in row["agent_events"] if event["kind"] == "tool_result")
         assert finalize(root / "run", [policy_rollouts], policy_kind="teacher",
-                        model="scripted-policy")["accepted_sft"] == 2
+                        model="scripted-policy")["accepted_sft"] == 4
 
-        serialized_action = by_task[tasks[0]["task_id"]]["actions"][0]
+        serialized_action = by_task[passed_task["task_id"]]["actions"][0]
         serialized = ("<tool_call>\n" + json.dumps({"name": serialized_action["tool"],
                       "arguments": serialized_action["arguments"]}) +
                       "\n</tool_call>\nuser\n<tool_response>\nexit_code=0\nok\n</tool_response>\nassistant\nDONE")
         rollouts = root / "rollouts.jsonl"
         write_jsonl(rollouts, [
-            {"task_id": tasks[0]["task_id"], "policy": {"kind": "teacher"}, "messages": by_task[tasks[0]["task_id"]]["messages"],
+            {"task_id": passed_task["task_id"], "policy": {"kind": "teacher"},
+             "messages": by_task[passed_task["task_id"]]["messages"],
              "outcome": {"task_success": 1, "harness_status": "healthy", "eligible": True}},
-            {"task_id": tasks[1]["task_id"], "policy": {"kind": "teacher"}, "messages": by_task[tasks[1]["task_id"]]["messages"],
+            {"task_id": failed_task["task_id"], "policy": {"kind": "teacher"},
+             "messages": by_task[failed_task["task_id"]]["messages"],
              "outcome": {"task_success": 0, "harness_status": "healthy", "eligible": True}},
-            {"task_id": tasks[0]["task_id"], "policy": {"kind": "programmatic_oracle"},
-             "messages": by_task[tasks[0]["task_id"]]["messages"], "outcome": {"task_success": 1, "harness_status": "healthy"}},
-            {"task_id": tasks[0]["task_id"], "policy": {"kind": "teacher"}, "output": serialized,
-             "gts": {"task_id": tasks[0]["task_id"], "verifier_version": tasks[0]["verifier_version"]},
+            {"task_id": passed_task["task_id"], "policy": {"kind": "programmatic_oracle"},
+             "messages": by_task[passed_task["task_id"]]["messages"],
+             "outcome": {"task_success": 1, "harness_status": "healthy"}},
+            {"task_id": passed_task["task_id"], "policy": {"kind": "teacher"}, "output": serialized,
+             "gts": {"task_id": passed_task["task_id"],
+                     "verifier_version": passed_task["verifier_version"]},
              "task_success": 1, "harness_status": "healthy", "eligible": True},
         ])
         result = finalize(root / "run", [rollouts], policy_kind="teacher", model="test-teacher")
@@ -190,9 +215,7 @@ def main() -> None:
 
         weights = root / "weights.json"
         diagnosed = diagnose(root / "run", [rollouts], weights)
-        failed_family = next(task["task_family"] for task in tasks if task["task_id"] == tasks[1]["task_id"])
-        passed_family = next(task["task_family"] for task in tasks if task["task_id"] == tasks[0]["task_id"])
-        assert diagnosed["distribution"][failed_family] > diagnosed["distribution"][passed_family]
+        assert diagnosed["distribution"][failed_task["task_family"]] > diagnosed["distribution"][passed_task["task_family"]]
         assert read_json(weights)["version"] == "diagnostic-distribution-v1"
         server.shutdown()
         thread.join()
