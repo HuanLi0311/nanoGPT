@@ -347,12 +347,12 @@ def _completion_json(value: Any) -> dict[str, Any]:
 
 def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
                            max_nodes: int = 2000, max_depth: int = 4,
-                           children_per_node: int = 8) -> dict[str, Any]:
+                           children_per_node: int = 8, searches_per_node: int = 3) -> dict[str, Any]:
     """Kimi-K3-style recursive, web-grounded coarse-to-fine DAG expansion."""
 
     if output.exists():
         raise FileExistsError(f"refusing to overwrite graph plan: {output}")
-    if max_nodes < 1 or max_depth < 0 or children_per_node < 1:
+    if max_nodes < 1 or max_depth < 0 or children_per_node < 1 or searches_per_node < 1:
         raise ValueError("graph expansion limits must be positive")
     plan = deepcopy(read_json(plan_path))
     validate_plan(plan)
@@ -387,8 +387,18 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
                 "ancestor_concepts": concept.get("ancestor_concepts", []),
                 "sample_index": 0}
         try:
-            query = _search_query(source, leaf)
-            candidates, search = _discover(source, query)
+            configured_queries = source.get("queries")
+            query_count = min(searches_per_node, len(configured_queries)) if configured_queries else 1
+            searches, candidates, seen_urls = [], [], set()
+            for query_index in range(query_count):
+                leaf["sample_index"] = query_index
+                query = _search_query(source, leaf)
+                found, search = _discover(source, query)
+                searches.append(search)
+                for candidate in found:
+                    if candidate["url"] not in seen_urls:
+                        seen_urls.add(candidate["url"])
+                        candidates.append(candidate)
             existing = [item["concept"]["name"] for item in records[-200:]]
             prompt = {
                 "role": "user",
@@ -443,8 +453,10 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
                 by_name[key] = child_record
                 queue.append(child_record)
                 added.append(new["node_id"])
-            events.append({"node_id": concept["node_id"], "status": "expanded", "query": query,
-                           "provider": search["provider"], "added": added, "reused": reused})
+            events.append({"node_id": concept["node_id"], "status": "expanded",
+                           "queries": [search["query"] for search in searches],
+                           "providers": [search["provider"] for search in searches],
+                           "added": added, "reused": reused})
         except Exception as error:
             events.append({"node_id": concept["node_id"], "status": "failed",
                            "reason": f"{type(error).__name__}: {error}"})
@@ -458,7 +470,8 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
                 related_ids.append(target["concept"]["node_id"])
         concept["related_ids"] = sorted(set(related_ids))
     plan["knowledge_graph_expansion"] = {"method": "Kimi-K3 §4.2.2", "nodes": len(records),
-                                         "max_nodes": max_nodes, "max_depth": max_depth}
+                                         "max_nodes": max_nodes, "max_depth": max_depth,
+                                         "searches_per_node": searches_per_node}
     validate_plan(plan)
     write_json(output, plan)
     event_path = output.with_suffix(".expansion.jsonl")
@@ -610,7 +623,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
     write_jsonl(output / "materials.jsonl", rows)
     write_jsonl(output / "discovery.jsonl", discoveries)
     radar = _radar(target_domains, domain_counts, output)
-    graph = {"version": "domain-material-v1", "profile": profile, "seed": seed,
+    graph = {"version": "kimi-k3-domain-material-v2", "profile": profile, "seed": seed,
              "knowledge_graph_expanded": isinstance(plan.get("knowledge_graph_expansion"), dict),
              "nodes": sorted(nodes.values(), key=lambda item: item["id"]),
              "edges": list({stable_json(edge): edge for edge in edges}.values()),

@@ -114,7 +114,8 @@ def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
             if shared:
                 edge["facts"] = shared
             edges.append(edge)
-    return {"task_id": task["task_id"], "nodes": actions, "edges": edges,
+    return {"version": "agentworld-weighted-action-graph-v1",
+            "task_id": task["task_id"], "nodes": actions, "edges": edges,
             "initial_facts": task["initial_facts"], "target_facts": task["target_facts"]}
 
 
