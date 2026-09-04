@@ -131,3 +131,6 @@ def validate_task(task: dict[str, Any]) -> None:
                 raise ValueError(f"{task['task_id']}: {action.get('id')}.{field} must be strings")
     if not task.get("target_facts") and not task.get("required_actions"):
         raise ValueError(f"{task['task_id']}: target_facts or required_actions is required")
+    min_steps, max_steps = int(task.get("min_steps", 1)), int(task.get("max_steps", len(actions)))
+    if min_steps < 1 or max_steps < min_steps:
+        raise ValueError(f"{task['task_id']}: require 1 <= min_steps <= max_steps")

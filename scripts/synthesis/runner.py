@@ -269,6 +269,7 @@ def main() -> None:
     expand.add_argument("--max-nodes", type=int, default=2000)
     expand.add_argument("--max-depth", type=int, default=4)
     expand.add_argument("--children-per-node", type=int, default=8)
+    expand.add_argument("--searches-per-node", type=int, default=3)
     finish = commands.add_parser("finalize")
     finish.add_argument("prepared", type=Path)
     finish.add_argument("rollouts", nargs="+", type=Path)
@@ -287,7 +288,8 @@ def main() -> None:
         client = openai_client(args.base_url, args.model, os.environ.get(args.api_key_env, ""))
         result = expand_knowledge_graph(args.plan, args.output, complete=client,
                                         max_nodes=args.max_nodes, max_depth=args.max_depth,
-                                        children_per_node=args.children_per_node)
+                                        children_per_node=args.children_per_node,
+                                        searches_per_node=args.searches_per_node)
     elif args.command == "prepare":
         weights = read_json(args.weights).get("distribution") if args.weights else None
         result = prepare(args.plan, args.output, profile=args.profile, seed=args.seed, count=args.count,

@@ -104,13 +104,16 @@ def _sample(plan: dict[str, Any], profile_name: str, seed: int, count: int | Non
     total = int(count if count is not None else profile.get("count") or plan.get("sample_count") or len(leaves))
     distribution = weights or profile.get("distribution") or plan.get("target_distribution")
     families = sorted({leaf["family"] for leaf in leaves})
-    distribution = {name: 1.0 for name in families} if distribution is None else {
-        str(name): float(value) for name, value in distribution.items()
-    }
-    unknown = set(distribution) - set(families)
-    if unknown:
-        raise ValueError(f"distribution references unknown families: {sorted(unknown)}")
-    groups = {name: [leaf for leaf in leaves if leaf["family"] == name] for name in distribution}
+    domains = sorted({leaf["domain"] for leaf in leaves})
+    distribution = {name: 1.0 for name in domains} if distribution is None else {
+        str(name): float(value) for name, value in distribution.items()}
+    keys = set(distribution)
+    if keys.issubset(domains):
+        groups = {name: [leaf for leaf in leaves if leaf["domain"] == name] for name in distribution}
+    elif keys.issubset(families):
+        groups = {name: [leaf for leaf in leaves if leaf["family"] == name] for name in distribution}
+    else:
+        raise ValueError(f"distribution must use only domain or domain.subdomain keys: {sorted(keys)}")
     rng, selected = random.Random(seed), []
     for family, quota in _quotas(total, distribution).items():
         pool = groups[family]
@@ -389,16 +392,22 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
         try:
             configured_queries = source.get("queries")
             query_count = min(searches_per_node, len(configured_queries)) if configured_queries else 1
-            searches, candidates, seen_urls = [], [], set()
+            searches, search_errors, candidates, seen_urls = [], [], [], set()
             for query_index in range(query_count):
                 leaf["sample_index"] = query_index
                 query = _search_query(source, leaf)
-                found, search = _discover(source, query)
+                try:
+                    found, search = _discover(source, query)
+                except Exception as error:
+                    search_errors.append(f"{query}: {error}")
+                    continue
                 searches.append(search)
                 for candidate in found:
                     if candidate["url"] not in seen_urls:
                         seen_urls.add(candidate["url"])
                         candidates.append(candidate)
+            if not candidates:
+                raise RuntimeError("all graph-expansion searches failed: " + "; ".join(search_errors))
             existing = [item["concept"]["name"] for item in records[-200:]]
             prompt = {
                 "role": "user",
@@ -456,7 +465,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
             events.append({"node_id": concept["node_id"], "status": "expanded",
                            "queries": [search["query"] for search in searches],
                            "providers": [search["provider"] for search in searches],
-                           "added": added, "reused": reused})
+                           "search_errors": search_errors, "added": added, "reused": reused})
         except Exception as error:
             events.append({"node_id": concept["node_id"], "status": "failed",
                            "reason": f"{type(error).__name__}: {error}"})
@@ -522,6 +531,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
     claimed: dict[str, set[str]] = {}
     claimed_urls: set[str] = set()
     claimed_text: set[str] = set()
+    retrieved_sources: set[str] = set()
     require_unique = bool(plan.get("require_unique_materials", True))
     discoveries = []
     material_dir = output / "materials"
@@ -555,9 +565,13 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                                **{key: source[key] for key in ("max_bytes", "timeout", "user_agent") if key in source}}
                 source_key = stable_json(page_source)
                 try:
-                    if source_key not in cache:
-                        cache[source_key] = _retrieve(page_source, plan_path.parent)
-                    content, extra = cache[source_key]
+                    if source_key in cache:
+                        content, extra = cache[source_key]
+                    else:
+                        content, extra = _retrieve(page_source, plan_path.parent)
+                        if not require_unique:
+                            cache[source_key] = (content, extra)
+                    retrieved_sources.add(source_key)
                     if len(content.strip()) < min_chars:
                         raise ValueError(f"page has fewer than min_chars={min_chars}")
                     # ponytail: normalized exact dedup is cheap at 20K; use
@@ -583,6 +597,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
             source_key = stable_json(source)
             if source_key not in cache:
                 cache[source_key] = _retrieve(source, plan_path.parent)
+            retrieved_sources.add(source_key)
             content, extra = cache[source_key]
             normalized_digest = hashlib.sha256(" ".join(content.lower().split()).encode()).hexdigest()
             if require_unique and normalized_digest in claimed_text:
@@ -634,7 +649,8 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
              "unique_subdomains": len({row["family"] for row in rows}),
              "unique_concepts": len({(row["family"], row["concept"]) for row in rows}),
              "effective_family_count": math.exp(-sum(value * math.log(value) for value in probabilities)),
-             "unique_sources": len(cache), "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
+             "unique_sources": len(retrieved_sources),
+             "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
              "unique_normalized_materials": len(claimed_text),
              "search_queries": len(search_cache),
              "discovered_urls": len({item["url"] for row in discoveries for item in row["candidates"]}),

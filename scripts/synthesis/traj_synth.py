@@ -29,6 +29,7 @@ def construct_tasks(materials_path: Path, output: Path, *, variants_per_material
         for material_index, material in enumerate(iter_jsonl(materials_path)):
             material_count += 1
             content_path = materials_path.parent / relative_path(material["content_path"])
+            material_text = content_path.read_text(encoding="utf-8")
             templates = material.get("task_templates") or [material.get("task_template")]
             if not templates or any(not isinstance(template, dict) for template in templates):
                 raise ValueError(f"{material['material_id']}: no task templates")
@@ -38,7 +39,7 @@ def construct_tasks(materials_path: Path, output: Path, *, variants_per_material
                                           "actions": template.get("actions", template.get("action_patterns"))})
                 if "{{material}}" in executable or "{{source_uri}}" in executable:
                     raise ValueError(f"{material['material_id']}: untrusted material may only enter prompts or initial files")
-                values = {"material": content_path.read_text(encoding="utf-8"),
+                values = {"material": material_text,
                           "material_id": material["material_id"], "domain": material["domain"],
                           "subdomain": material["subdomain"], "concept": material["concept"],
                           "index": f"{task_count:06d}", "material_index": f"{material_index:06d}",
@@ -70,7 +71,8 @@ def construct_tasks(materials_path: Path, output: Path, *, variants_per_material
                     "initial_facts": recipe.get("initial_facts", ["workspace:ready"]),
                     "target_facts": recipe.get("target_facts", []),
                     "required_actions": recipe.get("required_actions", []),
-                    "action_patterns": actions, "max_steps": int(recipe.get("max_steps", len(actions))),
+                    "action_patterns": actions, "min_steps": int(recipe.get("min_steps", 1)),
+                    "max_steps": int(recipe.get("max_steps", len(actions))),
                 }
                 task["initial_facts"] = sorted(set(task["initial_facts"]) | {f"file:{path}:exists" for path in files})
                 task["seed_patterns"] = recipe.get("seed_patterns", [action["id"] for action in actions])
@@ -131,6 +133,7 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
     target = set(render(graph["target_facts"], values))
     initial = set(render(graph["initial_facts"], values))
     required = set(task.get("required_actions", []))
+    min_steps = int(task.get("min_steps", 1))
     if not required.issubset(actions):
         raise ValueError(f"{task['task_id']}: unknown required_actions")
     relevant, needed = set(), set(target)
@@ -147,7 +150,7 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
     # ponytail: exhaustive DFS is fine for the intended small recipes; switch
     # to beam/A* search if action graphs grow enough for this to become slow.
     def search(facts: set[str], used: tuple[str, ...]) -> list[str] | None:
-        if target.issubset(facts) and required.issubset(used):
+        if target.issubset(facts) and required.issubset(used) and len(used) >= min_steps:
             return list(used)
         if len(used) >= task["max_steps"]:
             return None

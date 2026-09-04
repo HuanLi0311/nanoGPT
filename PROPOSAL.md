@@ -150,6 +150,7 @@ stage3/rejected_trajectories.jsonl
 ```
 
 `trajectories_per_task` 控制每个任务的候选数。报告同时给出 candidate 总数、完整 path signature 数、结构 signature 数和 tool sequence 数，防止把相同结构的重复执行误报成新的组合多样性。
+`min_steps`/`max_steps` 控制 walk 长度；提高 `min_steps`，或增加 weak/independent 可执行节点，构成 Agent-World 式 difficulty scaling。若图本身只有唯一必经路径，多次采样仍会被结构 signature 揭示，不能宣称获得了新的组合。
 
 ### Stage 4：Training Data
 
@@ -242,7 +243,7 @@ PY=/home/JJ_Group/lih2511/.conda/envs/nanoagent/bin/python
 ```bash
 $PY scripts/synthesis/runner.py expand-graph SEED_PLAN.json PLAN.json \
   --base-url http://127.0.0.1:8000/v1 --model SYNTHESIS_MODEL \
-  --max-nodes 2000 --max-depth 4
+  --max-nodes 2000 --max-depth 4 --searches-per-node 3
 
 $PY scripts/synthesis/runner.py prepare PLAN.json runs/pilot \
   --profile pilot --seed 7 --path-policy agentworld \
