@@ -99,6 +99,8 @@ material package
 
 每份材料可通过 `tasks_per_material` 生成多个 task/environment variants；同一模板可用 `{{variant_index}}` 参数化，也可以显式提供多个 templates。模板只替换明确 token，例如 `{{material}}`、`{{material_id}}`、`{{material_sha256}}`、`{{source_uri}}`。原始材料和来源 URL 只允许进入 prompt 或初始文件，不能插入 action/verifier 命令。任务必须声明非空 verifier、workspace 内相对路径和已实现的工具。当前真实 adapter 只有：
 
+Kimi seed graph 不需要预写 task。`prepare --base-url ... --model ...` 会把每条材料作为不可信数据交给 synthesis model，一次生成指定数量的 environment/task recipes；失败记录在 `stage2/rejected_environment_generation.jsonl`。显式 recipe 路径仍保留，作为不依赖外部模型的可重复对照。
+
 ```text
 exec_command, apply_patch
 ```
@@ -110,7 +112,9 @@ exec_command, apply_patch
 输出：
 
 ```text
+stage2/materials_with_task_templates.jsonl
 stage2/tasks.jsonl
+stage2/rejected_environment_generation.jsonl
 ```
 
 ### Stage 3：Agent-World Weighted Tool Graph
@@ -178,7 +182,7 @@ stage4/training_data_report.json
 
 ## Plan 契约
 
-最小 plan 是一个 JSON 文件：
+`scripts/synthesis/k3_15domain_seeds.json` 是不带 task recipe 的 Stage-1 seed plan；它可直接用于 `expand-graph` 与 `collect`。下面展示的是带显式 recipe、可以不调用 synthesis model 的完整 plan branch：
 
 ```json
 {
@@ -242,13 +246,21 @@ PY=/home/JJ_Group/lih2511/.conda/envs/nanoagent/bin/python
 构建窄或多样 base，并执行 oracle gate：
 
 ```bash
-$PY scripts/synthesis/runner.py expand-graph SEED_PLAN.json PLAN.json \
+$PY scripts/synthesis/runner.py expand-graph \
+  scripts/synthesis/k3_15domain_seeds.json PLAN.json \
   --base-url http://127.0.0.1:8000/v1 --model SYNTHESIS_MODEL \
   --max-nodes 2000 --max-depth 4 --searches-per-node 3
 
+# 只复现/审计 Kimi K3 Stage 1 时使用；输出中立即包含雷达图。
+$PY scripts/synthesis/runner.py collect PLAN.json runs/k3-pilot-stage1 \
+  --profile pilot --seed 7
+
+# 三段连跑。PLAN 无预写 recipes 时，同一模型负责 Agent-World-style
+# environment/task recipe synthesis；有 recipes 时省略 --base-url/--model。
 $PY scripts/synthesis/runner.py prepare PLAN.json runs/pilot \
   --profile pilot --seed 7 --path-policy agentworld \
-  --tasks-per-material 2 --trajectories-per-task 3
+  --tasks-per-material 2 --trajectories-per-task 3 \
+  --base-url http://127.0.0.1:8000/v1 --model SYNTHESIS_MODEL
 ```
 
 先运行 `200 → 400 → 1,200` pilot；通过来源集中度、重复率、路径结构数和 verifier yield 检查后，再将 profile 改为 `full`，得到目标 `20,000 → 40,000 → 120,000`。运行目录根部的 `report.json` 与 `REPORT.md` 汇报三阶段 verifier 前数量；Stage 1 雷达图叠加 target 与 realized domain counts。

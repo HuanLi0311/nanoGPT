@@ -78,3 +78,9 @@ class MultiHeadSelfAttention(nn.Module):
       self.qkv_proj = nn.Linear(hidden_size, 3*hidden_size) 
       self.output_proj = nn.Linear(hidden_size, hidden_size)
       self.dropout = nn.Dropout(dropout)
+
+    def split_heads(values:Tensor, hidden_size:int, heads:int) ->Tensor:
+        batch_size, token_num, hidden_size = value.shape
+        head_dim = hidden_size // heads
+        split = values.view(batch_size, token_num, heads, head_dim).transpose(1,2)
+        return split

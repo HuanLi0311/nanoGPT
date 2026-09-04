@@ -15,14 +15,14 @@ if __package__:
     from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
     from .schema import read_json, read_jsonl, validate_plan, write_json, write_jsonl
-    from .traj_synth import trajectory_graph
+    from .traj_synth import construct_tasks, synthesize_environment_templates, trajectory_graph
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from graph import _discover, _retrieve, _sample, expand_knowledge_graph
     from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
     from schema import read_json, read_jsonl, validate_plan, write_json, write_jsonl
-    from traj_synth import trajectory_graph
+    from traj_synth import construct_tasks, synthesize_environment_templates, trajectory_graph
 
 
 def _plan(search_endpoint: str | None = None) -> dict:
@@ -75,6 +75,13 @@ def _plan(search_endpoint: str | None = None) -> dict:
 
 
 def main() -> None:
+    seed_plan = read_json(Path(__file__).with_name("k3_15domain_seeds.json"))
+    validate_plan(seed_plan, require_tasks=False)
+    seed_sample = _sample(seed_plan, "pilot", seed=7, count=None, weights=None)
+    seed_counts = [sum(row["domain"] == domain["name"] for row in seed_sample)
+                   for domain in seed_plan["domains"]]
+    assert len(seed_sample) == 200 and set(seed_counts) == {13, 14}
+
     cyclic = _plan()
     first = cyclic["domains"][0]["subdomains"][0]["concepts"][0]
     second = cyclic["domains"][1]["subdomains"][0]["concepts"][0]
@@ -175,6 +182,27 @@ def main() -> None:
         assert (root / "run/stage1/domain_distribution.pdf").is_file()
         assert (root / "run/REPORT.md").is_file()
         assert report["stage4"]["sft_status"].startswith("awaiting")
+
+        def synthesize_one(_messages, tools):
+            assert not tools
+            return {"content": json.dumps({"tasks": [{
+                "id": "generated", "task_type": "fixture", "capability": "create",
+                "interface": "workspace", "prompt": "Create done.txt containing OK.",
+                "files": {"context.txt": "{{material}}"}, "available_tools": ["apply_patch"],
+                "verifier": "test \"$(cat done.txt)\" = OK", "target_facts": ["file:done.txt:exists"],
+                "actions": [{"id": "write", "tool": "apply_patch", "arguments": {
+                    "patch": "*** Begin Patch\n*** Add File: done.txt\n+OK\n*** End Patch"},
+                    "preconditions": ["workspace:ready"], "effects": ["file:done.txt:exists"]}],
+                "min_steps": 1, "max_steps": 1}]})}
+
+        generated_materials = root / "generated/materials.jsonl"
+        generated = synthesize_environment_templates(
+            root / "run/stage1/materials.jsonl", generated_materials, complete=synthesize_one,
+            variants_per_material=1, model="scripted-synthesis")
+        generated_tasks = construct_tasks(generated_materials, root / "generated/tasks.jsonl")
+        assert generated["materials_generated"] == generated_tasks["tasks"] == 2
+        assert all(task["sandbox_backend"] == "bwrap"
+                   for task in read_jsonl(root / "generated/tasks.jsonl"))
 
         control = prepare(plan, root / "run-narrow", profile="narrow", seed=7, count=None,
                           path_policy="uniform")

@@ -50,7 +50,7 @@ def synthesize_environment_templates(materials_path: Path, output: Path, *, comp
                            + stable_json({"domain": material["domain"], "subdomain": material["subdomain"],
                                           "concept": material["concept"],
                                           "material_sha256": material["provenance"]["sha256"],
-                                          "source_excerpt": content})}]
+                                          "source_excerpt": content}))}]
             error = None
             for _ in range(retries):
                 try:
@@ -61,6 +61,8 @@ def synthesize_environment_templates(materials_path: Path, output: Path, *, comp
                             or any(not isinstance(template, dict) or not required.issubset(template)
                                    for template in templates)):
                         raise ValueError("model returned incomplete environment task recipes")
+                    for template in templates:
+                        template["sandbox_backend"] = "bwrap"
                     generated += 1
                     yield {**material, "task_templates": templates,
                            "task_synthesis": {"method": "Agent-World §3.1", "model": model}}
