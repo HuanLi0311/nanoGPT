@@ -12,12 +12,12 @@ from typing import Any
 
 if __package__:
     from .graph import build_material_graph, expand_knowledge_graph
-    from .schema import fingerprint, iter_jsonl, read_json, read_jsonl, write_json, write_jsonl
+    from .schema import fingerprint, iter_jsonl, read_json, read_jsonl, validate_plan, write_json, write_jsonl
     from .traj_synth import construct_tasks, validate_oracles
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from graph import build_material_graph, expand_knowledge_graph
-    from schema import fingerprint, iter_jsonl, read_json, read_jsonl, write_json, write_jsonl
+    from schema import fingerprint, iter_jsonl, read_json, read_jsonl, validate_plan, write_json, write_jsonl
     from traj_synth import construct_tasks, validate_oracles
 
 
@@ -152,7 +152,9 @@ def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | N
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise FileExistsError(f"refusing to overwrite non-empty run directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
-    expansion = read_json(plan).get("expansion", {})
+    plan_value = read_json(plan)
+    validate_plan(plan_value)
+    expansion = plan_value.get("expansion", {})
     tasks_per_material = int(expansion.get("tasks_per_material", 1)
                              if tasks_per_material is None else tasks_per_material)
     trajectories_per_task = int(expansion.get("trajectories_per_task", 1)
@@ -253,6 +255,13 @@ def diagnose(prepared: Path, rollout_paths: list[Path], output: Path, floor: flo
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    collect = commands.add_parser("collect")
+    collect.add_argument("plan", type=Path)
+    collect.add_argument("output", type=Path)
+    collect.add_argument("--profile", default="default")
+    collect.add_argument("--seed", type=int, default=0)
+    collect.add_argument("--count", type=int)
+    collect.add_argument("--weights", type=Path)
     build = commands.add_parser("prepare")
     build.add_argument("plan", type=Path)
     build.add_argument("output", type=Path)
@@ -284,7 +293,11 @@ def main() -> None:
     diagnostic.add_argument("--output", type=Path, required=True)
     diagnostic.add_argument("--floor", type=float, default=0.05)
     args = parser.parse_args()
-    if args.command == "expand-graph":
+    if args.command == "collect":
+        weights = read_json(args.weights).get("distribution") if args.weights else None
+        result = build_material_graph(args.plan, args.output, profile=args.profile,
+                                      seed=args.seed, count=args.count, weights=weights)
+    elif args.command == "expand-graph":
         import os
         from scripts.synthesis.policy_rollout import openai_client
 

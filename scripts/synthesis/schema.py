@@ -79,7 +79,7 @@ def relative_path(value: Any) -> str:
     return str(path)
 
 
-def validate_plan(plan: dict[str, Any]) -> None:
+def validate_plan(plan: dict[str, Any], *, require_tasks: bool = True) -> None:
     domains = plan.get("domains")
     if not isinstance(domains, list) or not domains:
         raise ValueError("plan.domains must be a non-empty list")
@@ -99,8 +99,9 @@ def validate_plan(plan: dict[str, Any]) -> None:
                 tasks = next((owner["tasks"] if "tasks" in owner else [owner["task"]]
                               for owner in (concept, subdomain, domain, plan)
                               if "tasks" in owner or "task" in owner), None)
-                if (key in seen or not source or not isinstance(tasks, list)
-                        or not tasks or any(not isinstance(task, dict) for task in tasks)):
+                invalid_tasks = (not isinstance(tasks, list) or not tasks
+                                 or any(not isinstance(task, dict) for task in tasks))
+                if key in seen or not source or (require_tasks and invalid_tasks):
                     raise ValueError(f"duplicate or incomplete concept: {key}")
                 for field in ("parent_ids", "related_ids", "ancestor_concepts", "related_concepts"):
                     if not isinstance(concept.get(field, []), list) or not all(

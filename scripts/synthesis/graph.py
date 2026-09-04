@@ -89,6 +89,8 @@ def _leaves(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "related_ids": concept.get("related_ids", []),
                     "ancestor_concepts": concept.get("ancestor_concepts", []),
                     "related_concepts": concept.get("related_concepts", []),
+                    "ancestor_keywords": " ".join(concept.get("ancestor_concepts", [])),
+                    "related_keywords": " ".join(concept.get("related_concepts", [])),
                     "source": _inherited(plan, domain, subdomain, concept, "source"),
                     "task_templates": templates,
                 })
@@ -369,7 +371,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
     if max_nodes < 1 or max_depth < 0 or children_per_node < 1 or searches_per_node < 1:
         raise ValueError("graph expansion limits must be positive")
     plan = deepcopy(read_json(plan_path))
-    validate_plan(plan)
+    validate_plan(plan, require_tasks=False)
     records = []
     by_name: dict[str, dict[str, Any]] = {}
 
@@ -391,7 +393,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
         depth = int(concept.get("depth", 0))
         if concept.get("atomic") or depth >= max_depth:
             continue
-        source = concept["source"]
+        source = _inherited(plan, domain, subdomain, concept, "source")
         if source.get("kind") != "web_search":
             events.append({"node_id": concept["node_id"], "status": "skipped",
                            "reason": "recursive expansion requires web_search source"})
@@ -399,6 +401,8 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
         leaf = {"domain": domain["name"], "subdomain": subdomain["name"],
                 "concept": concept["name"], "related_concepts": concept.get("related_concepts", []),
                 "ancestor_concepts": concept.get("ancestor_concepts", []),
+                "related_keywords": " ".join(concept.get("related_concepts", [])),
+                "ancestor_keywords": " ".join(concept.get("ancestor_concepts", [])),
                 "sample_index": 0}
         try:
             configured_queries = source.get("queries")
@@ -463,10 +467,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
                        "related_concepts": [str(item) for item in child.get("related_to", [])
                                             if isinstance(item, str)],
                        "source": deepcopy(source)}
-                if "tasks" in concept:
-                    new["tasks"] = deepcopy(concept["tasks"])
-                else:
-                    new["task"] = deepcopy(concept["task"])
+                new["tasks"] = deepcopy(_inherited(plan, domain, subdomain, concept, "task", "tasks"))
                 subdomain["concepts"].append(new)
                 child_record = {"domain": domain, "subdomain": subdomain, "concept": new}
                 records.append(child_record)
@@ -492,7 +493,7 @@ def expand_knowledge_graph(plan_path: Path, output: Path, *, complete: Callable,
     plan["knowledge_graph_expansion"] = {"method": "Kimi-K3 §4.2.2", "nodes": len(records),
                                          "max_nodes": max_nodes, "max_depth": max_depth,
                                          "searches_per_node": searches_per_node}
-    validate_plan(plan)
+    validate_plan(plan, require_tasks=False)
     write_json(output, plan)
     event_path = output.with_suffix(".expansion.jsonl")
     write_jsonl(event_path, events)
@@ -533,8 +534,11 @@ def _radar(target: dict[str, int], realized: dict[str, int], output: Path) -> di
 
 def build_material_graph(plan_path: Path, output: Path, *, profile: str = "default", seed: int = 0,
                          count: int | None = None, weights: dict[str, float] | None = None) -> dict[str, Any]:
+    if output.exists() and (not output.is_dir() or any(output.iterdir())):
+        raise FileExistsError(f"refusing to overwrite material run: {output}")
+    output.mkdir(parents=True, exist_ok=True)
     plan = read_json(plan_path)
-    validate_plan(plan)
+    validate_plan(plan, require_tasks=False)
     selected, rows, cache = _sample(plan, profile, seed, count, weights), [], {}
     target_domains = {name: sum(leaf["domain"] == name for leaf in selected)
                       for name in sorted({leaf["domain"] for leaf in selected})}
