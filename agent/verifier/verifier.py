@@ -13,6 +13,7 @@ if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, os.getcwd())
 
 import subprocess
+from pathlib import Path
 from typing import Any
 
 try:
@@ -41,6 +42,7 @@ def run_verifier(
     verifier_version: str = "manifest-v1",
     timeout: int = 60,
     max_output: int = 12_000,
+    sandbox_backend: str = "workspace_host",
 ) -> dict[str, Any]:
     """Run a trusted manifest verifier and return a traceable result.
 
@@ -62,11 +64,29 @@ def run_verifier(
             task_id=task_id,
             verifier_version=verifier_version,
         ).as_dict()
+    if sandbox_backend not in {"bwrap", "workspace_host"}:
+        return VerificationResult(
+            0.0,
+            False,
+            f"unknown sandbox backend: {sandbox_backend}",
+            reward_source="unscored",
+            harness_status="fault",
+            failure_class="verifier_runtime",
+            eligible=False,
+            task_id=task_id,
+            verifier_version=verifier_version,
+        ).as_dict()
     try:
+        if sandbox_backend == "bwrap":
+            from agent.workspace.sandbox import bubblewrap_command
+
+            invocation, shell, cwd = bubblewrap_command(Path(root), command), False, None
+        else:
+            invocation, shell, cwd = command, True, root
         result = subprocess.run(
-            command,
-            cwd=root,
-            shell=True,
+            invocation,
+            cwd=cwd,
+            shell=shell,
             capture_output=True,
             text=True,
             timeout=max(1, int(timeout)),
@@ -85,7 +105,7 @@ def run_verifier(
             verifier_version=verifier_version,
             output=str(error),
         ).as_dict()
-    except OSError as error:
+    except (OSError, RuntimeError, ValueError) as error:
         return VerificationResult(
             0.0,
             False,

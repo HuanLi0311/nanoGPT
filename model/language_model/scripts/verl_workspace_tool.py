@@ -78,7 +78,7 @@ class WorkspaceTool(BaseTool):
             # then runs out-of-band after the action, never as a model tool.
             self._invalidate_outcome(agent_data)
             before = snapshot(root)
-            response, reward, result = self._exec(root, parameters) if self.operation == "exec_command" else self._patch(root, parameters)
+            response, reward, result = self._exec(root, parameters, config) if self.operation == "exec_command" else self._patch(root, parameters)
             after = snapshot(root)
             result = dict(result or {})
             result.setdefault("exit_code", 0)
@@ -138,7 +138,7 @@ class WorkspaceTool(BaseTool):
             agent_data.extra_fields.setdefault("environment_id", f"workspace:{task_id}")
             agent_data.extra_fields.setdefault("initial_state_hash", initial["state_hash"])
             agent_data.extra_fields.setdefault("harness_version", str(config.get("harness_version", "workspace-host-v2")))
-            agent_data.extra_fields.setdefault("execution_mode", "workspace_host")
+            agent_data.extra_fields.setdefault("execution_mode", str(config.get("sandbox_backend", "workspace_host")))
             agent_data.extra_fields.setdefault("tool_schema_version", str(config.get("tool_schema_version", "workspace-tools-v2")))
             agent_data.extra_fields.setdefault("verifier_version", str(config.get("verifier_version", "manifest-v1")))
         self._roots[instance_id] = root
@@ -175,15 +175,13 @@ class WorkspaceTool(BaseTool):
             normalized.pop("cwd", None)
         return normalized
 
-    def _exec(self, root: Path, parameters: dict[str, Any]) -> tuple[ToolResponse, float, dict]:
+    def _exec(self, root: Path, parameters: dict[str, Any], config: dict[str, Any]) -> tuple[ToolResponse, float, dict]:
         command = str(parameters.get("cmd") or "").strip()
         if not command:
             return self._error("cmd is required")
         permission = parameters.get("sandbox_permissions")
         if permission not in (None, "use_default"):
             return self._error("sandbox_permissions=require_escalated is unavailable in workspace_host")
-        # ponytail: shell execution is workspace-scoped only; use an OS/container
-        # sandbox before running untrusted workloads at scale.
         cwd_value = parameters.get("workdir", ".")
         cwd = self._safe_path(root, cwd_value)
         cwd.mkdir(parents=True, exist_ok=True)
@@ -198,10 +196,19 @@ class WorkspaceTool(BaseTool):
                 output_limit = min(output_limit, max(1, int(max_output_tokens)) * 4)
             except (TypeError, ValueError):
                 raise ValueError("max_output_tokens must be an integer") from None
+        backend = str(config.get("sandbox_backend", "workspace_host"))
+        if backend == "bwrap":
+            from agent.workspace.sandbox import bubblewrap_command
+
+            invocation, shell, host_cwd = bubblewrap_command(root, command, cwd_value), False, None
+        elif backend == "workspace_host":
+            invocation, shell, host_cwd = command, True, cwd
+        else:
+            raise RuntimeError(f"unknown sandbox backend: {backend}")
         result = subprocess.run(
-            command,
-            cwd=cwd,
-            shell=True,
+            invocation,
+            cwd=host_cwd,
+            shell=shell,
             capture_output=True,
             stdin=subprocess.DEVNULL,
             text=True,
@@ -311,6 +318,7 @@ class WorkspaceTool(BaseTool):
             verifier_version=str(config.get("verifier_version", "manifest-v1")),
             timeout=self.max_timeout,
             max_output=self.max_output,
+            sandbox_backend=str(config.get("sandbox_backend", "workspace_host")),
         )
         self._publish_outcome(agent_data, outcome)
         return ToolResponse(text=json.dumps(outcome)), float(outcome.get("score", 0.0)), {
@@ -331,6 +339,7 @@ class WorkspaceTool(BaseTool):
             verifier_version=str(config.get("verifier_version", "manifest-v1")),
             timeout=self.max_timeout,
             max_output=self.max_output,
+            sandbox_backend=str(config.get("sandbox_backend", "workspace_host")),
         )
         outcome["tool_status"] = tool_result.get("tool_status", "completed")
         outcome["tool_result"] = tool_result

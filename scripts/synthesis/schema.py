@@ -95,7 +95,7 @@ def validate_plan(plan: dict[str, Any]) -> None:
 
 
 def validate_task(task: dict[str, Any]) -> None:
-    required = {"task_id", "prompt", "files", "verifier", "available_tools", "action_patterns"}
+    required = {"task_id", "prompt", "files", "verifier", "available_tools", "action_patterns", "sandbox_backend"}
     missing = required - task.keys()
     if missing:
         raise ValueError(f"{task.get('task_id', '<task>')}: missing {sorted(missing)}")
@@ -105,6 +105,8 @@ def validate_task(task: dict[str, Any]) -> None:
     command = verifier.get("command") if isinstance(verifier, dict) else verifier
     if not isinstance(command, str) or not command.strip():
         raise ValueError(f"{task['task_id']}: independent verifier command is required")
+    if task["sandbox_backend"] not in {"bwrap", "workspace_host"}:
+        raise ValueError(f"{task['task_id']}: sandbox_backend must be bwrap or workspace_host")
     tools = task["available_tools"]
     if not isinstance(tools, list) or not set(tools).issubset(TOOLS):
         raise ValueError(f"{task['task_id']}: unsupported available_tools")

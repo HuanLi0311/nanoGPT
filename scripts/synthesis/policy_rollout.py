@@ -76,7 +76,7 @@ async def _one(task: dict[str, Any], complete: Complete, policy_kind: str, model
     tools, schemas = _schemas(task["available_tools"], workspace_root)
     episode_id = f"policy-{policy_kind}-{index:06d}"
     create = {key: task[key] for key in ("task_id", "files", "verifier", "verifier_version",
-                                         "harness_version", "tool_schema_version")}
+                                         "harness_version", "tool_schema_version", "sandbox_backend")}
     agent_data = SimpleNamespace(request_id=episode_id, extra_fields={})
     for tool in tools.values():
         await tool.create(episode_id, create_kwargs=create)
@@ -120,7 +120,7 @@ async def _one(task: dict[str, Any], complete: Complete, policy_kind: str, model
         return {"task_id": task["task_id"], "policy": {"kind": policy_kind, "model": model},
                 "messages": messages, "outcome": outcome,
                 "agent_events": agent_data.extra_fields.get("agent_events", []),
-                "termination_reason": termination,
+                "termination_reason": termination, "execution_mode": task["sandbox_backend"],
                 "gts": {"kind": "environment", "task_id": task["task_id"],
                         "verifier_version": task["verifier_version"]}}
     finally:

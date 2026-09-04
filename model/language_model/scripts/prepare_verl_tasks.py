@@ -41,6 +41,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
         verifier_version = str(item.get("verifier_version", "manifest-v1"))
         harness_version = str(item.get("harness_version", "workspace-host-v2"))
         tool_schema_version = str(item.get("tool_schema_version", "workspace-tools-v2"))
+        sandbox_backend = str(item.get("sandbox_backend", "workspace_host"))
         files = item.get("files", {})
         if not task_id or not isinstance(prompt, (str, list)) or not _valid_verifier(verifier):
             raise ValueError(f"{source}:{line_number}: task_id, prompt, and verifier are required")
@@ -48,6 +49,8 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             raise ValueError(f"{source}:{line_number}: files must be an object of relative paths to contents")
         if any(not _valid_relative_path(path) for path in files):
             raise ValueError(f"{source}:{line_number}: files may not escape the workspace")
+        if sandbox_backend not in {"bwrap", "workspace_host"}:
+            raise ValueError(f"{source}:{line_number}: unsupported sandbox_backend {sandbox_backend!r}")
         if isinstance(prompt, str):
             prompt = [{"role": "user", "content": prompt}]
         contract = {
@@ -57,6 +60,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "verifier_version": verifier_version,
             "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
+            "sandbox_backend": sandbox_backend,
         }
         create_kwargs = {
             "task_id": task_id,
@@ -65,6 +69,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "verifier_version": verifier_version,
             "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
+            "sandbox_backend": sandbox_backend,
         }
         extra_info = dict(item.get("extra_info", {})) if isinstance(item.get("extra_info", {}), dict) else {}
         tool_names = item.get("available_tools", list(TOOL_NAMES))
@@ -76,6 +81,7 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
             "verifier_version": verifier_version,
+            "sandbox_backend": sandbox_backend,
             "tool_selection": list(tool_names),
             "need_tools_kwargs": True,
             "tools_kwargs": {name: {"create_kwargs": create_kwargs} for name in tool_names},

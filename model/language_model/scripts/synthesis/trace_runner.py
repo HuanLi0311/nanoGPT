@@ -247,6 +247,7 @@ class ProgrammaticTraceRunner:
             "verifier_version": task.get("verifier_version", "manifest-v1"),
             "harness_version": task.get("harness_version", "workspace-host-v2"),
             "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
+            "sandbox_backend": task.get("sandbox_backend", "workspace_host"),
         }
         agent_data = SimpleNamespace(request_id=episode_id, extra_fields={})
         for tool in self.tools.values():
@@ -309,7 +310,7 @@ class ProgrammaticTraceRunner:
                 "provenance": {
                     "episode_id": episode_id,
                     "candidate_index": candidate_index,
-                    "execution_mode": "workspace_host",
+                    "execution_mode": task.get("sandbox_backend", "workspace_host"),
                 },
             })
             messages.append(_action_message(call_id, action))
@@ -363,7 +364,8 @@ class ProgrammaticTraceRunner:
                 "reward": float(verifier_reward),
                 "outcome": verifier_outcome,
             },
-            "provenance": {"episode_id": episode_id, "execution_mode": "workspace_host"},
+            "provenance": {"episode_id": episode_id,
+                           "execution_mode": task.get("sandbox_backend", "workspace_host")},
         })
 
         passed = bool(verifier_outcome.get("task_success")) and verifier_outcome.get("harness_status") == "healthy"
@@ -397,7 +399,7 @@ class ProgrammaticTraceRunner:
             "environment_id": f"{task['task_id']}:{fingerprint(task['files'])[:12]}",
             "initial_state_hash": initial_state["state_hash"],
             "candidate_index": candidate_index,
-            "execution_mode": "workspace_host",
+            "execution_mode": task.get("sandbox_backend", "workspace_host"),
             "harness_version": task.get("harness_version", "workspace-host-v2"),
             "tool_schema_version": task.get("tool_schema_version", "workspace-tools-v2"),
             "verifier_version": task.get("verifier_version", "manifest-v1"),

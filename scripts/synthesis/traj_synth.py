@@ -38,6 +38,7 @@ def construct_tasks(materials_path: Path, output: Path) -> list[dict[str, Any]]:
         files = {relative_path(render(path, values)): render(value, values) for path, value in recipe.get("files", {}).items()}
         stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(recipe.get("id", material["concept"]))).strip("-")
         task_id = f"{stem}-{material['material_id'][4:]}"
+        sandbox_backend = str(recipe.get("sandbox_backend", "bwrap"))
         task = {
             "task_id": task_id, "prompt": recipe["prompt"], "domain": material["domain"],
             "subdomain": material["subdomain"], "task_family": material["family"],
@@ -45,7 +46,9 @@ def construct_tasks(materials_path: Path, output: Path) -> list[dict[str, Any]]:
             "material_provenance": [material["provenance"]], "files": files,
             "available_tools": tools, "verifier": recipe["verifier"],
             "verifier_version": recipe.get("verifier_version", "material-task-v1"),
-            "harness_version": "workspace-host-v2", "tool_schema_version": "workspace-tools-v2",
+            "sandbox_backend": sandbox_backend,
+            "harness_version": recipe.get("harness_version", "bwrap-v1" if sandbox_backend == "bwrap" else "workspace-host-v2"),
+            "tool_schema_version": "workspace-tools-v2",
             "initial_facts": recipe.get("initial_facts", ["workspace:ready"]),
             "target_facts": recipe.get("target_facts", []),
             "required_actions": recipe.get("required_actions", []),
@@ -142,7 +145,8 @@ def _initial_verifier(task: dict[str, Any]) -> dict[str, Any]:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(str(content), encoding="utf-8")
         return run_verifier(str(root), task["verifier"], task_id=task["task_id"],
-                            verifier_version=task["verifier_version"])
+                            verifier_version=task["verifier_version"],
+                            sandbox_backend=task["sandbox_backend"])
 
 
 def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: str = "goal") -> dict[str, Any]:
