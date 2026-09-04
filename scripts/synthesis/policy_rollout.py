@@ -30,8 +30,8 @@ def openai_client(base_url: str, model: str, api_key: str = "", timeout: int = 1
                   temperature: float = 0.0, max_tokens: int = 2048) -> Complete:
     if urlparse(base_url).scheme not in {"http", "https"}:
         raise ValueError("base_url must use http or https")
-    if timeout < 1 or max_tokens < 1:
-        raise ValueError("timeout and max_tokens must be positive")
+    if timeout < 1 or max_tokens < 1 or not 0 <= temperature <= 2:
+        raise ValueError("timeout/max_tokens must be positive and temperature must be in [0, 2]")
     endpoint = base_url.rstrip("/")
     if not endpoint.endswith("chat/completions"):
         endpoint += "/chat/completions"

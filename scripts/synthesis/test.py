@@ -172,8 +172,9 @@ def main() -> None:
         assert report["stage1"]["search_queries"] == 1 and report["stage1"]["discovered_urls"] == 2
         assert report["counts_before_verifier"] == {
             "stage1_materials": 2, "stage1_unique_materials": 2,
-            "stage2_candidate_tasks": 4,
-            "stage3_candidate_trajectories": 8, "gross_artifacts": 14,
+            "stage2_requested_tasks": 4, "stage2_candidate_tasks": 4,
+            "stage3_requested_trajectories": 8, "stage3_candidate_trajectories": 8,
+            "gross_artifacts": 14,
             "verifier_filtered_counts_excluded": True}
         assert report["stage2"]["unique_task_signatures"] == 4
         assert report["stage3"]["validated"] == 4 and report["stage3"]["rejected"] == 0

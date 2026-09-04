@@ -289,6 +289,8 @@ def main() -> None:
     build.add_argument("--base-url")
     build.add_argument("--model")
     build.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    build.add_argument("--synthesis-temperature", type=float, default=0.4)
+    build.add_argument("--synthesis-max-tokens", type=int, default=8192)
     build.add_argument("--max-material-chars", type=int, default=16000)
     build.add_argument("--synthesis-retries", type=int, default=2)
     expand = commands.add_parser("expand-graph")
@@ -297,6 +299,8 @@ def main() -> None:
     expand.add_argument("--base-url", required=True)
     expand.add_argument("--model", required=True)
     expand.add_argument("--api-key-env", default="OPENAI_API_KEY")
+    expand.add_argument("--temperature", type=float, default=0.4)
+    expand.add_argument("--max-tokens", type=int, default=4096)
     expand.add_argument("--max-nodes", type=int, default=2000)
     expand.add_argument("--max-depth", type=int, default=4)
     expand.add_argument("--children-per-node", type=int, default=8)
@@ -320,7 +324,8 @@ def main() -> None:
         import os
         from scripts.synthesis.policy_rollout import openai_client
 
-        client = openai_client(args.base_url, args.model, os.environ.get(args.api_key_env, ""))
+        client = openai_client(args.base_url, args.model, os.environ.get(args.api_key_env, ""),
+                               temperature=args.temperature, max_tokens=args.max_tokens)
         result = expand_knowledge_graph(args.plan, args.output, complete=client,
                                         max_nodes=args.max_nodes, max_depth=args.max_depth,
                                         children_per_node=args.children_per_node,
@@ -335,7 +340,9 @@ def main() -> None:
             from scripts.synthesis.policy_rollout import openai_client
 
             environment_complete = openai_client(args.base_url, args.model,
-                                                 os.environ.get(args.api_key_env, ""))
+                                                 os.environ.get(args.api_key_env, ""),
+                                                 temperature=args.synthesis_temperature,
+                                                 max_tokens=args.synthesis_max_tokens)
         result = prepare(args.plan, args.output, profile=args.profile, seed=args.seed, count=args.count,
                          path_policy=args.path_policy, weights=weights,
                          tasks_per_material=args.tasks_per_material,
