@@ -70,17 +70,33 @@ class MultiHeadSelfAttention(nn.Module):
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, hidden_size:int, heads:int, dropout:float=0.0) -> None:
-      super().__init__()
-      self.hidden_size = hidden_size
-      self.heads = heads
-      self.dropout = dropout
-      self.head_dim = hidden_size // heads
-      self.qkv_proj = nn.Linear(hidden_size, 3*hidden_size) 
-      self.output_proj = nn.Linear(hidden_size, hidden_size)
-      self.dropout = nn.Dropout(dropout)
+       super().__init__()
+       self.hidden_size = hidden_size
+       self.heads = heads
+       self.dropout = dropout
+       self.head_dim = hidden_size // heads
+       self.qkv_proj = nn.Linear(hidden_size, 3*hidden_size) 
+       self.output_proj = nn.Linear(hidden_size, hidden_size)
+       self.dropout = nn.Dropout(dropout)
 
     def split_heads(values:Tensor, hidden_size:int, heads:int) ->Tensor:
-        batch_size, token_num, hidden_size = value.shape
-        head_dim = hidden_size // heads
-        split = values.view(batch_size, token_num, heads, head_dim).transpose(1,2)
-        return split
+       batch_size, token_num, hidden_size = value.shape
+       head_dim = hidden_size // heads
+       split = values.view(batch_size, token_num, heads, head_dim).transpose(1,2)
+       return split
+
+    def merge_heads() ->Tensor:
+
+
+
+       return merge
+
+    def forward(self, hidden_state:Tensor, hidden_size:int, heads:int, dropout:float=0.0) -> Tensor:
+       q, k, v = self.qkv_proj(hidden_state).chunk(3, dim=-1)
+       q = self.split_heads(q, self.heads)
+       k = self.split_heads(k, self.heads)
+       v = self.split_heads(v, self.heads)
+       q, k = rope(q, k)
+       output = F.scale_dot_product_attention(q, k, v)
+       output = self.dropout(self.merge_heads(output))
+       output = self.output_proj(output)
