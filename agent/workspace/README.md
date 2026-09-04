@@ -13,5 +13,5 @@ and the Python/Verl adapter.
   writable, read-only platform binaries/libraries, a cleared environment, and
   isolated network/PID namespaces.
 
-Legacy manifests default to `workspace_host`; the four-stage synthesis pipeline
+Legacy manifests default to `workspace_host`; the Kimi-K3/Agent-World synthesis pipeline
 defaults to `bwrap`. Neither mode changes the tool ABI.

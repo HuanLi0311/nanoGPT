@@ -98,7 +98,7 @@ def _sft_row(messages: list[dict[str, Any]], task_id: str, model: str, source: s
     tool_calls = sum(len(message.get("tool_calls", [])) for message in messages)
     return {"messages": messages, "data_source": "policy_verified", "trajectory_id": trajectory_id, "split": split,
             "metadata": {"chars": sum(len(str(message.get("content", ""))) for message in messages),
-                         "cli_version": "four-stage-synthesis-v1", "cwd": None, "episode_index": None,
+                         "cli_version": "k3-agentworld-synthesis-v1", "cwd": None, "episode_index": None,
                          "id": trajectory_id, "malformed_json": 0, "model_provider": model,
                          "quality_score": 1.0, "signals": ["policy_rollout", "independent_verifier_passed", "harness_healthy"],
                          "source_file": source, "timestamp": None, "tool_calls": tool_calls}}
@@ -162,7 +162,8 @@ def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | N
                               trajectories_per_task=trajectories_per_task)
     rl_path = output / "stage4/rl_tasks.jsonl"
     rl_environments = write_jsonl(rl_path, iter_jsonl(Path(stage3["validated_tasks"])))
-    counts = {"stage1_unique_materials": stage1["material_count"],
+    counts = {"stage1_materials": stage1["material_count"],
+              "stage1_unique_materials": stage1["unique_normalized_materials"],
               "stage2_candidate_tasks": stage2["tasks"],
               "stage3_candidate_trajectories": stage3["candidate_trajectories"],
               "gross_artifacts": stage1["material_count"] + stage2["tasks"] + stage3["candidate_trajectories"],

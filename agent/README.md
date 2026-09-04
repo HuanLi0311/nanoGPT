@@ -8,6 +8,8 @@
 7. 若生成完毕 将生成parquet合并进model/language_model/data/post_train/data/rendered/sft b并执行sft 训练数据是全部model/language_model/data/post_train/data/rendered/sft/*.parquet
 8. sft走verl风格 请无视/model中相关实现
 
+当前 synthesis 的方法边界见 `PROPOSAL.md`：Stage 1 复现 Kimi K3 §4.2.2 的递归知识图谱、可控节点采样与 Web material retrieval；Stage 2–3 复现 Agent-World §3.1/§3.1.1 的环境任务构造和强/弱/独立依赖加权图。每次运行的 `report.json`、`REPORT.md` 和 Stage 1 雷达图记录 verifier 过滤前规模。
+
 ## Workspace harness boundary
 
 `agent/workspace` is the file-level workspace boundary. Each episode owns one

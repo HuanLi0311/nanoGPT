@@ -37,9 +37,11 @@ def openai_client(base_url: str, model: str, api_key: str = "", timeout: int = 1
         endpoint += "/chat/completions"
 
     def complete(messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
-        body = json.dumps({"model": model, "messages": messages, "tools": tools,
-                           "tool_choice": "auto", "temperature": temperature,
-                           "max_tokens": max_tokens}).encode()
+        payload = {"model": model, "messages": messages, "temperature": temperature,
+                   "max_tokens": max_tokens}
+        if tools:
+            payload.update({"tools": tools, "tool_choice": "auto"})
+        body = json.dumps(payload).encode()
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"

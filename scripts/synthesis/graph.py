@@ -621,6 +621,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
              "unique_concepts": len({(row["family"], row["concept"]) for row in rows}),
              "effective_family_count": math.exp(-sum(value * math.log(value) for value in probabilities)),
              "unique_sources": len(cache), "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
+             "unique_normalized_materials": len(claimed_text),
              "search_queries": len(search_cache),
              "discovered_urls": len({item["url"] for row in discoveries for item in row["candidates"]}),
              "materials": str(output / "materials.jsonl"), "discovery": str(output / "discovery.jsonl"),
