@@ -109,7 +109,7 @@ def _parquet(rows: list[dict[str, Any]], output: Path) -> dict[str, str]:
 
 def prepare(plan: Path, output: Path, *, profile: str, seed: int, count: int | None,
             path_policy: str, weights: dict[str, float] | None = None) -> dict[str, Any]:
-    if output.exists() and any(output.iterdir()):
+    if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise FileExistsError(f"refusing to overwrite non-empty run directory: {output}")
     output.mkdir(parents=True, exist_ok=True)
     stage1 = build_material_graph(plan, output / "stage1", profile=profile, seed=seed, count=count, weights=weights)
@@ -167,6 +167,9 @@ def diagnose(prepared: Path, rollout_paths: list[Path], output: Path, floor: flo
     tasks = {task["task_id"]: task for task in read_jsonl(prepared / "stage3/validated_tasks.jsonl")}
     scores: dict[str, list[float]] = {task["task_family"]: [] for task in tasks.values()}
     for row in _rollout_rows(rollout_paths):
+        policy = row.get("policy") if isinstance(row.get("policy"), dict) else {}
+        if policy.get("kind") in {"programmatic_oracle", "oracle"}:
+            continue
         task = tasks.get(str(row.get("task_id", "")))
         outcome = row.get("outcome") if isinstance(row.get("outcome"), dict) else row
         if task and outcome.get("harness_status") == "healthy":

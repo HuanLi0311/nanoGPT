@@ -145,6 +145,7 @@ def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: s
                 raise ValueError("verifier is unhealthy or task already passes in the initial state")
             actions = sample_path(task, seed=seed + index, policy=policy, candidate_index=index)
             episode = runner.run(task, actions, f"oracle:{task['task_id']}:{index:04d}", candidate_index=index)
+            episode["policy"] = {"kind": "programmatic_oracle", "model": "deterministic_action_graph"}
             episodes.append(episode)
             outcome = episode["outcome"]
             passed = outcome["task_success"] and outcome["independent_verifier_passed"] and outcome["harness_status"] == "healthy"

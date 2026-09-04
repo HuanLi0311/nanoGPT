@@ -66,7 +66,14 @@ def main() -> None:
 
         tasks = read_jsonl(root / "run/stage3/validated_tasks.jsonl")
         episodes = read_jsonl(root / "run/stage3/oracle_episodes.jsonl")
+        from model.language_model.scripts.prepare_verl_tasks import task_rows
+        verl_rows = list(task_rows(root / "run/stage4/rl_tasks.jsonl"))
+        assert all(set(row["extra_info"]["tools_kwargs"]) == set(task["available_tools"])
+                   for row, task in zip(verl_rows, tasks, strict=True))
         by_task = {episode["task_id"]: episode for episode in episodes}
+        oracle_result = finalize(root / "run", [root / "run/stage3/oracle_episodes.jsonl"],
+                                 policy_kind="teacher", model="test-teacher")
+        assert oracle_result["accepted_sft"] == 0 and oracle_result["rejected"] == 2
         rollouts = root / "rollouts.jsonl"
         write_jsonl(rollouts, [
             {"task_id": tasks[0]["task_id"], "policy": {"kind": "teacher"}, "messages": by_task[tasks[0]["task_id"]]["messages"],
