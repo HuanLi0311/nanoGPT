@@ -94,8 +94,14 @@ def main() -> None:
         write_json(plan, _plan())
         report = prepare(plan, root / "run", profile="diverse", seed=7, count=None, path_policy="goal")
         assert report["stage1"]["realized_distribution"] == {"artifact.create": 1, "coding.transform": 1}
+        assert report["stage1"]["unique_domains"] == report["stage1"]["unique_subdomains"] == 2
         assert report["stage3"]["validated"] == 2 and report["stage3"]["rejected"] == 0
         assert report["stage4"]["sft_status"].startswith("awaiting")
+
+        control = prepare(plan, root / "run-narrow", profile="narrow", seed=7, count=None,
+                          path_policy="uniform")
+        assert control["stage1"]["realized_distribution"] == {"coding.transform": 2}
+        assert control["stage3"]["validated"] == 2 and control["path_policy"] == "uniform"
 
         tasks = read_jsonl(root / "run/stage3/validated_tasks.jsonl")
         episodes = read_jsonl(root / "run/stage3/oracle_episodes.jsonl")

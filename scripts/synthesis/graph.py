@@ -183,6 +183,9 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
              "nodes": sorted(nodes.values(), key=lambda item: item["id"]),
              "edges": list({stable_json(edge): edge for edge in edges}.values()),
              "target_count": len(rows), "realized_distribution": counts,
+             "unique_domains": len({row["domain"] for row in rows}),
+             "unique_subdomains": len({row["family"] for row in rows}),
+             "unique_concepts": len({(row["family"], row["concept"]) for row in rows}),
              "effective_family_count": math.exp(-sum(value * math.log(value) for value in probabilities)),
              "unique_sources": len(cache), "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
              "materials": str(output / "materials.jsonl")}
