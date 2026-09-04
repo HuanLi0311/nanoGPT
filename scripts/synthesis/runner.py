@@ -55,13 +55,16 @@ def _valid_messages(messages: list[dict[str, Any]]) -> bool:
             calls.extend(call.get("id") for call in message.get("tool_calls", []) if isinstance(call, dict))
         elif message.get("role") == "tool":
             results.append(message.get("tool_call_id"))
-    return bool(calls) and len(calls) == len(results) and len(set(calls)) == len(calls) and set(calls) == set(results)
+    return bool(calls) and all(calls) and all(results) and len(calls) == len(results) and len(set(calls)) == len(calls) and set(calls) == set(results)
 
 
 def _success(row: dict[str, Any]) -> bool:
     outcome = row.get("outcome") if isinstance(row.get("outcome"), dict) else row
-    score = outcome.get("task_success", outcome.get("score", 0))
-    return bool(score) and outcome.get("harness_status") == "healthy" and outcome.get("eligible", True) is not False
+    try:
+        score = float(outcome.get("task_success", outcome.get("score", 0)))
+    except (TypeError, ValueError):
+        return False
+    return score > 0 and outcome.get("harness_status") == "healthy" and outcome.get("eligible", True) is not False
 
 
 def _rollout_rows(paths: list[Path]) -> list[dict[str, Any]]:
@@ -128,13 +131,18 @@ def finalize(prepared: Path, rollout_paths: list[Path], *, policy_kind: str, mod
     tasks = {task["task_id"]: task for task in read_jsonl(prepared / "stage3/validated_tasks.jsonl")}
     accepted, rejected, seen = [], [], set()
     for row in _rollout_rows(rollout_paths):
-        task_id = str(row.get("task_id") or row.get("outcome", {}).get("task_id", ""))
-        declared = str(row.get("policy", {}).get("kind", row.get("model_provider", policy_kind)))
+        outcome = row.get("outcome") if isinstance(row.get("outcome"), dict) else {}
+        policy = row.get("policy") if isinstance(row.get("policy"), dict) else {}
+        task_id = str(row.get("task_id") or outcome.get("task_id", ""))
+        declared = str(policy.get("kind", row.get("model_provider", policy_kind)))
         try:
             if declared in {"programmatic_oracle", "oracle"} or declared != policy_kind:
                 raise ValueError(f"invalid policy provenance: {declared}")
             if task_id not in tasks or not _success(row):
                 raise ValueError("unknown task or independent verifier did not pass")
+            ground_truth = row.get("gts") if isinstance(row.get("gts"), dict) else {}
+            if ground_truth.get("task_id", task_id) != task_id or ground_truth.get("verifier_version", tasks[task_id]["verifier_version"]) != tasks[task_id]["verifier_version"]:
+                raise ValueError("rollout verifier contract does not match the prepared task")
             messages = _policy_messages(row, tasks[task_id])
             if not _valid_messages(messages):
                 raise ValueError("incomplete tool call/result protocol")
@@ -157,13 +165,14 @@ def finalize(prepared: Path, rollout_paths: list[Path], *, policy_kind: str, mod
 
 def diagnose(prepared: Path, rollout_paths: list[Path], output: Path, floor: float = 0.05) -> dict[str, Any]:
     tasks = {task["task_id"]: task for task in read_jsonl(prepared / "stage3/validated_tasks.jsonl")}
-    scores: dict[str, list[float]] = {}
+    scores: dict[str, list[float]] = {task["task_family"]: [] for task in tasks.values()}
     for row in _rollout_rows(rollout_paths):
         task = tasks.get(str(row.get("task_id", "")))
         outcome = row.get("outcome") if isinstance(row.get("outcome"), dict) else row
         if task and outcome.get("harness_status") == "healthy":
             scores.setdefault(task["task_family"], []).append(float(outcome.get("task_success", outcome.get("score", 0))))
-    distribution = {family: max(floor, 1 - sum(values) / len(values)) for family, values in scores.items() if values}
+    distribution = {family: max(floor, 1 - sum(values) / len(values)) if values else 1.0
+                    for family, values in scores.items()}
     if not distribution:
         raise ValueError("no healthy diagnostic rollouts matched prepared tasks")
     result = {"version": "diagnostic-distribution-v1", "distribution": distribution,

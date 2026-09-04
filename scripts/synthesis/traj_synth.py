@@ -77,7 +77,10 @@ def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
 def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candidate_index: int = 0) -> list[dict[str, Any]]:
     graph = trajectory_graph(task)
     actions = {item["id"]: item for item in graph["nodes"]}
-    target, required = set(graph["target_facts"]), set(task.get("required_actions", []))
+    values = {"candidate_index": f"{candidate_index:04d}"}
+    target = set(render(graph["target_facts"], values))
+    initial = set(render(graph["initial_facts"], values))
+    required = set(task.get("required_actions", []))
     if not required.issubset(actions):
         raise ValueError(f"{task['task_id']}: unknown required_actions")
     relevant, needed = set(), set(target)
@@ -108,10 +111,9 @@ def sample_path(task: dict[str, Any], *, seed: int, policy: str = "goal", candid
                 return found
         return None
 
-    selected = search(set(graph["initial_facts"]), ())
+    selected = search(initial, ())
     if selected is None:
         raise ValueError(f"{task['task_id']}: no path reaches the declared goal")
-    values = {"candidate_index": f"{candidate_index:04d}"}
     return [{**deepcopy(actions[action_id]),
              "arguments": render(actions[action_id].get("arguments", actions[action_id].get("arguments_template", {})), values),
              "preconditions": render(actions[action_id].get("preconditions", []), values),

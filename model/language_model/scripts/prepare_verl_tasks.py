@@ -67,13 +67,16 @@ def task_rows(source: Path, limit: int | None = None) -> Iterator[dict[str, Any]
             "tool_schema_version": tool_schema_version,
         }
         extra_info = dict(item.get("extra_info", {})) if isinstance(item.get("extra_info", {}), dict) else {}
+        tool_names = item.get("available_tools", TOOL_NAMES)
+        if not isinstance(tool_names, list) or not tool_names or not set(tool_names).issubset(TOOL_NAMES):
+            raise ValueError(f"{source}:{line_number}: available_tools must be a non-empty subset of {TOOL_NAMES}")
         extra_info.update({
             "task_id": task_id,
             "reward_contract": contract,
             "harness_version": harness_version,
             "tool_schema_version": tool_schema_version,
             "need_tools_kwargs": True,
-            "tools_kwargs": {name: {"create_kwargs": create_kwargs} for name in TOOL_NAMES},
+            "tools_kwargs": {name: {"create_kwargs": create_kwargs} for name in tool_names},
         })
         yield {
             "data_source": "harness_tasks",
