@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import json
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Thread
 
 if __package__:
+    from .graph import _retrieve
     from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
     from .schema import read_json, read_jsonl, write_json, write_jsonl
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from graph import _retrieve
     from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
     from schema import read_json, read_jsonl, write_json, write_jsonl
@@ -60,6 +64,29 @@ def _plan() -> dict:
 def main() -> None:
     with TemporaryDirectory(prefix="four-stage-synthesis-") as temporary:
         root = Path(temporary)
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = b"<html><body>web material</body></html>"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            web, provenance = _retrieve({"kind": "web", "uri": f"http://127.0.0.1:{server.server_port}/"}, root)
+            assert web.strip() == "web material" and provenance["resolved_uri"].startswith("http://127.0.0.1:")
+        finally:
+            server.shutdown()
+            thread.join()
+            server.server_close()
+
         (root / "alpha.txt").write_text("alpha\n", encoding="utf-8")
         (root / "repo").mkdir()
         (root / "repo/context.txt").write_text("beta\n", encoding="utf-8")
