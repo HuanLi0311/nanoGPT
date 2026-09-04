@@ -62,3 +62,19 @@ class MultiHeadSelfAttention(nn.Module):
         output = self.output_proj(self.merge_heads(output))
         output = self.dropout(output)
         return (output, (k, v)) if use_cache else output
+
+
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, hidden_size:int, heads:int, dropout:float=0.0) -> None:
+
+class MultiHeadSelfAttention(nn.Module):
+    def __init__(self, hidden_size:int, heads:int, dropout:float=0.0) -> None:
+      super().__init__()
+      self.hidden_size = hidden_size
+      self.heads = heads
+      self.dropout = dropout
+      self.head_dim = hidden_size // heads
+      self.qkv_proj = nn.Linear(hidden_size, 3*hidden_size) 
+      self.output_proj = nn.Linear(hidden_size, hidden_size)
+      self.dropout = nn.Dropout(dropout)

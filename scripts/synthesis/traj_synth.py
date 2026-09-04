@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 import re
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -23,6 +24,10 @@ def construct_tasks(materials_path: Path, output: Path, *, variants_per_material
         raise ValueError("variants_per_material must be positive")
     material_count = task_count = 0
     signatures: set[str] = set()
+    domain_counts: Counter[str] = Counter()
+    task_type_counts: Counter[str] = Counter()
+    capability_counts: Counter[str] = Counter()
+    interface_counts: Counter[str] = Counter()
 
     def rows():
         nonlocal material_count, task_count
@@ -82,13 +87,22 @@ def construct_tasks(materials_path: Path, output: Path, *, variants_per_material
                                                                      "initial_facts", "target_facts", "action_patterns")})
                 task["task_signature"] = signature
                 signatures.add(signature)
+                domain_counts[str(task["domain"])] += 1
+                task_type_counts[str(task["task_type"])] += 1
+                capability_counts[str(task["capability"] or "unspecified")] += 1
+                interface_counts[str(task["interface"] or "unspecified")] += 1
                 task_count += 1
                 yield task
 
     write_jsonl(output, rows())
     return {"materials": material_count, "tasks": task_count,
             "variants_per_material": variants_per_material,
-            "unique_task_signatures": len(signatures), "manifest": str(output)}
+            "unique_task_signatures": len(signatures),
+            "domain_distribution": dict(sorted(domain_counts.items())),
+            "task_type_distribution": dict(sorted(task_type_counts.items())),
+            "capability_distribution": dict(sorted(capability_counts.items())),
+            "interface_distribution": dict(sorted(interface_counts.items())),
+            "manifest": str(output)}
 
 
 def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
@@ -214,6 +228,7 @@ def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: s
     path_signatures: set[str] = set()
     structure_signatures: set[str] = set()
     tool_sequences: set[tuple[str, ...]] = set()
+    candidate_domains: Counter[str] = Counter()
 
     write_jsonl(graph_path, (trajectory_graph(task) for task in iter_jsonl(tasks_path)))
 
@@ -231,6 +246,7 @@ def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: s
                     path_signatures.add(path_signature)
                     structure_signatures.add(structure_signature)
                     tool_sequences.add(tools)
+                    candidate_domains[str(task["domain"])] += 1
                     candidate_count += 1
                     yield {"candidate_id": f"candidate-{task_index:06d}-{candidate_index:03d}",
                            "task_id": task["task_id"], "candidate_index": candidate_index,
@@ -339,6 +355,7 @@ def validate_oracles(tasks_path: Path, output: Path, *, seed: int = 0, policy: s
             "unique_path_signatures": len(path_signatures),
             "unique_path_structures": len(structure_signatures),
             "unique_tool_combinations": len(tool_sequences),
+            "domain_distribution": dict(sorted(candidate_domains.items())),
             "validated": validated, "rejected": rejected,
             "passed_trajectories": passed_trajectories,
             "rejected_trajectories": rejected_trajectories,

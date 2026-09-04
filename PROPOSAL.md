@@ -62,6 +62,7 @@ stage1/domain_distribution.pdf
 #### 20K 初始分布
 
 第一轮使用 15 个 coarse domains：软件工程、系统与 DevOps、网络安全、数据与数据库、Web 与信息检索、办公与文档、商业与金融、电商与物流、数学与自然科学、工程与制造、医疗与生命科学、法律与公共管理、教育与人文、媒体与通信、旅行与地理服务。初始 profile 在顶层近似均匀分配 20,000 条，每类 1,333 或 1,334 条；后续 diagnosis 才改变分配。
+`distribution` 可以全部使用顶层 `domain` key，也可以全部使用 `domain.subdomain` key，不能混用；省略时默认按顶层 domain 均匀分配，避免 subdomain 较多的领域天然占据更多配额。
 
 | Coarse domain | Seed subdomains |
 |---|---|

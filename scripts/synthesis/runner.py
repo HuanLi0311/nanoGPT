@@ -135,6 +135,9 @@ def _write_run_report(output: Path, report: dict[str, Any]) -> None:
              f"| 2 | Agent-World task/environment construction | {counts['stage2_candidate_tasks']:,} |",
              f"| 3 | Agent-World graph trajectories | {counts['stage3_candidate_trajectories']:,} |",
              "", f"Terminal candidate trajectories: **{counts['stage3_candidate_trajectories']:,}**", "",
+             f"Unique task signatures: **{report['stage2']['unique_task_signatures']:,}**  ",
+             f"Unique path signatures: **{report['stage3']['unique_path_signatures']:,}**  ",
+             f"Unique path structures: **{report['stage3']['unique_path_structures']:,}**", "",
              "## Stage 1 domains", "", "| Domain | Target | Realized |", "|---|---:|---:|"]
     target = report["stage1"]["target_domain_distribution"]
     realized = report["stage1"]["domain_distribution"]

@@ -84,6 +84,8 @@ def validate_plan(plan: dict[str, Any]) -> None:
     if not isinstance(domains, list) or not domains:
         raise ValueError("plan.domains must be a non-empty list")
     seen: set[str] = set()
+    parents: dict[str, list[str]] = {}
+    related: dict[str, list[str]] = {}
     for domain in domains:
         if not isinstance(domain.get("name"), str) or not isinstance(domain.get("subdomains"), list):
             raise ValueError("each domain needs name and subdomains")
@@ -92,15 +94,44 @@ def validate_plan(plan: dict[str, Any]) -> None:
                 raise ValueError("each subdomain needs name and concepts")
             for concept in subdomain["concepts"]:
                 key = f"{domain['name']}.{subdomain['name']}.{concept.get('name', '')}"
-                tasks = concept.get("tasks", [concept.get("task")])
-                if (key in seen or not concept.get("source") or not isinstance(tasks, list)
+                source = next((owner["source"] for owner in (concept, subdomain, domain, plan)
+                               if "source" in owner), None)
+                tasks = next((owner["tasks"] if "tasks" in owner else [owner["task"]]
+                              for owner in (concept, subdomain, domain, plan)
+                              if "tasks" in owner or "task" in owner), None)
+                if (key in seen or not source or not isinstance(tasks, list)
                         or not tasks or any(not isinstance(task, dict) for task in tasks)):
                     raise ValueError(f"duplicate or incomplete concept: {key}")
                 for field in ("parent_ids", "related_ids", "ancestor_concepts", "related_concepts"):
                     if not isinstance(concept.get(field, []), list) or not all(
                             isinstance(item, str) for item in concept.get(field, [])):
                         raise ValueError(f"{key}.{field} must be a list of node ids")
+                node_id = str(concept.get("node_id") or
+                              f"concept:{fingerprint([domain['name'], subdomain['name'], concept.get('name')])[:16]}")
+                if node_id in parents:
+                    raise ValueError(f"duplicate concept node_id: {node_id}")
+                parents[node_id] = concept.get("parent_ids", [])
+                related[node_id] = concept.get("related_ids", [])
                 seen.add(key)
+    node_ids = set(parents)
+    references = {item for values in [*parents.values(), *related.values()] for item in values}
+    if unknown := references - node_ids:
+        raise ValueError(f"concept graph references unknown node ids: {sorted(unknown)}")
+    visiting, visited = set(), set()
+
+    def visit(node_id: str) -> None:
+        if node_id in visiting:
+            raise ValueError(f"concept graph contains a cycle at {node_id}")
+        if node_id in visited:
+            return
+        visiting.add(node_id)
+        for parent_id in parents[node_id]:
+            visit(parent_id)
+        visiting.remove(node_id)
+        visited.add(node_id)
+
+    for node_id in node_ids:
+        visit(node_id)
 
 
 def validate_task(task: dict[str, Any]) -> None:

@@ -64,12 +64,22 @@ class _SearchLinks(HTMLParser):
             self.href, self.title = None, []
 
 
+def _inherited(plan: dict[str, Any], domain: dict[str, Any], subdomain: dict[str, Any],
+               concept: dict[str, Any], singular: str, plural: str | None = None) -> Any:
+    for owner in (concept, subdomain, domain, plan):
+        if plural and plural in owner:
+            return owner[plural]
+        if singular in owner:
+            return [owner[singular]] if plural else owner[singular]
+    return [] if plural else None
+
+
 def _leaves(plan: dict[str, Any]) -> list[dict[str, Any]]:
     output = []
     for domain in plan["domains"]:
         for subdomain in domain["subdomains"]:
             for concept in subdomain["concepts"]:
-                templates = concept.get("tasks", [concept.get("task")])
+                templates = _inherited(plan, domain, subdomain, concept, "task", "tasks")
                 node_id = str(concept.get("node_id") or
                               f"concept:{fingerprint([domain['name'], subdomain['name'], concept['name']])[:16]}")
                 output.append({
@@ -79,7 +89,8 @@ def _leaves(plan: dict[str, Any]) -> list[dict[str, Any]]:
                     "related_ids": concept.get("related_ids", []),
                     "ancestor_concepts": concept.get("ancestor_concepts", []),
                     "related_concepts": concept.get("related_concepts", []),
-                    "source": concept["source"], "task_templates": templates,
+                    "source": _inherited(plan, domain, subdomain, concept, "source"),
+                    "task_templates": templates,
                 })
     return output
 
@@ -611,11 +622,13 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
         rows.append({**leaf, "material_id": material_id, "profile": profile, "content_path": str(path.relative_to(output)),
                      "provenance": {"kind": source["kind"],
                                     "uri": source.get("uri", extra_search.get("discovered_url", "inline")),
-                                    **extra, **extra_search, "sha256": digest, "bytes": len(content.encode()),
+                                    **extra, **extra_search, "sha256": digest,
+                                    "normalized_sha256": normalized_digest, "bytes": len(content.encode()),
                                     "license": source.get("license"), "retrieved_at": datetime.now(timezone.utc).isoformat()}})
     counts = {family: sum(row["family"] == family for row in rows) for family in sorted({row["family"] for row in rows})}
     domain_counts = {name: sum(row["domain"] == name for row in rows) for name in target_domains}
     probabilities = [value / len(rows) for value in counts.values() if value]
+    domain_probabilities = [value / len(rows) for value in domain_counts.values() if value]
     nodes, edges = {}, []
     leaves = _leaves(plan)
     concept_ids = {leaf["concept_id"] for leaf in leaves}
@@ -649,6 +662,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
              "unique_subdomains": len({row["family"] for row in rows}),
              "unique_concepts": len({(row["family"], row["concept"]) for row in rows}),
              "effective_family_count": math.exp(-sum(value * math.log(value) for value in probabilities)),
+             "effective_domain_count": math.exp(-sum(value * math.log(value) for value in domain_probabilities)),
              "unique_sources": len(retrieved_sources),
              "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
              "unique_normalized_materials": len(claimed_text),

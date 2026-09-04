@@ -11,17 +11,17 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 
 if __package__:
-    from .graph import _discover, _retrieve, expand_knowledge_graph
+    from .graph import _discover, _retrieve, _sample, expand_knowledge_graph
     from .policy_rollout import run_policy_tasks
     from .runner import diagnose, finalize, prepare
-    from .schema import read_json, read_jsonl, write_json, write_jsonl
+    from .schema import read_json, read_jsonl, validate_plan, write_json, write_jsonl
     from .traj_synth import trajectory_graph
 else:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from graph import _discover, _retrieve, expand_knowledge_graph
+    from graph import _discover, _retrieve, _sample, expand_knowledge_graph
     from policy_rollout import run_policy_tasks
     from runner import diagnose, finalize, prepare
-    from schema import read_json, read_jsonl, write_json, write_jsonl
+    from schema import read_json, read_jsonl, validate_plan, write_json, write_jsonl
     from traj_synth import trajectory_graph
 
 
@@ -35,6 +35,7 @@ def _plan(search_endpoint: str | None = None) -> dict:
         "profiles": {
             "narrow": {"count": 2, "distribution": {"coding.transform": 1, "artifact.create": 0}},
             "diverse": {"count": 2, "distribution": {"coding.transform": 1, "artifact.create": 1}},
+            "domains": {"count": 3, "distribution": {"coding": 1, "artifact": 1}},
         },
         "domains": [
             {"name": "coding", "subdomains": [{"name": "transform", "concepts": [{
@@ -74,6 +75,20 @@ def _plan(search_endpoint: str | None = None) -> dict:
 
 
 def main() -> None:
+    cyclic = _plan()
+    first = cyclic["domains"][0]["subdomains"][0]["concepts"][0]
+    second = cyclic["domains"][1]["subdomains"][0]["concepts"][0]
+    first.update({"node_id": "concept:a", "parent_ids": ["concept:b"]})
+    second.update({"node_id": "concept:b", "parent_ids": ["concept:a"]})
+    try:
+        validate_plan(cyclic)
+        raise AssertionError("cyclic concept graph was accepted")
+    except ValueError as error:
+        assert "cycle" in str(error)
+
+    sampled = _sample(_plan(), "domains", seed=7, count=None, weights=None)
+    assert sorted(sum(row["domain"] == domain for row in sampled) for domain in {"coding", "artifact"}) == [1, 2]
+
     weighted = trajectory_graph({
         "task_id": "weighted-edges", "prompt": "fixture", "files": {}, "verifier": "false",
         "available_tools": ["exec_command"], "sandbox_backend": "workspace_host",
