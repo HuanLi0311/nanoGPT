@@ -47,7 +47,7 @@ def _plan(search_endpoint: str | None = None) -> dict:
                     "target_facts": ["file:answer-{{variant_index}}.txt:exists"],
                     "actions": [
                         {"id": "write_digest", "tool": "exec_command",
-                         "arguments": {"cmd": "test ! -e /home && sha256sum input.txt | awk '{print $1}' > answer-{{variant_index}}.txt"},
+                         "arguments": {"cmd": "test ! -e /home && set -- $(sha256sum input.txt) && printf '%s\\n' \"$1\" > answer-{{variant_index}}.txt"},
                          "preconditions": ["file:input.txt:exists"],
                          "effects": ["file:answer-{{variant_index}}.txt:exists"]},
                     ],
@@ -168,7 +168,7 @@ def main() -> None:
             output = re.search(r"answer-\d+\.txt", prompt)
             if output:
                 name, arguments = "exec_command", {
-                    "cmd": f"test ! -e /home && sha256sum input.txt | awk '{{print $1}}' > {output.group()}"}
+                    "cmd": f"test ! -e /home && set -- $(sha256sum input.txt) && printf '%s\\n' \"$1\" > {output.group()}"}
             else:
                 output = re.search(r"report-\d+\.txt", prompt)
                 name, arguments = "apply_patch", {"patch":
