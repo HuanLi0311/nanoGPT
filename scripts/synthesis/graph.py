@@ -68,10 +68,11 @@ def _leaves(plan: dict[str, Any]) -> list[dict[str, Any]]:
     for domain in plan["domains"]:
         for subdomain in domain["subdomains"]:
             for concept in subdomain["concepts"]:
+                templates = concept.get("tasks", [concept.get("task")])
                 output.append({
                     "domain": domain["name"], "subdomain": subdomain["name"],
                     "concept": concept["name"], "family": f"{domain['name']}.{subdomain['name']}",
-                    "source": concept["source"], "task_template": concept["task"],
+                    "source": concept["source"], "task_templates": templates,
                 })
     return output
 
@@ -317,13 +318,48 @@ def _retrieve(source: dict[str, Any], base: Path) -> tuple[str, dict[str, Any]]:
     return text, extra
 
 
+def _radar(target: dict[str, int], realized: dict[str, int], output: Path) -> dict[str, str]:
+    """Write the one requested Stage-1 distribution figure."""
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    labels = list(target)
+    angles = [2 * math.pi * index / len(labels) for index in range(len(labels))]
+    closed_angles = angles + angles[:1]
+    target_values = [target[label] for label in labels]
+    realized_values = [realized.get(label, 0) for label in labels]
+    figure, axis = plt.subplots(figsize=(10, 10), subplot_kw={"polar": True})
+    axis.plot(closed_angles, target_values + target_values[:1], "--", linewidth=1.5, label="target")
+    axis.plot(closed_angles, realized_values + realized_values[:1], linewidth=2, label="realized")
+    axis.fill(closed_angles, realized_values + realized_values[:1], alpha=0.15)
+    axis.set_xticks(angles, labels)
+    axis.set_ylim(0, max([*target_values, *realized_values, 1]) * 1.1)
+    axis.set_title(f"Stage 1 domain distribution (N={sum(realized_values):,})", pad=24)
+    axis.legend(loc="upper right", bbox_to_anchor=(1.16, 1.12))
+    figure.tight_layout()
+    paths = {}
+    for suffix in ("png", "pdf"):
+        path = output / f"domain_distribution.{suffix}"
+        figure.savefig(path, dpi=180 if suffix == "png" else None, bbox_inches="tight")
+        paths[suffix] = str(path)
+    plt.close(figure)
+    return paths
+
+
 def build_material_graph(plan_path: Path, output: Path, *, profile: str = "default", seed: int = 0,
                          count: int | None = None, weights: dict[str, float] | None = None) -> dict[str, Any]:
     plan = read_json(plan_path)
     validate_plan(plan)
     selected, rows, cache = _sample(plan, profile, seed, count, weights), [], {}
+    target_domains = {name: sum(leaf["domain"] == name for leaf in selected)
+                      for name in sorted({leaf["domain"] for leaf in selected})}
     search_cache: dict[str, tuple[list[dict[str, Any]], dict[str, Any]]] = {}
     claimed: dict[str, set[str]] = {}
+    claimed_urls: set[str] = set()
+    claimed_text: set[str] = set()
+    require_unique = bool(plan.get("require_unique_materials", True))
     discoveries = []
     material_dir = output / "materials"
     for index, leaf in enumerate(selected):
@@ -349,6 +385,9 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                 raise ValueError("web_search.min_chars must be positive")
             errors = []
             for candidate in ordered:
+                if require_unique and candidate["url"] in claimed_urls:
+                    errors.append(f"{candidate['url']}: duplicate URL")
+                    continue
                 page_source = {"kind": "web", "uri": candidate["url"],
                                **{key: source[key] for key in ("max_bytes", "timeout", "user_agent") if key in source}}
                 source_key = stable_json(page_source)
@@ -358,11 +397,18 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                     content, extra = cache[source_key]
                     if len(content.strip()) < min_chars:
                         raise ValueError(f"page has fewer than min_chars={min_chars}")
+                    # ponytail: normalized exact dedup is cheap at 20K; use
+                    # MinHash/embeddings only if a duplicate audit shows it misses too much.
+                    normalized_digest = hashlib.sha256(" ".join(content.lower().split()).encode()).hexdigest()
+                    if require_unique and normalized_digest in claimed_text:
+                        raise ValueError("duplicate normalized content")
                 except Exception as error:
                     errors.append(f"{candidate['url']}: {error}")
                     continue
                 reused = candidate["url"] in used
                 used.add(candidate["url"])
+                claimed_urls.add(candidate["url"])
+                claimed_text.add(normalized_digest)
                 extra_search = {"discovery_id": discovery_id, "search_query": query,
                                 "search_provider": search_info["provider"],
                                 "search_rank": candidate["rank"], "discovered_url": candidate["url"],
@@ -375,6 +421,10 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
             if source_key not in cache:
                 cache[source_key] = _retrieve(source, plan_path.parent)
             content, extra = cache[source_key]
+            normalized_digest = hashlib.sha256(" ".join(content.lower().split()).encode()).hexdigest()
+            if require_unique and normalized_digest in claimed_text:
+                raise ValueError(f"duplicate normalized content for {leaf['family']}.{leaf['concept']}")
+            claimed_text.add(normalized_digest)
         digest = hashlib.sha256(content.encode()).hexdigest()
         material_id = f"mat-{fingerprint([profile, leaf['domain'], leaf['subdomain'], leaf['concept'], index, digest])[:16]}"
         path = material_dir / f"{material_id}.txt"
@@ -386,6 +436,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                                     **extra, **extra_search, "sha256": digest, "bytes": len(content.encode()),
                                     "license": source.get("license"), "retrieved_at": datetime.now(timezone.utc).isoformat()}})
     counts = {family: sum(row["family"] == family for row in rows) for family in sorted({row["family"] for row in rows})}
+    domain_counts = {name: sum(row["domain"] == name for row in rows) for name in target_domains}
     probabilities = [value / len(rows) for value in counts.values() if value]
     nodes, edges = {}, []
     for leaf in _leaves(plan):
@@ -399,10 +450,13 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
                       {"from": subdomain_id, "to": concept_id, "relation": "has_concept"}])
     write_jsonl(output / "materials.jsonl", rows)
     write_jsonl(output / "discovery.jsonl", discoveries)
+    radar = _radar(target_domains, domain_counts, output)
     graph = {"version": "domain-material-v1", "profile": profile, "seed": seed,
              "nodes": sorted(nodes.values(), key=lambda item: item["id"]),
              "edges": list({stable_json(edge): edge for edge in edges}.values()),
-             "target_count": len(rows), "realized_distribution": counts,
+             "target_count": len(selected), "material_count": len(rows),
+             "target_domain_distribution": target_domains, "domain_distribution": domain_counts,
+             "realized_distribution": counts, "require_unique_materials": require_unique,
              "unique_domains": len({row["domain"] for row in rows}),
              "unique_subdomains": len({row["family"] for row in rows}),
              "unique_concepts": len({(row["family"], row["concept"]) for row in rows}),
@@ -410,6 +464,7 @@ def build_material_graph(plan_path: Path, output: Path, *, profile: str = "defau
              "unique_sources": len(cache), "unique_material_hashes": len({row["provenance"]["sha256"] for row in rows}),
              "search_queries": len(search_cache),
              "discovered_urls": len({item["url"] for row in discoveries for item in row["candidates"]}),
-             "materials": str(output / "materials.jsonl"), "discovery": str(output / "discovery.jsonl")}
+             "materials": str(output / "materials.jsonl"), "discovery": str(output / "discovery.jsonl"),
+             "radar": radar}
     write_json(output / "domain_graph.json", graph)
     return graph

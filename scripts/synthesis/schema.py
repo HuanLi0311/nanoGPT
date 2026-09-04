@@ -29,13 +29,14 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        value = json.loads(line)
-        if not isinstance(value, dict):
-            raise ValueError(f"{path}:{number}: expected a JSON object")
-        yield value
+    with path.open(encoding="utf-8") as handle:
+        for number, line in enumerate(handle, 1):
+            if not line.strip():
+                continue
+            value = json.loads(line)
+            if not isinstance(value, dict):
+                raise ValueError(f"{path}:{number}: expected a JSON object")
+            yield value
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:

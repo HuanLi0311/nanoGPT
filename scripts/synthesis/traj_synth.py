@@ -10,57 +10,82 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 if __package__:
-    from .schema import fingerprint, read_jsonl, relative_path, render, stable_json, validate_task, write_json, write_jsonl
+    from .schema import fingerprint, iter_jsonl, relative_path, render, stable_json, validate_task, write_jsonl
 else:
-    from schema import fingerprint, read_jsonl, relative_path, render, stable_json, validate_task, write_json, write_jsonl
+    from schema import fingerprint, iter_jsonl, relative_path, render, stable_json, validate_task, write_jsonl
 
 
 OUTPUT_REF = re.compile(r"\{\{output:([^}]+)\}\}")
 
 
-def construct_tasks(materials_path: Path, output: Path) -> list[dict[str, Any]]:
-    tasks = []
-    for index, material in enumerate(read_jsonl(materials_path)):
-        content_path = materials_path.parent / relative_path(material["content_path"])
-        template = deepcopy(material["task_template"])
-        executable = stable_json({"verifier": template.get("verifier"),
-                                  "actions": template.get("actions", template.get("action_patterns"))})
-        if "{{material}}" in executable or "{{source_uri}}" in executable:
-            raise ValueError(f"{material['material_id']}: untrusted material may only enter prompts or initial files")
-        values = {"material": content_path.read_text(encoding="utf-8"), "material_id": material["material_id"],
-                  "domain": material["domain"], "subdomain": material["subdomain"],
-                  "concept": material["concept"], "index": f"{index:04d}",
-                  "source_uri": material["provenance"]["uri"],
-                  "material_sha256": material["provenance"]["sha256"]}
-        recipe = render(template, values)
-        actions = recipe.get("actions", recipe.get("action_patterns", []))
-        tools = recipe.get("available_tools") or sorted({action.get("tool") for action in actions})
-        files = {relative_path(render(path, values)): render(value, values) for path, value in recipe.get("files", {}).items()}
-        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(recipe.get("id", material["concept"]))).strip("-")
-        task_id = f"{stem}-{material['material_id'][4:]}"
-        sandbox_backend = str(recipe.get("sandbox_backend", "bwrap"))
-        task = {
-            "task_id": task_id, "prompt": recipe["prompt"], "domain": material["domain"],
-            "subdomain": material["subdomain"], "task_family": material["family"],
-            "concepts": [material["concept"]], "materials": [material["material_id"]],
-            "material_provenance": [material["provenance"]], "files": files,
-            "available_tools": tools, "verifier": recipe["verifier"],
-            "verifier_version": recipe.get("verifier_version", "material-task-v1"),
-            "sandbox_backend": sandbox_backend,
-            "harness_version": recipe.get("harness_version", "bwrap-v1" if sandbox_backend == "bwrap" else "workspace-host-v2"),
-            "tool_schema_version": "workspace-tools-v2",
-            "initial_facts": recipe.get("initial_facts", ["workspace:ready"]),
-            "target_facts": recipe.get("target_facts", []),
-            "required_actions": recipe.get("required_actions", []),
-            "action_patterns": actions, "max_steps": int(recipe.get("max_steps", len(actions))),
-        }
-        task["initial_facts"] = sorted(set(task["initial_facts"]) | {f"file:{path}:exists" for path in files})
-        task["seed_patterns"] = recipe.get("seed_patterns", [action["id"] for action in actions])
-        task["candidate_patterns"] = recipe.get("candidate_patterns", task["seed_patterns"])
-        validate_task(task)
-        tasks.append(task)
-    write_jsonl(output, tasks)
-    return tasks
+def construct_tasks(materials_path: Path, output: Path, *, variants_per_material: int = 1) -> dict[str, Any]:
+    if variants_per_material < 1:
+        raise ValueError("variants_per_material must be positive")
+    material_count = task_count = 0
+    signatures: set[str] = set()
+
+    def rows():
+        nonlocal material_count, task_count
+        for material_index, material in enumerate(iter_jsonl(materials_path)):
+            material_count += 1
+            content_path = materials_path.parent / relative_path(material["content_path"])
+            templates = material.get("task_templates") or [material.get("task_template")]
+            if not templates or any(not isinstance(template, dict) for template in templates):
+                raise ValueError(f"{material['material_id']}: no task templates")
+            for variant_index in range(variants_per_material):
+                template = deepcopy(templates[variant_index % len(templates)])
+                executable = stable_json({"verifier": template.get("verifier"),
+                                          "actions": template.get("actions", template.get("action_patterns"))})
+                if "{{material}}" in executable or "{{source_uri}}" in executable:
+                    raise ValueError(f"{material['material_id']}: untrusted material may only enter prompts or initial files")
+                values = {"material": content_path.read_text(encoding="utf-8"),
+                          "material_id": material["material_id"], "domain": material["domain"],
+                          "subdomain": material["subdomain"], "concept": material["concept"],
+                          "index": f"{task_count:06d}", "material_index": f"{material_index:06d}",
+                          "variant_index": f"{variant_index:02d}",
+                          "source_uri": material["provenance"]["uri"],
+                          "material_sha256": material["provenance"]["sha256"]}
+                recipe = render(template, values)
+                actions = recipe.get("actions", recipe.get("action_patterns", []))
+                tools = recipe.get("available_tools") or sorted({action.get("tool") for action in actions})
+                files = {relative_path(render(path, values)): render(value, values)
+                         for path, value in recipe.get("files", {}).items()}
+                stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(recipe.get("id", material["concept"]))).strip("-")
+                suffix = f"-v{variant_index:02d}" if variants_per_material > 1 else ""
+                sandbox_backend = str(recipe.get("sandbox_backend", "bwrap"))
+                task = {
+                    "task_id": f"{stem}-{material['material_id'][4:]}{suffix}",
+                    "task_variant": variant_index, "task_type": recipe.get("task_type", stem),
+                    "capability": recipe.get("capability"), "interface": recipe.get("interface"),
+                    "prompt": recipe["prompt"], "domain": material["domain"],
+                    "subdomain": material["subdomain"], "task_family": material["family"],
+                    "concepts": [material["concept"]], "materials": [material["material_id"]],
+                    "material_provenance": [material["provenance"]], "files": files,
+                    "available_tools": tools, "verifier": recipe["verifier"],
+                    "verifier_version": recipe.get("verifier_version", "material-task-v1"),
+                    "sandbox_backend": sandbox_backend,
+                    "harness_version": recipe.get("harness_version", "bwrap-v1" if sandbox_backend == "bwrap" else "workspace-host-v2"),
+                    "tool_schema_version": "workspace-tools-v2",
+                    "initial_facts": recipe.get("initial_facts", ["workspace:ready"]),
+                    "target_facts": recipe.get("target_facts", []),
+                    "required_actions": recipe.get("required_actions", []),
+                    "action_patterns": actions, "max_steps": int(recipe.get("max_steps", len(actions))),
+                }
+                task["initial_facts"] = sorted(set(task["initial_facts"]) | {f"file:{path}:exists" for path in files})
+                task["seed_patterns"] = recipe.get("seed_patterns", [action["id"] for action in actions])
+                task["candidate_patterns"] = recipe.get("candidate_patterns", task["seed_patterns"])
+                validate_task(task)
+                signature = fingerprint({key: task[key] for key in ("prompt", "files", "available_tools", "verifier",
+                                                                     "initial_facts", "target_facts", "action_patterns")})
+                task["task_signature"] = signature
+                signatures.add(signature)
+                task_count += 1
+                yield task
+
+    write_jsonl(output, rows())
+    return {"materials": material_count, "tasks": task_count,
+            "variants_per_material": variants_per_material,
+            "unique_task_signatures": len(signatures), "manifest": str(output)}
 
 
 def trajectory_graph(task: dict[str, Any]) -> dict[str, Any]:
