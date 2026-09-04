@@ -9,7 +9,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from .schema import fingerprint, read_jsonl, relative_path, render, validate_task, write_json, write_jsonl
+if __package__:
+    from .schema import fingerprint, read_jsonl, relative_path, render, validate_task, write_json, write_jsonl
+else:
+    from schema import fingerprint, read_jsonl, relative_path, render, validate_task, write_json, write_jsonl
 
 
 OUTPUT_REF = re.compile(r"\{\{output:([^}]+)\}\}")

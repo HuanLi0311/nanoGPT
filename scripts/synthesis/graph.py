@@ -12,7 +12,10 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from .schema import fingerprint, stable_json, validate_plan, write_json, write_jsonl
+if __package__:
+    from .schema import fingerprint, read_json, stable_json, validate_plan, write_json, write_jsonl
+else:
+    from schema import fingerprint, read_json, stable_json, validate_plan, write_json, write_jsonl
 
 
 class _Text(HTMLParser):
@@ -138,8 +141,6 @@ def _retrieve(source: dict[str, Any], base: Path) -> tuple[str, dict[str, Any]]:
 
 def build_material_graph(plan_path: Path, output: Path, *, profile: str = "default", seed: int = 0,
                          count: int | None = None, weights: dict[str, float] | None = None) -> dict[str, Any]:
-    from .schema import read_json
-
     plan = read_json(plan_path)
     validate_plan(plan)
     selected, rows, cache = _sample(plan, profile, seed, count, weights), [], {}

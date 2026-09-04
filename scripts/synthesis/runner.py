@@ -5,13 +5,20 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from .graph import build_material_graph
-from .schema import fingerprint, read_json, read_jsonl, write_json, write_jsonl
-from .traj_synth import construct_tasks, validate_oracles
+if __package__:
+    from .graph import build_material_graph
+    from .schema import fingerprint, read_json, read_jsonl, write_json, write_jsonl
+    from .traj_synth import construct_tasks, validate_oracles
+else:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from graph import build_material_graph
+    from schema import fingerprint, read_json, read_jsonl, write_json, write_jsonl
+    from traj_synth import construct_tasks, validate_oracles
 
 
 EXCHANGE = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>\s*(?:user\n)?<tool_response>\s*(.*?)\s*</tool_response>\s*(?:assistant\n)?", re.S)
